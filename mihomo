@@ -1,0 +1,630 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SOURCE_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+APP_ROOT="${APP_ROOT:-$SOURCE_ROOT}"
+SCRIPT_VERSION="0.5.0"
+
+# shellcheck disable=SC1091
+source "${APP_ROOT}/lib/common.sh"
+# shellcheck disable=SC1091
+source "${APP_ROOT}/lib/render.sh"
+
+node_count_total() {
+  local total=0
+  while IFS=$'\t' read -r _ _ _ _ _ _ _ _; do
+    total=$((total + 1))
+  done < <(node_list_tsv || true)
+  echo "$total"
+}
+
+list_nodes_pretty() {
+  if [[ "$(node_count_total)" -eq 0 ]]; then
+    echo "暂无节点"
+    return 0
+  fi
+  printf '%-4s %-6s %-28s %-24s %-6s %-10s %-10s\n' "ID" "状态" "名称" "地址" "端口" "网络" "安全"
+  while IFS=$'\t' read -r idx enabled name server port network security _id; do
+    printf '%-4s %-6s %-28s %-24s %-6s %-10s %-10s\n' \
+      "$idx" \
+      "$([[ "$enabled" == "1" ]] && printf '启用' || printf '关闭')" \
+      "$name" "$server" "$port" "$network" "$security"
+  done < <(node_list_tsv)
+}
+
+import_links() {
+  require_root
+  require_statectl
+  ensure_layout
+
+  local tmp
+  local scan_tmp
+  local line
+  local normalized_line
+  local lowered_line
+  local uri
+  local default_name
+  local server
+  local port
+  local network
+  local security
+  local custom_name
+  local enabled_answer
+  local enabled_value
+  local imported=0
+  local input_tty="/dev/tty"
+
+  [[ -r "$input_tty" ]] || input_tty="/dev/stdin"
+  tmp="$(mktemp)"
+  scan_tmp="$(mktemp)"
+  info "请粘贴节点链接，每行一个。输入 end 结束，也可以按 Ctrl-D 结束。"
+  while IFS= read -r line <"$input_tty"; do
+    normalized_line="${line%$'\r'}"
+    lowered_line="${normalized_line,,}"
+    [[ -z "$normalized_line" ]] && continue
+    [[ "$lowered_line" == "end" || "$lowered_line" == "done" ]] && break
+    printf '%s\n' "$normalized_line" >>"$tmp"
+  done
+
+  python3 "$STATECTL" scan-uris "$tmp" >"$scan_tmp"
+
+  while IFS=$'	' read -r uri default_name server port network security; do
+    [[ -n "$uri" ]] || continue
+    echo
+    echo "节点: ${server}:${port}  ${network}/${security}"
+    read -r -p "名称 [${default_name}]: " custom_name <"$input_tty"
+    custom_name="${custom_name:-$default_name}"
+    read -r -p "立即启用? [Y/n]: " enabled_answer <"$input_tty"
+    if [[ "${enabled_answer,,}" == "n" ]]; then
+      enabled_value="0"
+    else
+      enabled_value="1"
+    fi
+    python3 "$STATECTL" append-node "$NODES_STATE_FILE" "$uri" "$custom_name" "$enabled_value" >/dev/null
+    imported=$((imported + 1))
+  done <"$scan_tmp"
+
+  rm -f "$tmp" "$scan_tmp"
+  [[ "$imported" -gt 0 ]] || die "没有读取到有效节点"
+  render_config
+  config_test
+  restart_service_if_active
+  ok "已处理 ${imported} 条节点"
+}
+rename_node() {
+  require_root
+  require_statectl
+  list_nodes_pretty
+  local idx
+  local new_name
+  read -rp "输入要改名的节点 ID: " idx
+  read -rp "新的名称: " new_name
+  [[ -n "$new_name" ]] || die "名称不能为空"
+  python3 "$STATECTL" rename-node "$NODES_STATE_FILE" "$idx" "$new_name" "$RULES_STATE_FILE"
+  render_config
+  restart_service_if_active
+  ok "节点已重命名"
+}
+
+toggle_node() {
+  require_root
+  require_statectl
+  list_nodes_pretty
+  local idx
+  local enabled
+  read -rp "输入节点 ID: " idx
+  read -rp "启用填 1，关闭填 0: " enabled
+  [[ "$enabled" == "1" || "$enabled" == "0" ]] || die "只能填 1 或 0"
+  python3 "$STATECTL" set-node-enabled "$NODES_STATE_FILE" "$idx" "$enabled"
+  render_config
+  restart_service_if_active
+  ok "节点状态已更新"
+}
+
+list_rules_pretty() {
+  if [[ ! -s "$RULES_STATE_FILE" ]]; then
+    echo "暂无自定义规则"
+    return 0
+  fi
+  printf '%-4s %s\n' "ID" "规则"
+  while IFS=$'\t' read -r idx rule; do
+    printf '%-4s %s\n' "$idx" "$rule"
+  done < <(python3 "$STATECTL" list-rules "$RULES_STATE_FILE")
+}
+
+choose_rule_target() {
+  printf '%s\n' "1) DIRECT" >&2
+  printf '%s\n' "2) PROXY" >&2
+  printf '%s\n' "3) REJECT" >&2
+  printf '%s\n' "4) AUTO" >&2
+  printf '%s\n' "5) 指定启用节点" >&2
+  local target_choice
+  read -rp "目标 [1-5]: " target_choice >&2
+  case "$target_choice" in
+    1) printf 'DIRECT' ;;
+    2) printf 'PROXY' ;;
+    3) printf 'REJECT' ;;
+    4) printf 'AUTO' ;;
+    5)
+      local names
+      names="$(node_enabled_names || true)"
+      [[ -n "$names" ]] || die "当前没有启用中的节点"
+      printf '%s\n' "$names" >&2
+      local node_name
+      read -rp "输入目标节点名称: " node_name >&2
+      [[ -n "$node_name" ]] || die "节点名称不能为空"
+      printf '%s' "$node_name"
+      ;;
+    *) die "无效目标" ;;
+  esac
+}
+
+add_custom_rule() {
+  require_root
+  require_statectl
+  local kind_choice
+  local kind
+  local pattern
+  local target
+
+  echo "1) 精确域名 DOMAIN"
+  echo "2) 域名后缀 DOMAIN-SUFFIX"
+  echo "3) 关键字 DOMAIN-KEYWORD"
+  read -rp "规则类型 [1/2/3]: " kind_choice
+  case "$kind_choice" in
+    1) kind="domain" ;;
+    2) kind="suffix" ;;
+    3) kind="keyword" ;;
+    *) die "无效规则类型" ;;
+  esac
+  read -rp "输入域名/后缀/关键字: " pattern
+  [[ -n "$pattern" ]] || die "规则内容不能为空"
+  target="$(choose_rule_target)"
+  python3 "$STATECTL" add-rule "$RULES_STATE_FILE" "$kind" "$pattern" "$target"
+  render_config
+  restart_service_if_active
+  ok "规则已添加"
+}
+
+remove_custom_rule() {
+  require_root
+  require_statectl
+  list_rules_pretty
+  local idx
+  read -rp "输入要删除的规则 ID: " idx
+  python3 "$STATECTL" remove-rule "$RULES_STATE_FILE" "$idx"
+  render_config
+  restart_service_if_active
+  ok "规则已删除"
+}
+
+set_mode() {
+  require_root
+  local mode="$1"
+  case "$mode" in
+    rule|global|direct) ;;
+    *) die "模式仅支持 rule|global|direct" ;;
+  esac
+  upsert_env_var "$SETTINGS_ENV" "CONFIG_MODE" "$mode"
+  render_config
+  restart_service_if_active
+  ok "当前模式已切换为 ${mode}"
+}
+
+router_wizard() {
+  require_root
+  load_router_env
+  local input
+  echo
+  info "当前可见 IPv4 接口:"
+  ip -o -4 addr show scope global 2>/dev/null | awk '{printf "  - %s  %s\n", $2, $4}' | sort -u || true
+  echo
+  read -rp "旁路由入口接口 [${PROXY_INGRESS_INTERFACES}]: " input
+  upsert_env_var "$ROUTER_ENV" "LAN_INTERFACES" "${input:-$PROXY_INGRESS_INTERFACES}"
+  upsert_env_var "$ROUTER_ENV" "PROXY_INGRESS_INTERFACES" "${input:-$PROXY_INGRESS_INTERFACES}"
+  read -rp "DNS 劫持接口 [${DNS_HIJACK_INTERFACES}]: " input
+  upsert_env_var "$ROUTER_ENV" "DNS_HIJACK_INTERFACES" "${input:-$DNS_HIJACK_INTERFACES}"
+  read -rp "宿主机本机流量是否接管 1/0 [${PROXY_HOST_OUTPUT}]: " input
+  upsert_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "${input:-$PROXY_HOST_OUTPUT}"
+  read -rp "PT 等容器直连，空格分隔 [${BYPASS_CONTAINER_NAMES}]: " input
+  upsert_env_var "$ROUTER_ENV" "BYPASS_CONTAINER_NAMES" "${input:-$BYPASS_CONTAINER_NAMES}"
+  read -rp "额外直连源网段，空格分隔 [${BYPASS_SRC_CIDRS}]: " input
+  upsert_env_var "$ROUTER_ENV" "BYPASS_SRC_CIDRS" "${input:-$BYPASS_SRC_CIDRS}"
+  read -rp "额外直连目标网段，空格分隔 [${BYPASS_DST_CIDRS}]: " input
+  upsert_env_var "$ROUTER_ENV" "BYPASS_DST_CIDRS" "${input:-$BYPASS_DST_CIDRS}"
+  read -rp "额外绕过代理的 UID/用户名，空格分隔 [${BYPASS_UIDS}]: " input
+  upsert_env_var "$ROUTER_ENV" "BYPASS_UIDS" "${input:-$BYPASS_UIDS}"
+  render_config
+  restart_service_if_active
+  ok "旁路由参数已更新"
+}
+
+show_status() {
+  require_root
+  load_settings_readonly
+  load_router_env_readonly
+  local version="未安装"
+  local service_state="inactive"
+  local service_enable="disabled"
+  local enabled_nodes total_nodes secret controller_url counts
+  [[ -x "$MIHOMO_BIN" ]] && version="$("$MIHOMO_BIN" -v 2>/dev/null | head -n 1 || echo "$MIHOMO_BIN")"
+  service_is_active && service_state="active"
+  service_is_enabled && service_enable="enabled"
+  counts="$(readonly_node_counts)"
+  enabled_nodes="${counts%%$'\t'*}"
+  total_nodes="${counts##*$'\t'}"
+  secret="$(current_secret)"
+  controller_url="http://$(detect_iface_ip "${PROXY_INGRESS_INTERFACES%% *}" 2>/dev/null || echo 127.0.0.1):${CONTROLLER_PORT}/ui/"
+  echo
+  echo "Mihomo 管理器 v${SCRIPT_VERSION}"
+  echo "核心版本: ${version}"
+  echo "服务状态: ${service_state}"
+  echo "开机自启: ${service_enable}"
+  echo "当前模式: $(current_mode || echo rule)"
+  echo "节点: 启用 ${enabled_nodes} / 总计 ${total_nodes}"
+  echo "WebUI: ${controller_url}"
+  echo "密钥: ${secret}"
+  echo "Mixed/TProxy/DNS: ${MIXED_PORT}/${TPROXY_PORT}/${DNS_PORT}"
+  echo "旁路由接口: ${PROXY_INGRESS_INTERFACES}"
+  echo "容器直连: ${BYPASS_CONTAINER_NAMES:-无}"
+  echo "定时重启: ${RESTART_INTERVAL_HOURS:-0}h"
+  echo "Alpha 自动更新: $([[ "${ALPHA_AUTO_UPDATE:-0}" == "1" ]] && echo "${ALPHA_UPDATE_ONCALENDAR}" || echo '关闭')"
+}
+
+prepare_runtime_assets() {
+  require_root
+  ensure_layout
+  ensure_permissions
+  load_settings
+  ensure_enabled_nodes
+  if [[ ! -x "$MIHOMO_BIN" ]]; then
+    install_binary "${CORE_CHANNEL:-alpha}"
+  fi
+  render_config
+  write_service
+  write_sysctl
+  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
+  config_test
+}
+
+start_service_command() {
+  prepare_runtime_assets
+  systemctl_cmd start mihomo
+  ok "mihomo 已启动"
+}
+
+restart_service_command() {
+  prepare_runtime_assets
+  systemctl_cmd restart mihomo
+  ok "mihomo 已重启"
+}
+
+enable_service_command() {
+  require_root
+  ensure_enabled_nodes
+  systemctl_cmd enable mihomo
+  ok "已启用开机自启"
+}
+
+enable_and_start_service_command() {
+  prepare_runtime_assets
+  systemctl_cmd enable --now mihomo
+  ok "mihomo 已启动并设为开机自启"
+}
+
+stop_service_command() {
+  require_root
+  systemctl_cmd stop mihomo
+  ok "mihomo 已停止"
+}
+
+service_menu() {
+  echo
+  echo "1) 启动服务"
+  echo "2) 重启服务"
+  echo "3) 停止服务"
+  echo "4) 启动并设为开机自启"
+  echo "5) 仅启用开机自启"
+  echo "6) 关闭开机自启"
+  echo "7) 查看状态"
+  echo "8) 查看最近日志"
+  read -rp "选择 [1-8]: " action
+  case "$action" in
+    1) start_service_command ;;
+    2) restart_service_command ;;
+    3) stop_service_command ;;
+    4) enable_and_start_service_command ;;
+    5) enable_service_command ;;
+    6) systemctl_cmd disable mihomo ;;
+    7) show_status ;;
+    8) journalctl_cmd -u mihomo -n 80 --no-pager ;;
+    *) warn "无效选择" ;;
+  esac
+}
+
+nodes_menu() {
+  while true; do
+    echo
+    echo "1) 查看节点"
+    echo "2) 导入节点"
+    echo "3) 节点改名"
+    echo "4) 启用/关闭节点"
+    echo "0) 返回"
+    read -rp "选择 [0-4]: " action
+    case "$action" in
+      1) list_nodes_pretty ;;
+      2) import_links ;;
+      3) rename_node ;;
+      4) toggle_node ;;
+      0) break ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
+rules_menu() {
+  while true; do
+    echo
+    echo "1) 查看自定义规则"
+    echo "2) 添加规则"
+    echo "3) 删除规则"
+    echo "0) 返回"
+    read -rp "选择 [0-3]: " action
+    case "$action" in
+      1) list_rules_pretty ;;
+      2) add_custom_rule ;;
+      3) remove_custom_rule ;;
+      0) break ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
+configure_restart_menu() {
+  load_settings
+  local hours
+  read -rp "每隔多少小时自动重启服务？填 0 关闭 [${RESTART_INTERVAL_HOURS:-0}]: " hours
+  hours="${hours:-${RESTART_INTERVAL_HOURS:-0}}"
+  configure_restart_timer "$hours"
+}
+
+configure_alpha_update_menu() {
+  load_settings
+  local enabled
+  local schedule
+  read -rp "启用 Alpha 自动更新? 1/0 [${ALPHA_AUTO_UPDATE:-0}]: " enabled
+  enabled="${enabled:-${ALPHA_AUTO_UPDATE:-0}}"
+  read -rp "OnCalendar 表达式 [${ALPHA_UPDATE_ONCALENDAR:-daily}]: " schedule
+  schedule="${schedule:-${ALPHA_UPDATE_ONCALENDAR:-daily}}"
+  configure_alpha_update "$enabled" "$schedule"
+}
+
+timers_menu() {
+  while true; do
+    echo
+    echo "1) 配置定时重启服务"
+    echo "2) 配置 Alpha 自动更新"
+    echo "0) 返回"
+    read -rp "选择 [0-2]: " action
+    case "$action" in
+      1) configure_restart_menu ;;
+      2) configure_alpha_update_menu ;;
+      0) break ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
+full_setup() {
+  require_root
+  ensure_layout
+  ensure_permissions
+  load_settings
+  if [[ ! -x "$MIHOMO_BIN" ]]; then
+    install_binary "${CORE_CHANNEL:-alpha}"
+  fi
+  render_config
+  write_service
+  write_sysctl
+  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
+  install_webui zashboard
+  configure_restart_timer "${RESTART_INTERVAL_HOURS:-0}"
+  configure_alpha_update "${ALPHA_AUTO_UPDATE:-0}" "${ALPHA_UPDATE_ONCALENDAR:-daily}"
+  config_test
+  if [[ "$(node_enabled_count)" -gt 0 ]]; then
+    systemctl_cmd enable --now mihomo
+    ok "部署完成并已启动"
+  else
+    systemctl_cmd disable --now mihomo >/dev/null 2>&1 || true
+    warn "部署已完成，但当前没有启用中的节点，未启动 mihomo。导入并启用节点后执行: mihomo start"
+  fi
+}
+
+install_self() {
+  require_root
+  install_project "$SOURCE_ROOT"
+}
+
+press_enter() {
+  [[ -t 0 && -t 1 ]] || return 0
+  read -rp "按回车继续..." _
+}
+
+interactive_menu() {
+  require_root
+  while true; do
+    clear 2>/dev/null || true
+    show_status
+    echo
+    echo "1) 初始化/修复部署"
+    echo "2) 节点管理"
+    echo "3) 自定义规则"
+    echo "4) 切换模式 rule/global/direct"
+    echo "5) 旁路由接口与容器直连"
+    echo "6) 端口设置"
+    echo "7) 更新 Alpha 内核"
+    echo "8) 更新 Stable 内核"
+    echo "9) 回滚到上一版内核"
+    echo "10) 安装/更新 WebUI"
+    echo "11) 服务管理"
+    echo "12) 定时器管理"
+    echo "13) 配置检查"
+    echo "14) 健康检查"
+    echo "15) 安装审计"
+    echo "16) 运行审计"
+    echo "17) 诊断信息"
+    echo "18) 查看日志"
+    echo "0) 退出"
+    echo
+    read -rp "请选择 [0-18]: " action
+    case "$action" in
+      1) full_setup; press_enter ;;
+      2) nodes_menu; press_enter ;;
+      3) rules_menu; press_enter ;;
+      4)
+        echo "1) rule"
+        echo "2) global"
+        echo "3) direct"
+        read -rp "选择 [1/2/3]: " mode_choice
+        case "$mode_choice" in
+          1) set_mode rule ;;
+          2) set_mode global ;;
+          3) set_mode direct ;;
+          *) warn "无效选择" ;;
+        esac
+        press_enter
+        ;;
+      5) router_wizard; press_enter ;;
+      6) configure_ports; press_enter ;;
+      7) install_binary alpha; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"; restart_service_if_active; press_enter ;;
+      8) install_binary stable; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"; restart_service_if_active; press_enter ;;
+      9) rollback_core; press_enter ;;
+      10) install_webui zashboard; restart_service_if_active; press_enter ;;
+      11) service_menu; press_enter ;;
+      12) timers_menu; press_enter ;;
+      13) config_test; press_enter ;;
+      14) healthcheck; press_enter ;;
+      15) audit_installation; press_enter ;;
+      16) runtime_audit; press_enter ;;
+      17) diagnose; press_enter ;;
+      18) journalctl_cmd -u mihomo -n 100 --no-pager; press_enter ;;
+      0) break ;;
+      *) warn "无效选择"; press_enter ;;
+    esac
+  done
+}
+
+usage() {
+  cat <<EOF
+mihomo v${SCRIPT_VERSION}
+
+用法:
+  $0
+  $0 menu
+  $0 setup
+  $0 install-self
+  $0 import-links
+  $0 nodes
+  $0 rename-node
+  $0 toggle-node
+  $0 rules
+  $0 add-rule
+  $0 remove-rule
+  $0 set-mode [rule|global|direct]
+  $0 router-wizard
+  $0 set-ports
+  $0 update-alpha [--quiet]
+  $0 update-stable [--quiet]
+  $0 rollback-core
+  $0 install-webui
+  $0 start
+  $0 restart
+  $0 stop
+  $0 enable-start
+  $0 enable
+  $0 configure-restart [hours]
+  $0 configure-alpha-update [0|1] [OnCalendar]
+  $0 render-config
+  $0 test-config
+  $0 healthcheck
+  $0 runtime-audit
+  $0 soak-report
+  $0 audit-installation
+  $0 diagnose
+  $0 logs
+  $0 apply-rules
+  $0 clear-rules
+  $0 status
+EOF
+}
+
+main() {
+  case "${1:-}" in
+    "")
+      if [[ -t 0 && -t 1 ]]; then
+        interactive_menu
+      else
+        usage
+      fi
+      ;;
+    menu) interactive_menu ;;
+    setup|bootstrap) full_setup ;;
+    install-self) install_self ;;
+    import-links) import_links ;;
+    nodes) list_nodes_pretty ;;
+    rename-node) rename_node ;;
+    toggle-node) toggle_node ;;
+    rules) list_rules_pretty ;;
+    add-rule) add_custom_rule ;;
+    remove-rule) remove_custom_rule ;;
+    set-mode) set_mode "${2:-rule}" ;;
+    router-wizard) router_wizard ;;
+    set-ports) configure_ports ;;
+    update-alpha)
+      install_binary alpha "${2:-}"
+      upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"
+      restart_service_if_active
+      ;;
+    update-stable)
+      install_binary stable "${2:-}"
+      upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"
+      restart_service_if_active
+      ;;
+    rollback-core) rollback_core ;;
+    install-webui) install_webui zashboard; restart_service_if_active ;;
+    start) start_service_command ;;
+    restart) restart_service_command ;;
+    stop) stop_service_command ;;
+    enable-start) enable_and_start_service_command ;;
+    enable) enable_service_command ;;
+    configure-restart)
+      if [[ -n "${2:-}" ]]; then
+        configure_restart_timer "$2"
+      else
+        configure_restart_menu
+      fi
+      ;;
+    configure-alpha-update)
+      if [[ -n "${2:-}" ]]; then
+        configure_alpha_update "$2" "${3:-daily}"
+      else
+        configure_alpha_update_menu
+      fi
+      ;;
+    render-config) render_config ;;
+    test-config) config_test ;;
+    healthcheck) healthcheck ;;
+    audit-installation) audit_installation ;;
+    diagnose) diagnose ;;
+    runtime-audit|soak-report) runtime_audit ;;
+    logs) journalctl_cmd -u mihomo -n 100 --no-pager ;;
+    apply-rules) apply_rules ;;
+    clear-rules) clear_rules ;;
+    status) show_status ;;
+    -h|--help|help) usage ;;
+    *) die "未知命令: $1" ;;
+  esac
+}
+
+main "$@"
