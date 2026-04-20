@@ -103,6 +103,7 @@ rename_node() {
   [[ -n "$new_name" ]] || die "名称不能为空"
   python3 "$STATECTL" rename-node "$NODES_STATE_FILE" "$idx" "$new_name" "$RULES_STATE_FILE"
   render_config
+  sync_rules_repo_if_enabled
   restart_service_if_active
   ok "节点已重命名"
 }
@@ -183,6 +184,7 @@ add_custom_rule() {
   target="$(choose_rule_target)"
   python3 "$STATECTL" add-rule "$RULES_STATE_FILE" "$kind" "$pattern" "$target"
   render_config
+  sync_rules_repo_if_enabled
   restart_service_if_active
   ok "规则已添加"
 }
@@ -195,8 +197,22 @@ remove_custom_rule() {
   read -rp "输入要删除的规则 ID: " idx
   python3 "$STATECTL" remove-rule "$RULES_STATE_FILE" "$idx"
   render_config
+  sync_rules_repo_if_enabled
   restart_service_if_active
   ok "规则已删除"
+}
+
+configure_rules_sync_menu() {
+  load_settings
+  local enabled
+  local repo_dir
+  read -rp "启用规则仓库自动同步? 1/0 [${RULES_AUTO_SYNC:-1}]: " enabled
+  enabled="${enabled:-${RULES_AUTO_SYNC:-1}}"
+  read -rp "规则仓库目录 [${RULES_REPO_DIR:-/root/mihomo-rules}]: " repo_dir
+  repo_dir="${repo_dir:-${RULES_REPO_DIR:-/root/mihomo-rules}}"
+  upsert_env_var "$SETTINGS_ENV" "RULES_AUTO_SYNC" "$enabled"
+  upsert_env_var "$SETTINGS_ENV" "RULES_REPO_DIR" "$repo_dir"
+  ok "规则仓库同步设置已更新"
 }
 
 set_mode() {
@@ -473,11 +489,13 @@ interactive_menu() {
     echo "14) 健康检查"
     echo "15) 安装审计"
     echo "16) 运行审计"
-    echo "17) 诊断信息"
-    echo "18) 查看日志"
+    echo "17) 同步自定义规则到规则仓库"
+    echo "18) 配置规则仓库同步"
+    echo "19) 诊断信息"
+    echo "20) 查看日志"
     echo "0) 退出"
     echo
-    read -rp "请选择 [0-18]: " action
+    read -rp "请选择 [0-20]: " action
     case "$action" in
       1) full_setup; press_enter ;;
       2) nodes_menu; press_enter ;;
@@ -507,8 +525,10 @@ interactive_menu() {
       14) healthcheck; press_enter ;;
       15) audit_installation; press_enter ;;
       16) runtime_audit; press_enter ;;
-      17) diagnose; press_enter ;;
-      18) journalctl_cmd -u mihomo -n 100 --no-pager; press_enter ;;
+      17) sync_rules_repo; press_enter ;;
+      18) configure_rules_sync_menu; press_enter ;;
+      19) diagnose; press_enter ;;
+      20) journalctl_cmd -u mihomo -n 100 --no-pager; press_enter ;;
       0) break ;;
       *) warn "无效选择"; press_enter ;;
     esac
@@ -545,6 +565,8 @@ mihomo v${SCRIPT_VERSION}
   $0 enable
   $0 configure-restart [hours]
   $0 configure-alpha-update [0|1] [OnCalendar]
+  $0 sync-rules-repo
+  $0 configure-rules-sync [0|1] [repo_dir]
   $0 render-config
   $0 test-config
   $0 healthcheck
@@ -610,6 +632,16 @@ main() {
         configure_alpha_update "$2" "${3:-daily}"
       else
         configure_alpha_update_menu
+      fi
+      ;;
+    sync-rules-repo) sync_rules_repo ;;
+    configure-rules-sync)
+      if [[ -n "${2:-}" ]]; then
+        upsert_env_var "$SETTINGS_ENV" "RULES_AUTO_SYNC" "$2"
+        upsert_env_var "$SETTINGS_ENV" "RULES_REPO_DIR" "${3:-/root/mihomo-rules}"
+        ok "规则仓库同步设置已更新"
+      else
+        configure_rules_sync_menu
       fi
       ;;
     render-config) render_config ;;

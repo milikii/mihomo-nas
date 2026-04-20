@@ -98,10 +98,35 @@ EOF
 printf '<!doctype html>\n'
 EOF
   chmod +x "${TMPDIR_CASE}/bin/curl"
+
+  cat > "${TMPDIR_CASE}/bin/git" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${GIT_LOG:?}"
+case "$1" in
+  -C)
+    shift 2
+    ;;
+esac
+case "$1" in
+  diff)
+    exit 1
+    ;;
+  branch)
+    echo "main"
+    ;;
+  commit|push|add)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+  chmod +x "${TMPDIR_CASE}/bin/git"
 }
 
 env_prefix() {
-  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q SYSTEMCTL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q' \
+  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q GIT_BIN=%q RULES_REPO_DIR=%q SYSTEMCTL_LOG=%q GIT_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q' \
     "$ROOT" \
     "$TMPDIR_CASE" \
     "$TMPDIR_CASE/settings.env" \
@@ -122,7 +147,10 @@ env_prefix() {
     "$TMPDIR_CASE/bin/journalctl" \
     "$TMPDIR_CASE/bin/ss" \
     "$TMPDIR_CASE/bin/curl" \
+    "$TMPDIR_CASE/bin/git" \
+    "$TMPDIR_CASE/repo" \
     "$TMPDIR_CASE/systemctl.log" \
+    "$TMPDIR_CASE/git.log" \
     "$TMPDIR_CASE/mihomo.service" \
     "$TMPDIR_CASE/mihomo-restart.service" \
     "$TMPDIR_CASE/mihomo-restart.timer" \
@@ -170,9 +198,19 @@ test_runtime_audit_outputs() {
   setup_case
   run_manager render-config >/dev/null
   output="$(run_manager runtime-audit)"
-  grep -q 'active_state: active' <<<"$output"
-  grep -q 'warnings_last_24h: 1' <<<"$output"
-  grep -q 'alpha_update_next: Tue 2026-04-21 00:00:00 CST' <<<"$output"
+  grep -q '服务状态: active' <<<"$output"
+  grep -q '过去 24 小时 warning 数: 1' <<<"$output"
+  grep -q '下次 Alpha 自动更新: Tue 2026-04-21 00:00:00 CST' <<<"$output"
+}
+
+test_sync_rules_repo_command() {
+  setup_case
+  mkdir -p "${TMPDIR_CASE}/repo/.git"
+  run_manager render-config >/dev/null
+  python3 "${ROOT}/scripts/statectl.py" add-rule "${TMPDIR_CASE}/state/rules.json" domain foo.com DIRECT >/dev/null
+  run_manager sync-rules-repo >/dev/null
+  grep -Fq 'add manager/custom-rules' "${TMPDIR_CASE}/git.log"
+  grep -Fq 'push origin main' "${TMPDIR_CASE}/git.log"
 }
 
 main() {
@@ -180,6 +218,7 @@ main() {
   test_configure_restart_enables_timer
   test_disable_alpha_update_disables_timer
   test_runtime_audit_outputs
+  test_sync_rules_repo_command
   echo "service-mock: ok"
 }
 

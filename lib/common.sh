@@ -82,6 +82,14 @@ curl_cmd() {
   fi
 }
 
+git_cmd() {
+  if [[ -n "${GIT_BIN:-}" ]]; then
+    "$GIT_BIN" "$@"
+  else
+    git "$@"
+  fi
+}
+
 systemctl_show_value() {
   local unit="$1"
   local prop="$2"
@@ -176,6 +184,8 @@ CORE_CHANNEL="alpha"
 ALPHA_AUTO_UPDATE="0"
 ALPHA_UPDATE_ONCALENDAR="daily"
 RESTART_INTERVAL_HOURS="0"
+RULES_AUTO_SYNC="1"
+RULES_REPO_DIR="/root/mihomo-rules"
 EOF
   chmod 640 "$SETTINGS_ENV"
 }
@@ -216,6 +226,8 @@ load_settings() {
   ensure_settings
   # shellcheck disable=SC1090
   source "$SETTINGS_ENV"
+  RULES_AUTO_SYNC="${RULES_AUTO_SYNC:-1}"
+  RULES_REPO_DIR="${RULES_REPO_DIR:-/root/mihomo-rules}"
 }
 
 load_settings_readonly() {
@@ -224,6 +236,8 @@ load_settings_readonly() {
   ALPHA_AUTO_UPDATE="0"
   ALPHA_UPDATE_ONCALENDAR="daily"
   RESTART_INTERVAL_HOURS="0"
+  RULES_AUTO_SYNC="1"
+  RULES_REPO_DIR="/root/mihomo-rules"
   if [[ -f "$SETTINGS_ENV" ]]; then
     # shellcheck disable=SC1090
     source "$SETTINGS_ENV"
