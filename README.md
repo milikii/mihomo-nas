@@ -25,7 +25,7 @@
 ## 推荐使用顺序
 1. `mihomo setup`
 2. `mihomo import-links`
-3. `mihomo router-wizard`
+3. `mihomo router-wizard`（会按入口接口自动回写 `LAN_CIDRS`）
 4. `mihomo healthcheck`
 5. 局域网设备把网关和 DNS 指向 NAS
 

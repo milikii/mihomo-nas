@@ -168,6 +168,26 @@ detect_iface_ip() {
   detect_iface_cidr "$iface" | cut -d/ -f1
 }
 
+detect_iface_networks() {
+  local ifaces="$1"
+  local iface
+  local cidr
+  local networks=()
+
+  read -r -a iface_arr <<< "$ifaces"
+  for iface in "${iface_arr[@]}"; do
+    [[ -n "$iface" ]] || continue
+    cidr="$(detect_iface_cidr "$iface" || true)"
+    [[ -n "$cidr" ]] || continue
+    cidr="$(cidr_network "$cidr" 2>/dev/null || printf '%s' "$cidr")"
+    [[ -n "$cidr" ]] && networks+=("$cidr")
+  done
+
+  [[ ${#networks[@]} -gt 0 ]] || return 0
+  printf '%s
+' "${networks[@]}" | sort -u | xargs
+}
+
 escape_env_value() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }

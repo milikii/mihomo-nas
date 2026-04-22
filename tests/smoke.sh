@@ -193,6 +193,12 @@ test_render_uses_local_controller_bind_by_default() {
   grep -q '^external-controller: 127.0.0.1:19090' "${TMPDIR_CASE}/config.yaml"
 }
 
+test_router_wizard_mentions_host_router_model() {
+  grep -q '宿主机默认直连，局域网入口透明接管，Docker 默认直连' "${ROOT}/mihomo"
+  grep -q '自动识别入口网段' "${ROOT}/mihomo"
+  grep -q 'LAN_CIDRS' "${ROOT}/mihomo"
+}
+
 main() {
   test_syntax
   test_render_empty
@@ -208,6 +214,7 @@ main() {
   test_usage_groups_core_and_advanced_commands
   test_menu_contains_advanced_bucket
   test_render_uses_local_controller_bind_by_default
+  test_router_wizard_mentions_host_router_model
   echo "smoke: ok"
 }
 

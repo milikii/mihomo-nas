@@ -232,17 +232,41 @@ router_wizard() {
   require_root
   load_router_env
   local input
+  local next_ingress_ifaces
+  local next_dns_ifaces
+  local next_host_output
+  local next_lan_cidrs
+
   echo
   info "当前可见 IPv4 接口:"
   ip -o -4 addr show scope global 2>/dev/null | awk '{printf "  - %s  %s\n", $2, $4}' | sort -u || true
   echo
-  read -rp "旁路由入口接口 [${PROXY_INGRESS_INTERFACES}]: " input
-  upsert_env_var "$ROUTER_ENV" "LAN_INTERFACES" "${input:-$PROXY_INGRESS_INTERFACES}"
-  upsert_env_var "$ROUTER_ENV" "PROXY_INGRESS_INTERFACES" "${input:-$PROXY_INGRESS_INTERFACES}"
+  info "当前模型: 宿主机默认直连，局域网入口透明接管，Docker 默认直连。"
+  info "只有局域网设备把网关和 DNS 指向 NAS 后，才会走旁路由。"
+  echo
+
+  read -rp "局域网旁路由入口接口 [${PROXY_INGRESS_INTERFACES}]: " input
+  next_ingress_ifaces="${input:-$PROXY_INGRESS_INTERFACES}"
+  upsert_env_var "$ROUTER_ENV" "LAN_INTERFACES" "$next_ingress_ifaces"
+  upsert_env_var "$ROUTER_ENV" "PROXY_INGRESS_INTERFACES" "$next_ingress_ifaces"
+
+  next_lan_cidrs="$(detect_iface_networks "$next_ingress_ifaces" || true)"
+  if [[ -n "$next_lan_cidrs" ]]; then
+    info "自动识别入口网段: ${next_lan_cidrs}"
+    upsert_env_var "$ROUTER_ENV" "LAN_CIDRS" "$next_lan_cidrs"
+  else
+    warn "未能从入口接口自动识别 IPv4 网段，将保留当前 LAN_CIDRS=${LAN_CIDRS:-未设置}"
+  fi
+
   read -rp "DNS 劫持接口 [${DNS_HIJACK_INTERFACES}]: " input
-  upsert_env_var "$ROUTER_ENV" "DNS_HIJACK_INTERFACES" "${input:-$DNS_HIJACK_INTERFACES}"
+  next_dns_ifaces="${input:-$DNS_HIJACK_INTERFACES}"
+  upsert_env_var "$ROUTER_ENV" "DNS_HIJACK_INTERFACES" "$next_dns_ifaces"
+
   read -rp "宿主机本机流量是否接管 1/0（建议 0，仅让 LAN 走透明代理） [${PROXY_HOST_OUTPUT}]: " input
-  upsert_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "${input:-$PROXY_HOST_OUTPUT}"
+  next_host_output="${input:-$PROXY_HOST_OUTPUT}"
+  [[ "$next_host_output" == "0" || "$next_host_output" == "1" ]] || die "宿主机流量接管只能填 0 或 1"
+  upsert_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "$next_host_output"
+
   read -rp "PT 等容器直连，空格分隔 [${BYPASS_CONTAINER_NAMES}]: " input
   upsert_env_var "$ROUTER_ENV" "BYPASS_CONTAINER_NAMES" "${input:-$BYPASS_CONTAINER_NAMES}"
   read -rp "额外直连源网段，空格分隔 [${BYPASS_SRC_CIDRS}]: " input
@@ -251,19 +275,24 @@ router_wizard() {
   upsert_env_var "$ROUTER_ENV" "BYPASS_DST_CIDRS" "${input:-$BYPASS_DST_CIDRS}"
   read -rp "额外绕过代理的 UID/用户名，空格分隔 [${BYPASS_UIDS}]: " input
   upsert_env_var "$ROUTER_ENV" "BYPASS_UIDS" "${input:-$BYPASS_UIDS}"
+
+  echo
+  echo "新的宿主机模式: $([[ "$next_host_output" == "1" ]] && echo '透明接管(高风险)' || echo '默认直连 + 显式代理 127.0.0.1:7890')"
+  echo "新的旁路由入口: ${next_ingress_ifaces}"
+  echo "新的 DNS 劫持入口: ${next_dns_ifaces}"
+  [[ -n "$next_lan_cidrs" ]] && echo "新的局域网网段: ${next_lan_cidrs}"
+
   render_config
   restart_service_if_active
   ok "旁路由参数已更新"
 }
-
 show_secret_command() {
   require_root
   local secret
+  secret="$(current_secret)"
   [[ -n "$secret" ]] || die "当前没有可用的控制面密钥"
-  printf '%s
-' "$secret"
+  printf '%s\n' "$secret"
 }
-
 show_status() {
   require_root
   load_settings_readonly
