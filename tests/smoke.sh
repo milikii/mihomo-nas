@@ -173,13 +173,15 @@ test_safe_host_output_default_present() {
 test_usage_groups_core_and_advanced_commands() {
   output="$(run_manager help)"
   assert_contains "$output" '核心命令:'
-  assert_contains "$output" '高级维护:'
+  assert_contains "$output" '进阶配置:'
+  assert_contains "$output" '维护与内部命令:'
   assert_contains "$output" 'router-wizard'
   assert_contains "$output" 'update-alpha [--quiet]'
 }
 
 test_menu_contains_advanced_bucket() {
-  grep -q 'echo "11) 高级维护"' "${ROOT}/mihomo"
+  grep -q 'echo "8) 高级维护（少用）"' "${ROOT}/mihomo"
+  ! grep -q 'echo "4) 自定义规则"' "${ROOT}/mihomo"
 }
 
 main() {
