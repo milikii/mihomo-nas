@@ -282,9 +282,9 @@ show_status() {
   echo "WebUI: ${controller_url}"
   echo "密钥: ${secret}"
   echo "Mixed/TProxy/DNS: ${MIXED_PORT}/${TPROXY_PORT}/${DNS_PORT}"
-  echo "旁路由接口: ${PROXY_INGRESS_INTERFACES}"
-  echo "宿主机流量接管: $([[ "$PROXY_HOST_OUTPUT" == "1" ]] && echo '开启(高风险)' || echo '关闭(推荐)')"
-  echo "容器直连: ${BYPASS_CONTAINER_NAMES:-无}"
+  echo "局域网旁路由入口: ${PROXY_INGRESS_INTERFACES}"
+  echo "宿主机流量: $([[ "$PROXY_HOST_OUTPUT" == "1" ]] && echo '透明接管(高风险)' || echo "默认直连；按需显式代理 http://127.0.0.1:${MIXED_PORT}")"
+  echo "容器直连名单: ${BYPASS_CONTAINER_NAMES:-无}"
   if [[ "$PROXY_HOST_OUTPUT" == "1" ]]; then
     warn "当前已接管宿主机外连；这可能影响 tailscaled、cloudflared、SSH 反向隧道等守护进程。"
     warn "更推荐保持 0，并让宿主机按需显式走 127.0.0.1:${MIXED_PORT}。"
@@ -437,6 +437,50 @@ timers_menu() {
   done
 }
 
+advanced_menu() {
+  while true; do
+    echo
+    echo "1) 切换模式 rule/global/direct"
+    echo "2) 端口设置"
+    echo "3) 安装/更新 WebUI"
+    echo "4) 更新 Alpha 内核"
+    echo "5) 更新 Stable 内核"
+    echo "6) 回滚到上一版内核"
+    echo "7) 定时器管理"
+    echo "8) 安装审计"
+    echo "9) 同步自定义规则到规则仓库"
+    echo "10) 配置规则仓库同步"
+    echo "0) 返回"
+    read -rp "选择 [0-10]: " action
+    case "$action" in
+      1)
+        echo "1) rule"
+        echo "2) global"
+        echo "3) direct"
+        read -rp "选择 [1/2/3]: " mode_choice
+        case "$mode_choice" in
+          1) set_mode rule ;;
+          2) set_mode global ;;
+          3) set_mode direct ;;
+          *) warn "无效选择" ;;
+        esac
+        press_enter
+        ;;
+      2) configure_ports; press_enter ;;
+      3) install_webui zashboard; restart_service_if_active; press_enter ;;
+      4) install_binary alpha; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"; restart_service_if_active; press_enter ;;
+      5) install_binary stable; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"; restart_service_if_active; press_enter ;;
+      6) rollback_core; press_enter ;;
+      7) timers_menu; press_enter ;;
+      8) audit_installation; press_enter ;;
+      9) sync_rules_repo; press_enter ;;
+      10) configure_rules_sync_menu; press_enter ;;
+      0) break ;;
+      *) warn "无效选择"; press_enter ;;
+    esac
+  done
+}
+
 full_setup() {
   require_root
   ensure_layout
@@ -480,60 +524,30 @@ interactive_menu() {
     echo
     echo "1) 初始化/修复部署"
     echo "2) 节点管理"
-    echo "3) 自定义规则"
-    echo "4) 切换模式 rule/global/direct"
-    echo "5) 旁路由接口与容器直连"
-    echo "6) 端口设置"
-    echo "7) 更新 Alpha 内核"
-    echo "8) 更新 Stable 内核"
-    echo "9) 回滚到上一版内核"
-    echo "10) 安装/更新 WebUI"
-    echo "11) 服务管理"
-    echo "12) 定时器管理"
-    echo "13) 配置检查"
-    echo "14) 健康检查"
-    echo "15) 安装审计"
-    echo "16) 运行审计"
-    echo "17) 同步自定义规则到规则仓库"
-    echo "18) 配置规则仓库同步"
-    echo "19) 诊断信息"
-    echo "20) 查看日志"
+    echo "3) 旁路由接口与容器直连"
+    echo "4) 自定义规则"
+    echo "5) 服务管理"
+    echo "6) 配置检查"
+    echo "7) 健康检查"
+    echo "8) 运行审计"
+    echo "9) 诊断信息"
+    echo "10) 查看日志"
+    echo "11) 高级维护"
     echo "0) 退出"
     echo
-    read -rp "请选择 [0-20]: " action
+    read -rp "请选择 [0-11]: " action
     case "$action" in
       1) full_setup; press_enter ;;
       2) nodes_menu; press_enter ;;
-      3) rules_menu; press_enter ;;
-      4)
-        echo "1) rule"
-        echo "2) global"
-        echo "3) direct"
-        read -rp "选择 [1/2/3]: " mode_choice
-        case "$mode_choice" in
-          1) set_mode rule ;;
-          2) set_mode global ;;
-          3) set_mode direct ;;
-          *) warn "无效选择" ;;
-        esac
-        press_enter
-        ;;
-      5) router_wizard; press_enter ;;
-      6) configure_ports; press_enter ;;
-      7) install_binary alpha; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"; restart_service_if_active; press_enter ;;
-      8) install_binary stable; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"; restart_service_if_active; press_enter ;;
-      9) rollback_core; press_enter ;;
-      10) install_webui zashboard; restart_service_if_active; press_enter ;;
-      11) service_menu; press_enter ;;
-      12) timers_menu; press_enter ;;
-      13) config_test; press_enter ;;
-      14) healthcheck; press_enter ;;
-      15) audit_installation; press_enter ;;
-      16) runtime_audit; press_enter ;;
-      17) sync_rules_repo; press_enter ;;
-      18) configure_rules_sync_menu; press_enter ;;
-      19) diagnose; press_enter ;;
-      20) journalctl_cmd -u mihomo -n 100 --no-pager; press_enter ;;
+      3) router_wizard; press_enter ;;
+      4) rules_menu; press_enter ;;
+      5) service_menu; press_enter ;;
+      6) config_test; press_enter ;;
+      7) healthcheck; press_enter ;;
+      8) runtime_audit; press_enter ;;
+      9) diagnose; press_enter ;;
+      10) journalctl_cmd -u mihomo -n 100 --no-pager; press_enter ;;
+      11) advanced_menu ;;
       0) break ;;
       *) warn "无效选择"; press_enter ;;
     esac
@@ -544,45 +558,43 @@ usage() {
   cat <<EOF
 mihomo v${SCRIPT_VERSION}
 
-用法:
+核心命令:
   $0
   $0 menu
   $0 setup
-  $0 install-self
+  $0 status
+  $0 start | restart | stop
+  $0 enable-start | enable
   $0 import-links
   $0 nodes
   $0 rename-node
   $0 toggle-node
+  $0 router-wizard
+  $0 test-config
+  $0 healthcheck
+  $0 runtime-audit
+  $0 diagnose
+  $0 logs
+
+高级维护:
   $0 rules
   $0 add-rule
   $0 remove-rule
   $0 set-mode [rule|global|direct]
-  $0 router-wizard
   $0 set-ports
   $0 update-alpha [--quiet]
   $0 update-stable [--quiet]
   $0 rollback-core
   $0 install-webui
-  $0 start
-  $0 restart
-  $0 stop
-  $0 enable-start
-  $0 enable
   $0 configure-restart [hours]
   $0 configure-alpha-update [0|1] [OnCalendar]
+  $0 audit-installation
   $0 sync-rules-repo
   $0 configure-rules-sync [0|1] [repo_dir]
   $0 render-config
-  $0 test-config
-  $0 healthcheck
-  $0 runtime-audit
-  $0 soak-report
-  $0 audit-installation
-  $0 diagnose
-  $0 logs
   $0 apply-rules
   $0 clear-rules
-  $0 status
+  $0 install-self
 EOF
 }
 

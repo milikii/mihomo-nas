@@ -124,14 +124,14 @@ test_status_readonly() {
   output="$(run_manager status)"
   [[ ! -e "${TMPDIR_CASE}/state/nodes.json" ]]
   assert_contains "$output" '节点: 启用 0 / 总计 0'
-  assert_contains "$output" '宿主机流量接管: 关闭(推荐)'
+  assert_contains "$output" '宿主机流量: 默认直连；按需显式代理 http://127.0.0.1:7890'
 }
 
 test_status_warns_on_host_output_proxy() {
   setup_case
   sed -i 's/PROXY_HOST_OUTPUT="0"/PROXY_HOST_OUTPUT="1"/' "${TMPDIR_CASE}/router.env"
   output="$(run_manager status)"
-  assert_contains "$output" '宿主机流量接管: 开启(高风险)'
+  assert_contains "$output" '宿主机流量: 透明接管(高风险)'
   assert_contains "$output" 'tailscaled、cloudflared'
 }
 
@@ -170,6 +170,18 @@ test_safe_host_output_default_present() {
   grep -q 'PROXY_HOST_OUTPUT="0"' "${ROOT}/lib/common.sh"
 }
 
+test_usage_groups_core_and_advanced_commands() {
+  output="$(run_manager help)"
+  assert_contains "$output" '核心命令:'
+  assert_contains "$output" '高级维护:'
+  assert_contains "$output" 'router-wizard'
+  assert_contains "$output" 'update-alpha [--quiet]'
+}
+
+test_menu_contains_advanced_bucket() {
+  grep -q 'echo "11) 高级维护"' "${ROOT}/mihomo"
+}
+
 main() {
   test_syntax
   test_render_empty
@@ -182,6 +194,8 @@ main() {
   test_legacy_host_dns_cleanup_present
   test_host_output_conflict_guard
   test_safe_host_output_default_present
+  test_usage_groups_core_and_advanced_commands
+  test_menu_contains_advanced_bucket
   echo "smoke: ok"
 }
 
