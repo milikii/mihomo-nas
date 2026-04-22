@@ -48,5 +48,6 @@
 
 ## GeoSite 资产治理
 - 可显式执行 `mihomo install-geosite` 下载并验证 `GeoSite.dat`。
+- 下载会按顺序尝试 GitHub release、JSDelivr、JSDelivr-CF，避免单一源抽风时整条治理链失效。
 - 脚本会先下载到临时文件，再用最小 geosite 配置做探针；只有验证通过才会覆盖运行目录。
 - `mihomo audit-installation` 会继续报告当前 `GeoSite.dat` 是否真的 ready。

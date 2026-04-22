@@ -501,17 +501,36 @@ EOF
   timeout 8 "$MIHOMO_BIN" -t -d "$tmpdir" >/tmp/mihomo-geosite-probe.out 2>/tmp/mihomo-geosite-probe.err
 }
 
+download_geosite_to_temp() {
+  local target_file="$1"
+  local url
+  local urls=(
+    "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
+    "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+    "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  )
+
+  rm -f "$target_file"
+  for url in "${urls[@]}"; do
+    info "下载 GeoSite.dat: ${url}"
+    if curl_cmd -fL --progress-bar --retry 2 --retry-delay 2 --connect-timeout 10 --max-time 300 -o "$target_file" "$url"; then
+      return 0
+    fi
+    warn "GeoSite.dat 下载失败，尝试下一个源: ${url}"
+    rm -f "$target_file"
+  done
+  return 1
+}
+
 install_geosite_dat() {
   require_root
-  local geosite_url="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
   local tmp_geosite
   tmp_geosite="$(mktemp)"
   rm -f "$tmp_geosite"
 
-  info "下载 GeoSite.dat: ${geosite_url}"
-  curl_cmd -fL --progress-bar --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 300 -o "$tmp_geosite" "$geosite_url" || {
+  download_geosite_to_temp "$tmp_geosite" || {
     rm -f "$tmp_geosite"
-    die "GeoSite.dat 下载失败；请检查当前网络或稍后重试"
+    die "GeoSite.dat 所有下载源都失败；请检查当前网络或稍后重试"
   }
 
   geosite_probe_file "$tmp_geosite" || {

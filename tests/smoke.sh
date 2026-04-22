@@ -219,6 +219,12 @@ test_install_geosite_command_exists() {
   grep -q 'install_geosite_dat' "${ROOT}/lib/render.sh"
 }
 
+test_geosite_download_has_multi_source_fallback() {
+  grep -q 'github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat' "${ROOT}/lib/render.sh"
+  grep -q 'cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat' "${ROOT}/lib/render.sh"
+  grep -q 'testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat' "${ROOT}/lib/render.sh"
+}
+
 main() {
   test_syntax
   test_render_empty
@@ -237,6 +243,7 @@ main() {
   test_router_wizard_mentions_host_router_model
   test_audit_mentions_geosite_probe
   test_install_geosite_command_exists
+  test_geosite_download_has_multi_source_fallback
   echo "smoke: ok"
 }
 
