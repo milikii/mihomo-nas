@@ -13,6 +13,7 @@ trap cleanup EXIT
 setup_case() {
   TMPDIR_CASE="$(mktemp -d)"
   mkdir -p "${TMPDIR_CASE}/bin"
+
   cat > "${TMPDIR_CASE}/router.env" <<'EOENV'
 LAN_INTERFACES="bridge1"
 LAN_CIDRS="192.168.2.0/24"
@@ -40,7 +41,6 @@ EOENV
 printf '%s\n' "$*" >> "${SYSTEMCTL_LOG:?}"
 case "$1" in
   show)
-    unit="$2"
     prop="$4"
     case "$prop" in
       ActiveState) echo "active" ;;
@@ -62,8 +62,7 @@ case "$1" in
       unit="$3"
     fi
     case "$unit" in
-      mihomo) exit 0 ;;
-      mihomo-alpha-update.timer) exit 0 ;;
+      mihomo|mihomo-alpha-update.timer) exit 0 ;;
       mihomo-restart.timer) exit 1 ;;
       *) exit 1 ;;
     esac
@@ -77,10 +76,10 @@ EOSYS
 
   cat > "${TMPDIR_CASE}/bin/journalctl" <<'EOJ'
 #!/usr/bin/env bash
-if printf '%s\n' "$*" | grep -q -- "--since 24 hours ago"; then
+if printf '%s\n' "$*" | grep -q -- '--since 24 hours ago'; then
   case "$*" in
-    *"-p warning"*) printf 'warning line\n'; exit 0 ;;
-    *"-p err"*) exit 0 ;;
+    *'-p warning'*) printf 'warning line\n'; exit 0 ;;
+    *'-p err'*) exit 0 ;;
   esac
 fi
 printf 'journal output\n'
@@ -124,8 +123,7 @@ EOIPT
 
   cat > "${TMPDIR_CASE}/bin/curl" <<'EOCURL'
 #!/usr/bin/env bash
-printf '%s
-' "$*" >> "${CURL_LOG:?}"
+printf '%s\n' "$*" >> "${CURL_LOG:?}"
 out=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -139,11 +137,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 if [[ -n "$out" ]]; then
-  printf 'mock-geosite-data
-' > "$out"
+  printf 'mock-geosite-data\n' > "$out"
 else
-  printf '<!doctype html>
-'
+  printf '<!doctype html>\n'
 fi
 EOCURL
   chmod +x "${TMPDIR_CASE}/bin/curl"
@@ -152,30 +148,51 @@ EOCURL
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${GIT_LOG:?}"
 case "$1" in
-  -C)
-    shift 2
-    ;;
+  -C) shift 2 ;;
 esac
 case "$1" in
-  diff)
-    exit 1
-    ;;
-  branch)
-    echo "main"
-    ;;
-  commit|push|add)
-    exit 0
-    ;;
-  *)
-    exit 0
-    ;;
+  diff) exit 1 ;;
+  branch) echo "main" ;;
+  commit|push|add) exit 0 ;;
+  *) exit 0 ;;
 esac
 EOGIT
   chmod +x "${TMPDIR_CASE}/bin/git"
 }
 
 env_prefix() {
-  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q GIT_BIN=%q RULES_REPO_DIR=%q SYSTEMCTL_LOG=%q GIT_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q'     "$ROOT"     "$TMPDIR_CASE"     "$TMPDIR_CASE/settings.env"     "$TMPDIR_CASE/router.env"     "$TMPDIR_CASE/config.yaml"     "$TMPDIR_CASE/ruleset"     "$TMPDIR_CASE/proxy_providers"     "$TMPDIR_CASE/ui"     "$TMPDIR_CASE/state"     "$TMPDIR_CASE/state/nodes.json"     "$TMPDIR_CASE/state/rules.json"     "$TMPDIR_CASE/proxy_providers/manual.txt"     "$TMPDIR_CASE/ruleset/custom.rules"     root     "$TMPDIR_CASE/mihomo"     /bin/true     "$TMPDIR_CASE/bin/systemctl"     "$TMPDIR_CASE/bin/journalctl"     "$TMPDIR_CASE/bin/ss"     "$TMPDIR_CASE/bin/curl"     "$TMPDIR_CASE/bin/iptables"     "$TMPDIR_CASE/bin/git"     "$TMPDIR_CASE/repo"     "$TMPDIR_CASE/systemctl.log"     "$TMPDIR_CASE/git.log"     "$TMPDIR_CASE/curl.log"     "$TMPDIR_CASE/mihomo.service"     "$TMPDIR_CASE/mihomo-restart.service"     "$TMPDIR_CASE/mihomo-restart.timer"     "$TMPDIR_CASE/mihomo-alpha-update.service"     "$TMPDIR_CASE/mihomo-alpha-update.timer"
+  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q GIT_BIN=%q RULES_REPO_DIR=%q SYSTEMCTL_LOG=%q GIT_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q' \
+    "$ROOT" \
+    "$TMPDIR_CASE" \
+    "$TMPDIR_CASE/settings.env" \
+    "$TMPDIR_CASE/router.env" \
+    "$TMPDIR_CASE/config.yaml" \
+    "$TMPDIR_CASE/ruleset" \
+    "$TMPDIR_CASE/proxy_providers" \
+    "$TMPDIR_CASE/ui" \
+    "$TMPDIR_CASE/state" \
+    "$TMPDIR_CASE/state/nodes.json" \
+    "$TMPDIR_CASE/state/rules.json" \
+    "$TMPDIR_CASE/proxy_providers/manual.txt" \
+    "$TMPDIR_CASE/ruleset/custom.rules" \
+    root \
+    "$TMPDIR_CASE/mihomo" \
+    /bin/true \
+    "$TMPDIR_CASE/bin/systemctl" \
+    "$TMPDIR_CASE/bin/journalctl" \
+    "$TMPDIR_CASE/bin/ss" \
+    "$TMPDIR_CASE/bin/curl" \
+    "$TMPDIR_CASE/bin/iptables" \
+    "$TMPDIR_CASE/bin/git" \
+    "$TMPDIR_CASE/repo" \
+    "$TMPDIR_CASE/systemctl.log" \
+    "$TMPDIR_CASE/git.log" \
+    "$TMPDIR_CASE/curl.log" \
+    "$TMPDIR_CASE/mihomo.service" \
+    "$TMPDIR_CASE/mihomo-restart.service" \
+    "$TMPDIR_CASE/mihomo-restart.timer" \
+    "$TMPDIR_CASE/mihomo-alpha-update.service" \
+    "$TMPDIR_CASE/mihomo-alpha-update.timer"
 }
 
 run_manager() {
