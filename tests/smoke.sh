@@ -225,6 +225,11 @@ test_setup_path_auto_repairs_geosite() {
   grep -q 'ensure_geosite_ready' "${ROOT}/mihomo"
 }
 
+test_setup_does_not_require_webui_success() {
+  grep -q 'install_webui zashboard' "${ROOT}/mihomo"
+  grep -q '核心旁路由链已继续' "${ROOT}/mihomo"
+}
+
 test_install_geosite_command_exists() {
   grep -q 'install-geosite|update-geosite' "${ROOT}/mihomo"
   grep -q 'install_geosite_dat' "${ROOT}/lib/render.sh"
@@ -254,6 +259,7 @@ main() {
   test_router_wizard_mentions_host_router_model
   test_audit_mentions_geosite_probe
   test_setup_path_auto_repairs_geosite
+  test_setup_does_not_require_webui_success
   test_install_geosite_command_exists
   test_geosite_download_has_multi_source_fallback
   echo "smoke: ok"

@@ -570,7 +570,11 @@ full_setup() {
   write_sysctl
   [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
   ensure_geosite_ready
-  install_webui zashboard
+  if install_webui zashboard; then
+    ok "WebUI 已就绪"
+  else
+    warn "WebUI 下载/解压失败；核心旁路由链已继续，后续可单独执行: mihomo install-webui"
+  fi
   configure_restart_timer "${RESTART_INTERVAL_HOURS:-0}"
   configure_alpha_update "${ALPHA_AUTO_UPDATE:-0}" "${ALPHA_UPDATE_ONCALENDAR:-daily}"
   config_test

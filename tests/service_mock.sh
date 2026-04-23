@@ -264,6 +264,21 @@ test_install_geosite_downloads_official_asset() {
   [[ -f "${TMPDIR_CASE}/GeoSite.dat" ]]
 }
 
+test_setup_bootstraps_empty_installation() {
+  setup_case
+  rm -f "${TMPDIR_CASE}/router.env" "${TMPDIR_CASE}/settings.env" "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat"
+  rm -rf "${TMPDIR_CASE}/state" "${TMPDIR_CASE}/ruleset" "${TMPDIR_CASE}/proxy_providers" "${TMPDIR_CASE}/ui"
+  run_manager setup >/tmp/mh-setup-bootstrap.out 2>/tmp/mh-setup-bootstrap.err
+  [[ -f "${TMPDIR_CASE}/Country.mmdb" ]]
+  [[ -f "${TMPDIR_CASE}/GeoSite.dat" ]]
+  [[ -f "${TMPDIR_CASE}/config.yaml" ]]
+  [[ -f "${TMPDIR_CASE}/mihomo.service" ]]
+  [[ -f "${TMPDIR_CASE}/state/nodes.json" ]]
+  grep -Fq 'country.mmdb' "${TMPDIR_CASE}/curl.log"
+  grep -Fq 'geosite.dat' "${TMPDIR_CASE}/curl.log"
+  grep -q '核心旁路由链已继续' /tmp/mh-setup-bootstrap.err
+}
+
 test_sync_rules_repo_command() {
   setup_case
   mkdir -p "${TMPDIR_CASE}/repo/.git"
@@ -281,6 +296,7 @@ main() {
   test_runtime_audit_outputs
   test_healthcheck_uses_localhost_proxy_probe
   test_install_geosite_downloads_official_asset
+  test_setup_bootstraps_empty_installation
   test_sync_rules_repo_command
   echo "service-mock: ok"
 }
