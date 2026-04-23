@@ -23,8 +23,12 @@ COUNTRY_MMDB="${COUNTRY_MMDB:-${MIHOMO_DIR}/Country.mmdb}"
 STATE_DIR="${STATE_DIR:-${MIHOMO_DIR}/state}"
 NODES_STATE_FILE="${NODES_STATE_FILE:-${STATE_DIR}/nodes.json}"
 RULES_STATE_FILE="${RULES_STATE_FILE:-${STATE_DIR}/rules.json}"
+ACL_STATE_FILE="${ACL_STATE_FILE:-${STATE_DIR}/acl.json}"
+SUBSCRIPTIONS_STATE_FILE="${SUBSCRIPTIONS_STATE_FILE:-${STATE_DIR}/subscriptions.json}"
 PROVIDER_FILE="${PROVIDER_FILE:-${PROVIDER_DIR}/manual.txt}"
 RENDERED_RULES_FILE="${RENDERED_RULES_FILE:-${RULES_DIR}/custom.rules}"
+ACL_RENDERED_RULES_FILE="${ACL_RENDERED_RULES_FILE:-${RULES_DIR}/acl.rules}"
+SNAPSHOT_DIR="${SNAPSHOT_DIR:-${STATE_DIR}/snapshots}"
 
 ROUTER_SYSCTL="${ROUTER_SYSCTL:-/etc/sysctl.d/99-mihomo-router.conf}"
 SYSTEMD_UNIT="${SYSTEMD_UNIT:-/etc/systemd/system/mihomo.service}"
@@ -108,6 +112,8 @@ ensure_state_files() {
   require_statectl
   python3 "$STATECTL" ensure-nodes-state "$NODES_STATE_FILE" "$PROVIDER_FILE" >/dev/null
   python3 "$STATECTL" ensure-rules-state "$RULES_STATE_FILE" "$RENDERED_RULES_FILE" >/dev/null
+  python3 "$STATECTL" ensure-rules-state "$ACL_STATE_FILE" >/dev/null
+  python3 "$STATECTL" ensure-subscriptions-state "$SUBSCRIPTIONS_STATE_FILE" >/dev/null
 }
 
 iptables_cmd() {
@@ -213,6 +219,165 @@ upsert_env_var() {
   mv "$tmp" "$file"
 }
 
+read_env_var() {
+  local file="$1"
+  local key="$2"
+  local fallback="${3:-}"
+  if [[ ! -f "$file" ]]; then
+    printf '%s\n' "$fallback"
+    return 0
+  fi
+  awk -F= -v key="$key" -v fallback="$fallback" '
+    $1 == key {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^"/, "", value)
+      gsub(/"$/, "", value)
+      print value
+      found = 1
+      exit
+    }
+    END {
+      if (!found) {
+        print fallback
+      }
+    }
+  ' "$file"
+}
+
+have_global_ipv6() {
+  ip -6 route show default 2>/dev/null | grep -q .
+}
+
+default_profile_template() {
+  if have_global_ipv6; then
+    printf '%s\n' "nas-single-lan-dualstack"
+  else
+    printf '%s\n' "nas-single-lan-v4"
+  fi
+}
+
+template_exists() {
+  case "$1" in
+    nas-single-lan-v4|nas-single-lan-dualstack|nas-multi-bridge|nas-explicit-proxy-only) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+template_summary() {
+  case "$1" in
+    nas-single-lan-v4) printf '%s\n' "单 LAN IPv4 旁路由" ;;
+    nas-single-lan-dualstack) printf '%s\n' "单 LAN 双栈旁路由" ;;
+    nas-multi-bridge) printf '%s\n' "多 bridge/VLAN 旁路由" ;;
+    nas-explicit-proxy-only) printf '%s\n' "仅显式代理，不接管 LAN" ;;
+    *) printf '%s\n' "未知模板" ;;
+  esac
+}
+
+current_profile_template() {
+  if [[ -f "$ROUTER_ENV" ]]; then
+    read_env_var "$ROUTER_ENV" "TEMPLATE_NAME" "$(read_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$(default_profile_template)")"
+  else
+    read_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$(default_profile_template)"
+  fi
+}
+
+write_router_env_from_template() {
+  local template_name="$1"
+  template_exists "$template_name" || die "未知模板: ${template_name}"
+
+  local existing_mixed_port="7890"
+  local existing_tproxy_port="7893"
+  local existing_dns_port="1053"
+  local existing_controller_port="19090"
+  local existing_controller_bind="127.0.0.1"
+  local existing_route_mark="0x2333"
+  local existing_route_mask="0xffffffff"
+  local existing_route_table="233"
+  local existing_route_priority="100"
+  local existing_host_output="0"
+  local existing_bypass_src=""
+  local existing_bypass_dst=""
+  local existing_bypass_uids=""
+
+  if [[ -f "$ROUTER_ENV" ]]; then
+    existing_mixed_port="$(read_env_var "$ROUTER_ENV" "MIXED_PORT" "$existing_mixed_port")"
+    existing_tproxy_port="$(read_env_var "$ROUTER_ENV" "TPROXY_PORT" "$existing_tproxy_port")"
+    existing_dns_port="$(read_env_var "$ROUTER_ENV" "DNS_PORT" "$existing_dns_port")"
+    existing_controller_port="$(read_env_var "$ROUTER_ENV" "CONTROLLER_PORT" "$existing_controller_port")"
+    existing_controller_bind="$(read_env_var "$ROUTER_ENV" "CONTROLLER_BIND_ADDRESS" "$existing_controller_bind")"
+    existing_route_mark="$(read_env_var "$ROUTER_ENV" "ROUTE_MARK" "$existing_route_mark")"
+    existing_route_mask="$(read_env_var "$ROUTER_ENV" "ROUTE_MASK" "$existing_route_mask")"
+    existing_route_table="$(read_env_var "$ROUTER_ENV" "ROUTE_TABLE" "$existing_route_table")"
+    existing_route_priority="$(read_env_var "$ROUTER_ENV" "ROUTE_PRIORITY" "$existing_route_priority")"
+    existing_host_output="$(read_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "$existing_host_output")"
+    existing_bypass_src="$(read_env_var "$ROUTER_ENV" "BYPASS_SRC_CIDRS" "$existing_bypass_src")"
+    existing_bypass_dst="$(read_env_var "$ROUTER_ENV" "BYPASS_DST_CIDRS" "$existing_bypass_dst")"
+    existing_bypass_uids="$(read_env_var "$ROUTER_ENV" "BYPASS_UIDS" "$existing_bypass_uids")"
+  fi
+
+  local lan_iface
+  local lan_cidr
+  local enable_ipv6="0"
+  local dns_hijack_enabled="1"
+  local proxy_ingress_ifaces
+  local dns_hijack_ifaces
+  local bypass_containers=""
+
+  lan_iface="$(detect_default_iface || true)"
+  lan_cidr="$(detect_iface_cidr "${lan_iface:-}" || true)"
+  lan_cidr="$(cidr_network "${lan_cidr:-}" 2>/dev/null || printf '%s' "${lan_cidr:-}")"
+  proxy_ingress_ifaces="${lan_iface:-bridge1}"
+  dns_hijack_ifaces="${lan_iface:-bridge1}"
+
+  case "$template_name" in
+    nas-single-lan-v4)
+      enable_ipv6="0"
+      ;;
+    nas-single-lan-dualstack)
+      enable_ipv6="1"
+      ;;
+    nas-multi-bridge)
+      if have_global_ipv6; then
+        enable_ipv6="1"
+      fi
+      ;;
+    nas-explicit-proxy-only)
+      if have_global_ipv6; then
+        enable_ipv6="1"
+      fi
+      dns_hijack_enabled="0"
+      proxy_ingress_ifaces=""
+      dns_hijack_ifaces=""
+      ;;
+  esac
+
+  mkdir -p "$MIHOMO_DIR"
+  cat >"$ROUTER_ENV" <<EOF
+TEMPLATE_NAME="${template_name}"
+ENABLE_IPV6="${enable_ipv6}"
+LAN_INTERFACES="${lan_iface:-bridge1}"
+LAN_CIDRS="${lan_cidr:-192.168.2.0/24}"
+PROXY_INGRESS_INTERFACES="${proxy_ingress_ifaces}"
+DNS_HIJACK_ENABLED="${dns_hijack_enabled}"
+DNS_HIJACK_INTERFACES="${dns_hijack_ifaces}"
+PROXY_HOST_OUTPUT="${existing_host_output}"
+BYPASS_CONTAINER_NAMES="${bypass_containers}"
+BYPASS_SRC_CIDRS="${existing_bypass_src}"
+BYPASS_DST_CIDRS="${existing_bypass_dst}"
+BYPASS_UIDS="${existing_bypass_uids}"
+MIXED_PORT="${existing_mixed_port}"
+TPROXY_PORT="${existing_tproxy_port}"
+DNS_PORT="${existing_dns_port}"
+CONTROLLER_PORT="${existing_controller_port}"
+CONTROLLER_BIND_ADDRESS="${existing_controller_bind}"
+ROUTE_MARK="${existing_route_mark}"
+ROUTE_MASK="${existing_route_mask}"
+ROUTE_TABLE="${existing_route_table}"
+ROUTE_PRIORITY="${existing_route_priority}"
+EOF
+  chmod 640 "$ROUTER_ENV"
+}
+
 ensure_settings() {
   mkdir -p "$MIHOMO_DIR"
   [[ -f "$SETTINGS_ENV" ]] || cat >"$SETTINGS_ENV" <<'EOF'
@@ -222,64 +387,54 @@ ALPHA_AUTO_UPDATE="0"
 ALPHA_UPDATE_ONCALENDAR="daily"
 RESTART_INTERVAL_HOURS="0"
 RULES_AUTO_SYNC="1"
-RULES_REPO_DIR="/root/mihomo-rules"
+RULES_REPO_DIR="/home/projects/mihomo-rules"
 EOF
+  local template_name
+  template_name="$(read_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "")"
+  if ! template_exists "$template_name"; then
+    upsert_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$(default_profile_template)"
+  fi
   chmod 640 "$SETTINGS_ENV"
 }
 
 ensure_router_env() {
   mkdir -p "$MIHOMO_DIR"
   if [[ ! -f "$ROUTER_ENV" ]]; then
-    local lan_iface
-    local lan_cidr
-    lan_iface="$(detect_default_iface || true)"
-    lan_cidr="$(detect_iface_cidr "${lan_iface:-}" || true)"
-    lan_cidr="$(cidr_network "${lan_cidr:-}" 2>/dev/null || printf '%s' "${lan_cidr:-}")"
-    cat >"$ROUTER_ENV" <<EOF
-LAN_INTERFACES="${lan_iface:-bridge1}"
-LAN_CIDRS="${lan_cidr:-192.168.2.0/24}"
-PROXY_INGRESS_INTERFACES="${lan_iface:-bridge1}"
-DNS_HIJACK_ENABLED="1"
-DNS_HIJACK_INTERFACES="${lan_iface:-bridge1}"
-PROXY_HOST_OUTPUT="0"
-BYPASS_CONTAINER_NAMES="tr-bt TR1 Tr-music TR-plex"
-BYPASS_SRC_CIDRS=""
-BYPASS_DST_CIDRS=""
-BYPASS_UIDS=""
-MIXED_PORT="7890"
-TPROXY_PORT="7893"
-DNS_PORT="1053"
-CONTROLLER_PORT="19090"
-CONTROLLER_BIND_ADDRESS="127.0.0.1"
-ROUTE_MARK="0x2333"
-ROUTE_MASK="0xffffffff"
-ROUTE_TABLE="233"
-ROUTE_PRIORITY="100"
-EOF
-    chmod 640 "$ROUTER_ENV"
+    write_router_env_from_template "$(read_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$(default_profile_template)")"
   fi
 }
 
 load_settings() {
   ensure_settings
+  local env_rules_auto_sync="${RULES_AUTO_SYNC:-}"
+  local env_rules_repo_dir="${RULES_REPO_DIR:-}"
+  local env_profile_template="${PROFILE_TEMPLATE:-}"
   # shellcheck disable=SC1090
   source "$SETTINGS_ENV"
-  RULES_AUTO_SYNC="${RULES_AUTO_SYNC:-1}"
-  RULES_REPO_DIR="${RULES_REPO_DIR:-/root/mihomo-rules}"
+  RULES_AUTO_SYNC="${env_rules_auto_sync:-${RULES_AUTO_SYNC:-1}}"
+  RULES_REPO_DIR="${env_rules_repo_dir:-${RULES_REPO_DIR:-/home/projects/mihomo-rules}}"
+  PROFILE_TEMPLATE="${env_profile_template:-${PROFILE_TEMPLATE:-$(default_profile_template)}}"
 }
 
 load_settings_readonly() {
+  local env_rules_auto_sync="${RULES_AUTO_SYNC:-}"
+  local env_rules_repo_dir="${RULES_REPO_DIR:-}"
+  local env_profile_template="${PROFILE_TEMPLATE:-}"
   CONFIG_MODE="rule"
   CORE_CHANNEL="alpha"
   ALPHA_AUTO_UPDATE="0"
   ALPHA_UPDATE_ONCALENDAR="daily"
   RESTART_INTERVAL_HOURS="0"
   RULES_AUTO_SYNC="1"
-  RULES_REPO_DIR="/root/mihomo-rules"
+  RULES_REPO_DIR="/home/projects/mihomo-rules"
+  PROFILE_TEMPLATE="$(default_profile_template)"
   if [[ -f "$SETTINGS_ENV" ]]; then
     # shellcheck disable=SC1090
     source "$SETTINGS_ENV"
   fi
+  RULES_AUTO_SYNC="${env_rules_auto_sync:-${RULES_AUTO_SYNC:-1}}"
+  RULES_REPO_DIR="${env_rules_repo_dir:-${RULES_REPO_DIR:-/home/projects/mihomo-rules}}"
+  PROFILE_TEMPLATE="${env_profile_template:-${PROFILE_TEMPLATE:-$(default_profile_template)}}"
 }
 
 load_router_env() {
@@ -292,6 +447,8 @@ load_router_env() {
   DNS_PORT="${DNS_PORT:-1053}"
   CONTROLLER_PORT="${CONTROLLER_PORT:-19090}"
   CONTROLLER_BIND_ADDRESS="${CONTROLLER_BIND_ADDRESS:-127.0.0.1}"
+  TEMPLATE_NAME="${TEMPLATE_NAME:-$(current_profile_template)}"
+  ENABLE_IPV6="${ENABLE_IPV6:-0}"
   ROUTE_MARK="${ROUTE_MARK:-0x2333}"
   ROUTE_MASK="${ROUTE_MASK:-0xffffffff}"
   ROUTE_TABLE="${ROUTE_TABLE:-233}"
@@ -335,6 +492,8 @@ load_router_env_readonly() {
   DNS_PORT="1053"
   CONTROLLER_PORT="19090"
   CONTROLLER_BIND_ADDRESS="127.0.0.1"
+  TEMPLATE_NAME="$(current_profile_template)"
+  ENABLE_IPV6="0"
   ROUTE_MARK="0x2333"
   ROUTE_MASK="0xffffffff"
   ROUTE_TABLE="233"
@@ -356,12 +515,65 @@ load_router_env_readonly() {
 }
 
 ensure_layout() {
-  mkdir -p "$MIHOMO_DIR" "$RULES_DIR" "$PROVIDER_DIR" "$UI_DIR" "$STATE_DIR"
+  mkdir -p "$MIHOMO_DIR" "$RULES_DIR" "$PROVIDER_DIR" "$UI_DIR" "$STATE_DIR" "$SNAPSHOT_DIR"
   [[ -f "$PROVIDER_FILE" ]] || : >"$PROVIDER_FILE"
   [[ -f "$RENDERED_RULES_FILE" ]] || : >"$RENDERED_RULES_FILE"
+  [[ -f "$ACL_RENDERED_RULES_FILE" ]] || : >"$ACL_RENDERED_RULES_FILE"
   ensure_settings
   ensure_router_env
   ensure_state_files
+}
+
+copy_file_if_exists() {
+  local src="$1"
+  local dst="$2"
+  [[ -f "$src" ]] || return 0
+  install -D -m 0640 "$src" "$dst"
+}
+
+snapshot_current_state() {
+  ensure_layout
+  local label="${1:-manual}"
+  local stamp
+  local target
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  target="${SNAPSHOT_DIR}/${stamp}-${label// /-}"
+  mkdir -p "$target"
+  copy_file_if_exists "$SETTINGS_ENV" "$target/settings.env"
+  copy_file_if_exists "$ROUTER_ENV" "$target/router.env"
+  copy_file_if_exists "$CONFIG_FILE" "$target/config.yaml"
+  copy_file_if_exists "$NODES_STATE_FILE" "$target/nodes.json"
+  copy_file_if_exists "$RULES_STATE_FILE" "$target/rules.json"
+  copy_file_if_exists "$ACL_STATE_FILE" "$target/acl.json"
+  copy_file_if_exists "$SUBSCRIPTIONS_STATE_FILE" "$target/subscriptions.json"
+  copy_file_if_exists "$PROVIDER_FILE" "$target/manual.txt"
+  copy_file_if_exists "$RENDERED_RULES_FILE" "$target/custom.rules"
+  copy_file_if_exists "$ACL_RENDERED_RULES_FILE" "$target/acl.rules"
+  if [[ -f "$SYSTEMD_UNIT" ]]; then
+    copy_file_if_exists "$SYSTEMD_UNIT" "$target/mihomo.service"
+  fi
+  rm -rf "${SNAPSHOT_DIR}/latest"
+  cp -a "$target" "${SNAPSHOT_DIR}/latest"
+  printf '%s\n' "$target"
+}
+
+restore_latest_snapshot() {
+  local latest="${SNAPSHOT_DIR}/latest"
+  [[ -d "$latest" ]] || die "未找到可回滚快照: ${latest}"
+  ensure_layout
+  copy_file_if_exists "$latest/settings.env" "$SETTINGS_ENV"
+  copy_file_if_exists "$latest/router.env" "$ROUTER_ENV"
+  copy_file_if_exists "$latest/config.yaml" "$CONFIG_FILE"
+  copy_file_if_exists "$latest/nodes.json" "$NODES_STATE_FILE"
+  copy_file_if_exists "$latest/rules.json" "$RULES_STATE_FILE"
+  copy_file_if_exists "$latest/acl.json" "$ACL_STATE_FILE"
+  copy_file_if_exists "$latest/subscriptions.json" "$SUBSCRIPTIONS_STATE_FILE"
+  copy_file_if_exists "$latest/manual.txt" "$PROVIDER_FILE"
+  copy_file_if_exists "$latest/custom.rules" "$RENDERED_RULES_FILE"
+  copy_file_if_exists "$latest/acl.rules" "$ACL_RENDERED_RULES_FILE"
+  if [[ -f "$latest/mihomo.service" ]]; then
+    copy_file_if_exists "$latest/mihomo.service" "$SYSTEMD_UNIT"
+  fi
 }
 
 node_enabled_count() {
@@ -382,6 +594,16 @@ node_enabled_names() {
 node_all_names() {
   require_statectl
   python3 "$STATECTL" all-names "$NODES_STATE_FILE"
+}
+
+acl_list_tsv() {
+  require_statectl
+  python3 "$STATECTL" list-rules "$ACL_STATE_FILE"
+}
+
+subscription_list_tsv() {
+  require_statectl
+  python3 "$STATECTL" list-subscriptions "$SUBSCRIPTIONS_STATE_FILE"
 }
 
 readonly_node_counts() {

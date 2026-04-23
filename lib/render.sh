@@ -20,12 +20,15 @@ ensure_permissions() {
   ensure_mihomo_user
   ensure_layout
   chown -R "${MIHOMO_USER}:${MIHOMO_USER}" "$MIHOMO_DIR"
-  chmod 750 "$MIHOMO_DIR" "$RULES_DIR" "$PROVIDER_DIR" "$UI_DIR" "$STATE_DIR"
+  chmod 750 "$MIHOMO_DIR" "$RULES_DIR" "$PROVIDER_DIR" "$UI_DIR" "$STATE_DIR" "$SNAPSHOT_DIR"
   [[ -f "$CONFIG_FILE" ]] && chmod 640 "$CONFIG_FILE"
   [[ -f "$PROVIDER_FILE" ]] && chmod 640 "$PROVIDER_FILE"
   [[ -f "$RENDERED_RULES_FILE" ]] && chmod 640 "$RENDERED_RULES_FILE"
+  [[ -f "$ACL_RENDERED_RULES_FILE" ]] && chmod 640 "$ACL_RENDERED_RULES_FILE"
   [[ -f "$NODES_STATE_FILE" ]] && chmod 640 "$NODES_STATE_FILE"
   [[ -f "$RULES_STATE_FILE" ]] && chmod 640 "$RULES_STATE_FILE"
+  [[ -f "$ACL_STATE_FILE" ]] && chmod 640 "$ACL_STATE_FILE"
+  [[ -f "$SUBSCRIPTIONS_STATE_FILE" ]] && chmod 640 "$SUBSCRIPTIONS_STATE_FILE"
   [[ -f "$SETTINGS_ENV" ]] && chown root:"$MIHOMO_USER" "$SETTINGS_ENV"
   [[ -f "$ROUTER_ENV" ]] && chown root:"$MIHOMO_USER" "$ROUTER_ENV"
   [[ -f "$COUNTRY_MMDB" ]] && chmod 644 "$COUNTRY_MMDB"
@@ -43,18 +46,31 @@ render_rules_file() {
   python3 "$STATECTL" render-rules "$RULES_STATE_FILE" "$RENDERED_RULES_FILE"
 }
 
-validate_rule_targets() {
+render_acl_file() {
+  require_statectl
+  python3 "$STATECTL" render-rules "$ACL_STATE_FILE" "$ACL_RENDERED_RULES_FILE"
+}
+
+validate_rule_targets_file() {
+  local state_file="$1"
+  local label="$2"
   require_statectl
   local output
-  if ! output="$(python3 "$STATECTL" validate-rule-targets "$RULES_STATE_FILE" "$NODES_STATE_FILE" 2>&1)"; then
+  if ! output="$(python3 "$STATECTL" validate-rule-targets "$state_file" "$NODES_STATE_FILE" 2>&1)"; then
     [[ -n "$output" ]] && printf '%s\n' "$output" >&2
-    die "存在自定义规则指向不存在或未启用节点"
+    die "${label}存在指向不存在或未启用节点的目标"
   fi
 }
 
+validate_rule_targets() {
+  validate_rule_targets_file "$RULES_STATE_FILE" "自定义规则"
+  validate_rule_targets_file "$ACL_STATE_FILE" "ACL 规则"
+}
+
 render_rules_block() {
-  if [[ -f "$RENDERED_RULES_FILE" ]]; then
-    awk 'NF && $0 !~ /^[[:space:]]*#/' "$RENDERED_RULES_FILE"
+  local rule_file="$1"
+  if [[ -f "$rule_file" ]]; then
+    awk 'NF && $0 !~ /^[[:space:]]*#/' "$rule_file"
   fi
   return 0
 }
@@ -68,12 +84,15 @@ render_config() {
   validate_rule_targets
   render_provider_file
   render_rules_file
+  render_acl_file
 
   local secret
   local enabled_count
   local lan_cidrs
   local config_mode
   local allowed_cidr
+  local enable_ipv6
+  local explicit_proxy_only=0
   local -a lan_allowed_cidrs_arr=()
 
   secret="$(current_secret)"
@@ -81,6 +100,8 @@ render_config() {
   enabled_count="$(node_enabled_count)"
   config_mode="${CONFIG_MODE:-rule}"
   lan_cidrs="${LAN_CIDRS:-192.168.2.0/24}"
+  enable_ipv6="${ENABLE_IPV6:-0}"
+  [[ "${TEMPLATE_NAME:-}" == "nas-explicit-proxy-only" ]] && explicit_proxy_only=1
   read -r -a lan_allowed_cidrs_arr <<< "${lan_cidrs}"
   lan_allowed_cidrs_arr+=("127.0.0.0/8")
 
@@ -97,7 +118,7 @@ EOF
   cat >>"$CONFIG_FILE" <<EOF
 mode: ${config_mode}
 log-level: info
-ipv6: false
+ipv6: $([[ "$enable_ipv6" == "1" ]] && echo true || echo false)
 unified-delay: true
 tcp-concurrent: true
 find-process-mode: off
@@ -120,7 +141,7 @@ profile:
 dns:
   enable: true
   listen: 0.0.0.0:${DNS_PORT}
-  ipv6: false
+  ipv6: $([[ "$enable_ipv6" == "1" ]] && echo true || echo false)
   use-hosts: true
   use-system-hosts: true
   cache-algorithm: arc
@@ -221,7 +242,11 @@ EOF
   while IFS= read -r custom_rule; do
     [[ -n "$custom_rule" ]] || continue
     printf '  - %s\n' "$custom_rule" >>"$CONFIG_FILE"
-  done < <(render_rules_block)
+  done < <(render_rules_block "$RENDERED_RULES_FILE")
+  while IFS= read -r custom_rule; do
+    [[ -n "$custom_rule" ]] || continue
+    printf '  - %s\n' "$custom_rule" >>"$CONFIG_FILE"
+  done < <(render_rules_block "$ACL_RENDERED_RULES_FILE")
 
   cat >>"$CONFIG_FILE" <<'EOF'
   - PROCESS-NAME,mihomo,DIRECT
@@ -236,11 +261,13 @@ EOF
 
 write_sysctl() {
   require_root
-  cat >"$ROUTER_SYSCTL" <<'EOF'
+  load_router_env
+  cat >"$ROUTER_SYSCTL" <<EOF
 net.ipv4.ip_forward = 1
 net.ipv4.conf.all.route_localnet = 1
 net.ipv4.conf.default.rp_filter = 2
 net.ipv4.conf.all.rp_filter = 2
+$( [[ "${ENABLE_IPV6:-0}" == "1" ]] && printf '%s\n' 'net.ipv6.conf.all.forwarding = 1' || true )
 EOF
   sysctl --system >/dev/null
   ok "已写入 ${ROUTER_SYSCTL}"
@@ -574,10 +601,25 @@ install_webui() {
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$UI_DIR"
   info "下载 WebUI: ${ui_name}"
-  curl_cmd -fL --progress-bar -o "${tmp}/ui.zip" "$ui_url"
-  unzip -q "${tmp}/ui.zip" -d "$tmp"
+  if ! curl_cmd -fL --progress-bar -o "${tmp}/ui.zip" "$ui_url"; then
+    warn "WebUI 下载失败: ${ui_name}"
+    rm -rf "$tmp"
+    trap - RETURN
+    return 1
+  fi
+  if ! unzip -q "${tmp}/ui.zip" -d "$tmp" >/dev/null 2>&1; then
+    warn "WebUI 解压失败: ${tmp}/ui.zip"
+    rm -rf "$tmp"
+    trap - RETURN
+    return 1
+  fi
   src="$(find "$tmp" -maxdepth 1 -mindepth 1 -type d | head -n 1)"
-  [[ -n "$src" ]] || die "未找到解压后的 WebUI 目录"
+  if [[ -z "$src" ]]; then
+    warn "未找到解压后的 WebUI 目录"
+    rm -rf "$tmp"
+    trap - RETURN
+    return 1
+  fi
   find "$UI_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
   cp -a "${src}/." "$UI_DIR/"
   chown -R "${MIHOMO_USER}:${MIHOMO_USER}" "$UI_DIR"
@@ -674,9 +716,14 @@ clear_rules() {
 apply_rules() {
   require_root
   load_router_env
+  ensure_enabled_nodes
+  if [[ ${#PROXY_INGRESS_IFACES_ARR[@]} -eq 0 && "${DNS_HIJACK_ENABLED}" != "1" && "${PROXY_HOST_OUTPUT}" != "1" ]]; then
+    clear_rules
+    ok "当前模板为仅显式代理，不下发透明旁路由规则"
+    return 0
+  fi
   require_firewall_support
   resolve_bypass_container_ips
-  ensure_enabled_nodes
   [[ ${#PROXY_INGRESS_IFACES_ARR[@]} -gt 0 ]] || die "PROXY_INGRESS_INTERFACES 不能为空"
   if [[ "$DNS_HIJACK_ENABLED" == "1" && ${#DNS_HIJACK_IFACES_ARR[@]} -eq 0 ]]; then
     die "DNS_HIJACK_INTERFACES 不能为空"
@@ -921,6 +968,24 @@ audit_installation() {
     status=1
   fi
 
+  if [[ -f "$ACL_STATE_FILE" ]]; then
+    python3 "$STATECTL" render-rules "$ACL_STATE_FILE" "$tmpdir/acl.txt"
+    if [[ -f "$ACL_RENDERED_RULES_FILE" ]] && ! cmp -s "$tmpdir/acl.txt" "$ACL_RENDERED_RULES_FILE"; then
+      echo "drift: rendered acl file differs from acl state"
+      status=1
+    fi
+    if ! python3 "$STATECTL" validate-rule-targets "$ACL_STATE_FILE" "$NODES_STATE_FILE" >/tmp/mihomo-audit-acl-targets.log 2>&1; then
+      echo "invalid: acl targets reference unavailable targets"
+      sed -n '1,20p' /tmp/mihomo-audit-acl-targets.log
+      status=1
+    fi
+  else
+    echo "missing: ${ACL_STATE_FILE}"
+    status=1
+  fi
+
+  [[ -f "$SUBSCRIPTIONS_STATE_FILE" ]] || { echo "missing: ${SUBSCRIPTIONS_STATE_FILE}"; status=1; }
+
   if [[ "${ALPHA_AUTO_UPDATE:-0}" == "1" ]]; then
     if ! systemctl_cmd is-enabled mihomo-alpha-update.timer >/dev/null 2>&1; then
       echo "drift: alpha auto-update enabled in settings but timer not enabled"
@@ -968,7 +1033,7 @@ sync_rules_repo() {
     return 0
   fi
 
-  local repo_dir="${RULES_REPO_DIR:-/root/mihomo-rules}"
+  local repo_dir="${RULES_REPO_DIR:-/home/projects/mihomo-rules}"
   local branch
   local export_dir
 
@@ -981,6 +1046,9 @@ sync_rules_repo() {
   mkdir -p "$export_dir"
   cp -f "$RULES_STATE_FILE" "${export_dir}/rules.json"
   cp -f "$RENDERED_RULES_FILE" "${export_dir}/custom.rules"
+  cp -f "$ACL_STATE_FILE" "${export_dir}/acl.json"
+  cp -f "$ACL_RENDERED_RULES_FILE" "${export_dir}/acl.rules"
+  cp -f "$SUBSCRIPTIONS_STATE_FILE" "${export_dir}/subscriptions.json"
   {
     echo "# generated by mihomo manager"
     echo "generated_at=$(date '+%F %T %Z')"
@@ -1065,6 +1133,8 @@ runtime_audit() {
   echo "历史峰值内存(字节): ${memory_peak:-0}"
   echo "累计 CPU 时间(ns): ${cpu_nsec:-0}"
   echo "端口监听: mixed=${MIXED_PORT} tproxy=${TPROXY_PORT} dns=${DNS_PORT} controller=${CONTROLLER_PORT}"
+  echo "当前模板: ${TEMPLATE_NAME:-unknown} ($(template_summary "${TEMPLATE_NAME:-unknown}"))"
+  echo "IPv6 模式: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
   echo "控制面范围: ${CONTROLLER_SCOPE}"
   echo "局域网旁路由入口: ${PROXY_INGRESS_INTERFACES:-未配置}"
   echo "局域网网段: ${LAN_CIDRS:-未设置}"

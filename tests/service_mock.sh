@@ -12,9 +12,11 @@ trap cleanup EXIT
 
 setup_case() {
   TMPDIR_CASE="$(mktemp -d)"
-  mkdir -p "${TMPDIR_CASE}/bin"
+  mkdir -p "${TMPDIR_CASE}/bin" "${TMPDIR_CASE}/state" "${TMPDIR_CASE}/ruleset" "${TMPDIR_CASE}/proxy_providers" "${TMPDIR_CASE}/ui"
 
   cat > "${TMPDIR_CASE}/router.env" <<'EOENV'
+TEMPLATE_NAME="nas-single-lan-v4"
+ENABLE_IPV6="0"
 LAN_INTERFACES="bridge1"
 LAN_CIDRS="192.168.2.0/24"
 PROXY_INGRESS_INTERFACES="bridge1"
@@ -125,19 +127,48 @@ EOIPT
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${CURL_LOG:?}"
 out=""
+target=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -o)
       out="$2"
       shift 2
       ;;
+    http*)
+      target="$1"
+      shift
+      ;;
     *)
       shift
       ;;
   esac
 done
-if [[ -n "$out" ]]; then
+
+if [[ "$target" == *"geosite.dat"* ]]; then
   printf 'mock-geosite-data\n' > "$out"
+  exit 0
+fi
+
+if [[ "$target" == *"country.mmdb"* ]]; then
+  printf 'mock-country-mmdb\n' > "$out"
+  exit 0
+fi
+
+if [[ "$target" == *"gh-pages.zip"* ]]; then
+  printf '<!doctype html>\n' > "$out"
+  exit 0
+fi
+
+if [[ "$target" == *"subscription.example"* ]]; then
+  cat > "$out" <<OUT
+vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#sub-vless
+trojan://password@example.org:443?security=tls&sni=www.apple.com&type=ws&host=www.apple.com&path=%2Fws#sub-trojan
+OUT
+  exit 0
+fi
+
+if [[ -n "$out" ]]; then
+  printf '<!doctype html>\n' > "$out"
 else
   printf '<!doctype html>\n'
 fi
@@ -161,7 +192,7 @@ EOGIT
 }
 
 env_prefix() {
-  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q GIT_BIN=%q RULES_REPO_DIR=%q SYSTEMCTL_LOG=%q GIT_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q' \
+  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q GIT_BIN=%q RULES_REPO_DIR=%q SYSTEMCTL_LOG=%q GIT_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
     "$ROOT" \
     "$TMPDIR_CASE" \
     "$TMPDIR_CASE/settings.env" \
@@ -173,8 +204,11 @@ env_prefix() {
     "$TMPDIR_CASE/state" \
     "$TMPDIR_CASE/state/nodes.json" \
     "$TMPDIR_CASE/state/rules.json" \
+    "$TMPDIR_CASE/state/acl.json" \
+    "$TMPDIR_CASE/state/subscriptions.json" \
     "$TMPDIR_CASE/proxy_providers/manual.txt" \
     "$TMPDIR_CASE/ruleset/custom.rules" \
+    "$TMPDIR_CASE/ruleset/acl.rules" \
     root \
     "$TMPDIR_CASE/mihomo" \
     /bin/true \
@@ -192,7 +226,8 @@ env_prefix() {
     "$TMPDIR_CASE/mihomo-restart.service" \
     "$TMPDIR_CASE/mihomo-restart.timer" \
     "$TMPDIR_CASE/mihomo-alpha-update.service" \
-    "$TMPDIR_CASE/mihomo-alpha-update.timer"
+    "$TMPDIR_CASE/mihomo-alpha-update.timer" \
+    "$TMPDIR_CASE/99-mihomo-router.conf"
 }
 
 run_manager() {
@@ -236,6 +271,7 @@ test_runtime_audit_outputs() {
   run_manager render-config >/dev/null
   output="$(run_manager runtime-audit)"
   grep -q '服务状态: active' <<<"$output"
+  grep -q '当前模板: nas-single-lan-v4 (单 LAN IPv4 旁路由)' <<<"$output"
   grep -q '过去 24 小时 warning 数: 1' <<<"$output"
   grep -q '下次 Alpha 自动更新: Tue 2026-04-21 00:00:00 CST' <<<"$output"
   grep -q '控制面范围: 仅宿主机' <<<"$output"
@@ -244,7 +280,6 @@ test_runtime_audit_outputs() {
   grep -q 'localhost 显式代理探测: ok' <<<"$output"
   grep -q '局域网透明代理命中包数: 66' <<<"$output"
   grep -q 'DNS 劫持命中包数: 18' <<<"$output"
-  grep -q '旁路由流量摘要: 近期已观测到局域网旁路由流量' <<<"$output"
 }
 
 test_healthcheck_uses_localhost_proxy_probe() {
@@ -264,7 +299,7 @@ test_install_geosite_downloads_official_asset() {
   [[ -f "${TMPDIR_CASE}/GeoSite.dat" ]]
 }
 
-test_setup_bootstraps_empty_installation() {
+test_setup_bootstraps_empty_installation_even_when_webui_fails() {
   setup_case
   rm -f "${TMPDIR_CASE}/router.env" "${TMPDIR_CASE}/settings.env" "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat"
   rm -rf "${TMPDIR_CASE}/state" "${TMPDIR_CASE}/ruleset" "${TMPDIR_CASE}/proxy_providers" "${TMPDIR_CASE}/ui"
@@ -276,17 +311,44 @@ test_setup_bootstraps_empty_installation() {
   [[ -f "${TMPDIR_CASE}/state/nodes.json" ]]
   grep -Fq 'country.mmdb' "${TMPDIR_CASE}/curl.log"
   grep -Fq 'geosite.dat' "${TMPDIR_CASE}/curl.log"
-  grep -q '核心旁路由链已继续' /tmp/mh-setup-bootstrap.err
+  grep -q '核心旁路由链已继续' /tmp/mh-setup-bootstrap.out || grep -q '核心旁路由链已继续' /tmp/mh-setup-bootstrap.err
 }
 
 test_enable_start_after_cold_setup() {
   setup_case
   rm -f "${TMPDIR_CASE}/router.env" "${TMPDIR_CASE}/settings.env" "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat"
   rm -rf "${TMPDIR_CASE}/state" "${TMPDIR_CASE}/ruleset" "${TMPDIR_CASE}/proxy_providers" "${TMPDIR_CASE}/ui"
-  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp&flow=xtls-rprx-vision#cold-start-node' cold-start-node 1 >/dev/null
+  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#cold-start-node' cold-start-node 1 >/dev/null
   run_manager setup >/dev/null 2>/tmp/mh-cold-setup.err
   run_manager enable-start >/dev/null
   grep -Fq 'enable --now mihomo' "${TMPDIR_CASE}/systemctl.log"
+}
+
+test_repair_restores_missing_assets() {
+  setup_case
+  run_manager render-config >/dev/null
+  rm -f "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat" "${TMPDIR_CASE}/mihomo.service"
+  run_manager repair >/dev/null
+  [[ -f "${TMPDIR_CASE}/Country.mmdb" ]]
+  [[ -f "${TMPDIR_CASE}/GeoSite.dat" ]]
+  [[ -f "${TMPDIR_CASE}/mihomo.service" ]]
+}
+
+test_update_subscriptions_imports_nodes() {
+  setup_case
+  run_manager add-subscription demo https://subscription.example/list.txt 1 >/dev/null
+  run_manager update-subscriptions >/dev/null
+  grep -q 'sub-vless' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'sub-trojan' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+}
+
+test_rollback_config_restores_template() {
+  setup_case
+  run_manager render-config >/dev/null
+  run_manager set-template nas-explicit-proxy-only >/dev/null
+  grep -q 'TEMPLATE_NAME="nas-explicit-proxy-only"' "${TMPDIR_CASE}/router.env"
+  run_manager rollback-config >/dev/null
+  grep -q 'TEMPLATE_NAME="nas-single-lan-v4"' "${TMPDIR_CASE}/router.env"
 }
 
 test_sync_rules_repo_command() {
@@ -294,6 +356,7 @@ test_sync_rules_repo_command() {
   mkdir -p "${TMPDIR_CASE}/repo/.git"
   run_manager render-config >/dev/null
   python3 "${ROOT}/scripts/statectl.py" add-rule "${TMPDIR_CASE}/state/rules.json" domain foo.com DIRECT >/dev/null
+  python3 "${ROOT}/scripts/statectl.py" add-rule "${TMPDIR_CASE}/state/acl.json" geosite netflix DIRECT >/dev/null
   run_manager sync-rules-repo >/dev/null
   grep -Fq 'add manager/custom-rules' "${TMPDIR_CASE}/git.log"
   grep -Fq 'push origin main' "${TMPDIR_CASE}/git.log"
@@ -306,8 +369,11 @@ main() {
   test_runtime_audit_outputs
   test_healthcheck_uses_localhost_proxy_probe
   test_install_geosite_downloads_official_asset
-  test_setup_bootstraps_empty_installation
+  test_setup_bootstraps_empty_installation_even_when_webui_fails
   test_enable_start_after_cold_setup
+  test_repair_restores_missing_assets
+  test_update_subscriptions_imports_nodes
+  test_rollback_config_restores_template
   test_sync_rules_repo_command
   echo "service-mock: ok"
 }

@@ -4,19 +4,33 @@ set -euo pipefail
 
 SOURCE_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 APP_ROOT="${APP_ROOT:-$SOURCE_ROOT}"
-SCRIPT_VERSION="0.5.0"
+SCRIPT_VERSION="0.6.0"
 
 # shellcheck disable=SC1091
 source "${APP_ROOT}/lib/common.sh"
 # shellcheck disable=SC1091
 source "${APP_ROOT}/lib/render.sh"
 
+snapshot_before_change() {
+  snapshot_current_state "${1:-change}" >/dev/null 2>&1 || true
+}
+
 node_count_total() {
   local total=0
-  while IFS=$'\t' read -r _ _ _ _ _ _ _ _; do
+  while IFS=$'\t' read -r _ _ _ _ _ _ _ _ _; do
     total=$((total + 1))
   done < <(node_list_tsv || true)
-  echo "$total"
+  printf '%s\n' "$total"
+}
+
+subscription_counts() {
+  local enabled=0
+  local total=0
+  while IFS=$'\t' read -r _ _ _ _ enabled_flag _ _ _ _; do
+    total=$((total + 1))
+    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
+  done < <(subscription_list_tsv || true)
+  printf '%s\t%s\n' "$enabled" "$total"
 }
 
 list_nodes_pretty() {
@@ -24,114 +38,74 @@ list_nodes_pretty() {
     echo "暂无节点"
     return 0
   fi
-  printf '%-4s %-6s %-28s %-24s %-6s %-10s %-10s\n' "ID" "状态" "名称" "地址" "端口" "网络" "安全"
-  while IFS=$'\t' read -r idx enabled name server port network security _id; do
-    printf '%-4s %-6s %-28s %-24s %-6s %-10s %-10s\n' \
+  printf '%-4s %-6s %-28s %-22s %-6s %-10s %-10s %-16s\n' "ID" "状态" "名称" "地址" "端口" "网络" "安全" "来源"
+  while IFS=$'\t' read -r idx enabled name server port network security _id source; do
+    printf '%-4s %-6s %-28s %-22s %-6s %-10s %-10s %-16s\n' \
       "$idx" \
       "$([[ "$enabled" == "1" ]] && printf '启用' || printf '关闭')" \
-      "$name" "$server" "$port" "$network" "$security"
+      "$name" "$server" "$port" "$network" "$security" "${source:-manual}"
   done < <(node_list_tsv)
 }
 
-import_links() {
-  require_root
-  require_statectl
-  ensure_layout
-
-  local tmp
-  local scan_tmp
-  local line
-  local normalized_line
-  local lowered_line
-  local uri
-  local default_name
-  local server
-  local port
-  local network
-  local security
-  local custom_name
-  local enabled_answer
-  local enabled_value
-  local imported=0
-  local input_tty="/dev/tty"
-
-  [[ -r "$input_tty" ]] || input_tty="/dev/stdin"
-  tmp="$(mktemp)"
-  scan_tmp="$(mktemp)"
-  info "请粘贴节点链接，每行一个。输入 end 结束，也可以按 Ctrl-D 结束。"
-  while IFS= read -r line <"$input_tty"; do
-    normalized_line="${line%$'\r'}"
-    lowered_line="${normalized_line,,}"
-    [[ -z "$normalized_line" ]] && continue
-    [[ "$lowered_line" == "end" || "$lowered_line" == "done" ]] && break
-    printf '%s\n' "$normalized_line" >>"$tmp"
-  done
-
-  python3 "$STATECTL" scan-uris "$tmp" >"$scan_tmp"
-
-  while IFS=$'	' read -r uri default_name server port network security; do
-    [[ -n "$uri" ]] || continue
-    echo
-    echo "节点: ${server}:${port}  ${network}/${security}"
-    read -r -p "名称 [${default_name}]: " custom_name <"$input_tty"
-    custom_name="${custom_name:-$default_name}"
-    read -r -p "立即启用? [Y/n]: " enabled_answer <"$input_tty"
-    if [[ "${enabled_answer,,}" == "n" ]]; then
-      enabled_value="0"
-    else
-      enabled_value="1"
-    fi
-    python3 "$STATECTL" append-node "$NODES_STATE_FILE" "$uri" "$custom_name" "$enabled_value" >/dev/null
-    imported=$((imported + 1))
-  done <"$scan_tmp"
-
-  rm -f "$tmp" "$scan_tmp"
-  [[ "$imported" -gt 0 ]] || die "没有读取到有效节点"
-  render_config
-  config_test
-  restart_service_if_active
-  ok "已处理 ${imported} 条节点"
-}
-rename_node() {
-  require_root
-  require_statectl
-  list_nodes_pretty
-  local idx
-  local new_name
-  read -rp "输入要改名的节点 ID: " idx
-  read -rp "新的名称: " new_name
-  [[ -n "$new_name" ]] || die "名称不能为空"
-  python3 "$STATECTL" rename-node "$NODES_STATE_FILE" "$idx" "$new_name" "$RULES_STATE_FILE"
-  render_config
-  sync_rules_repo_if_enabled
-  restart_service_if_active
-  ok "节点已重命名"
-}
-
-toggle_node() {
-  require_root
-  require_statectl
-  list_nodes_pretty
-  local idx
-  local enabled
-  read -rp "输入节点 ID: " idx
-  read -rp "启用填 1，关闭填 0: " enabled
-  [[ "$enabled" == "1" || "$enabled" == "0" ]] || die "只能填 1 或 0"
-  python3 "$STATECTL" set-node-enabled "$NODES_STATE_FILE" "$idx" "$enabled"
-  render_config
-  restart_service_if_active
-  ok "节点状态已更新"
-}
-
-list_rules_pretty() {
-  if [[ ! -s "$RULES_STATE_FILE" ]]; then
-    echo "暂无自定义规则"
+list_rules_pretty_from_file() {
+  local state_file="$1"
+  local title="$2"
+  if [[ ! -s "$state_file" ]]; then
+    echo "暂无${title}"
     return 0
   fi
   printf '%-4s %s\n' "ID" "规则"
   while IFS=$'\t' read -r idx rule; do
     printf '%-4s %s\n' "$idx" "$rule"
-  done < <(python3 "$STATECTL" list-rules "$RULES_STATE_FILE")
+  done < <(python3 "$STATECTL" list-rules "$state_file")
+}
+
+list_custom_rules_pretty() {
+  list_rules_pretty_from_file "$RULES_STATE_FILE" "自定义规则"
+}
+
+list_acl_pretty() {
+  list_rules_pretty_from_file "$ACL_STATE_FILE" "ACL 规则"
+}
+
+list_subscriptions_pretty() {
+  local counts
+  counts="$(subscription_counts)"
+  echo "订阅: 启用 ${counts%%$'\t'*} / 总计 ${counts##*$'\t'}"
+  if [[ "${counts##*$'\t'}" == "0" ]]; then
+    echo "暂无订阅"
+    return 0
+  fi
+  printf '%-4s %-8s %-20s %-6s %-8s %-24s %s\n' "ID" "内部ID" "名称" "启用" "节点数" "上次成功" "URL"
+  while IFS=$'\t' read -r idx sub_id name url enabled last_success imported_count last_error; do
+    printf '%-4s %-8s %-20s %-6s %-8s %-24s %s\n' \
+      "$idx" "${sub_id:0:8}" "$name" \
+      "$([[ "$enabled" == "1" ]] && printf '启用' || printf '关闭')" \
+      "$imported_count" "${last_success:-未成功}" "$url"
+    if [[ -n "$last_error" ]]; then
+      printf '     错误: %s\n' "$last_error"
+    fi
+  done < <(subscription_list_tsv)
+  return 0
+}
+
+resolve_subscription_id_from_index() {
+  local index="$1"
+  local idx
+  local sub_id
+  while IFS=$'\t' read -r idx sub_id _ _ _ _ _ _; do
+    if [[ "$idx" == "$index" ]]; then
+      printf '%s\n' "$sub_id"
+      return 0
+    fi
+  done < <(subscription_list_tsv)
+  return 1
+}
+
+post_state_change() {
+  render_config
+  config_test
+  restart_service_if_active
 }
 
 choose_rule_target() {
@@ -161,45 +135,335 @@ choose_rule_target() {
   esac
 }
 
-add_custom_rule() {
-  require_root
-  require_statectl
-  local kind_choice
-  local kind
-  local pattern
-  local target
-
+choose_custom_rule_kind() {
   echo "1) 精确域名 DOMAIN"
   echo "2) 域名后缀 DOMAIN-SUFFIX"
   echo "3) 关键字 DOMAIN-KEYWORD"
+  local kind_choice
   read -rp "规则类型 [1/2/3]: " kind_choice
   case "$kind_choice" in
-    1) kind="domain" ;;
-    2) kind="suffix" ;;
-    3) kind="keyword" ;;
+    1) printf 'domain\n' ;;
+    2) printf 'suffix\n' ;;
+    3) printf 'keyword\n' ;;
     *) die "无效规则类型" ;;
   esac
-  read -rp "输入域名/后缀/关键字: " pattern
-  [[ -n "$pattern" ]] || die "规则内容不能为空"
-  target="$(choose_rule_target)"
-  python3 "$STATECTL" add-rule "$RULES_STATE_FILE" "$kind" "$pattern" "$target"
-  render_config
+}
+
+choose_acl_rule_kind() {
+  echo "1) DOMAIN"
+  echo "2) DOMAIN-SUFFIX"
+  echo "3) DOMAIN-KEYWORD"
+  echo "4) SRC-IP-CIDR"
+  echo "5) IP-CIDR"
+  echo "6) DST-PORT"
+  echo "7) GEOIP"
+  echo "8) GEOSITE"
+  echo "9) RULE-SET"
+  local kind_choice
+  read -rp "ACL 类型 [1-9]: " kind_choice
+  case "$kind_choice" in
+    1) printf 'domain\n' ;;
+    2) printf 'suffix\n' ;;
+    3) printf 'keyword\n' ;;
+    4) printf 'src-cidr\n' ;;
+    5) printf 'ip-cidr\n' ;;
+    6) printf 'port\n' ;;
+    7) printf 'geoip\n' ;;
+    8) printf 'geosite\n' ;;
+    9) printf 'ruleset\n' ;;
+    *) die "无效 ACL 类型" ;;
+  esac
+}
+
+import_links() {
+  require_root
+  require_statectl
+  ensure_layout
+
+  local tmp
+  local scan_tmp
+  local line
+  local normalized_line
+  local lowered_line
+  local uri
+  local default_name
+  local server
+  local port
+  local network
+  local security
+  local supported
+  local scheme
+  local reason
+  local custom_name
+  local enabled_answer
+  local enabled_value
+  local imported=0
+  local skipped=0
+  local input_tty="/dev/tty"
+
+  [[ -r "$input_tty" ]] || input_tty="/dev/stdin"
+  tmp="$(mktemp)"
+  scan_tmp="$(mktemp)"
+  info "请粘贴节点链接，每行一个。输入 end 结束，也可以按 Ctrl-D 结束。"
+  while IFS= read -r line <"$input_tty"; do
+    normalized_line="${line%$'\r'}"
+    lowered_line="${normalized_line,,}"
+    [[ -z "$normalized_line" ]] && continue
+    [[ "$lowered_line" == "end" || "$lowered_line" == "done" ]] && break
+    printf '%s\n' "$normalized_line" >>"$tmp"
+  done
+
+  python3 "$STATECTL" scan-uris "$tmp" >"$scan_tmp"
+  snapshot_before_change "import-links"
+
+  while IFS=$'\t' read -r uri default_name server port network security supported scheme reason; do
+    [[ -n "$uri" ]] || continue
+    if [[ "$supported" != "1" ]]; then
+      warn "跳过不支持的 ${scheme:-unknown} 节点: ${default_name:-$uri}"
+      [[ -n "$reason" ]] && warn "原因: ${reason}"
+      skipped=$((skipped + 1))
+      continue
+    fi
+    echo
+    echo "节点: ${server}:${port}  ${network}/${security} (${scheme})"
+    read -r -p "名称 [${default_name}]: " custom_name <"$input_tty"
+    custom_name="${custom_name:-$default_name}"
+    read -r -p "立即启用? [Y/n]: " enabled_answer <"$input_tty"
+    if [[ "${enabled_answer,,}" == "n" ]]; then
+      enabled_value="0"
+    else
+      enabled_value="1"
+    fi
+    python3 "$STATECTL" append-node "$NODES_STATE_FILE" "$uri" "$custom_name" "$enabled_value" >/dev/null
+    imported=$((imported + 1))
+  done <"$scan_tmp"
+
+  rm -f "$tmp" "$scan_tmp"
+  [[ "$imported" -gt 0 ]] || die "没有读取到有效节点"
+  post_state_change
+  ok "已处理 ${imported} 条节点"
+  [[ "$skipped" -gt 0 ]] && warn "有 ${skipped} 条链接因协议不受支持而被跳过"
+}
+
+rename_node() {
+  require_root
+  require_statectl
+  list_nodes_pretty
+  local idx
+  local new_name
+  read -rp "输入要改名的节点 ID: " idx
+  read -rp "新的名称: " new_name
+  [[ -n "$new_name" ]] || die "名称不能为空"
+  snapshot_before_change "rename-node"
+  python3 "$STATECTL" rename-node "$NODES_STATE_FILE" "$idx" "$new_name" "$RULES_STATE_FILE" "$ACL_STATE_FILE"
+  post_state_change
   sync_rules_repo_if_enabled
-  restart_service_if_active
-  ok "规则已添加"
+  ok "节点已重命名"
+}
+
+toggle_node() {
+  require_root
+  require_statectl
+  list_nodes_pretty
+  local idx
+  local enabled
+  read -rp "输入节点 ID: " idx
+  read -rp "启用填 1，关闭填 0: " enabled
+  [[ "$enabled" == "1" || "$enabled" == "0" ]] || die "只能填 1 或 0"
+  snapshot_before_change "toggle-node"
+  python3 "$STATECTL" set-node-enabled "$NODES_STATE_FILE" "$idx" "$enabled"
+  post_state_change
+  ok "节点状态已更新"
+}
+
+add_rule_interactive() {
+  local state_file="$1"
+  local kind
+  local pattern
+  local target
+  kind="$2"
+  [[ -n "$kind" ]] || kind="$(choose_custom_rule_kind)"
+  if [[ -n "${3:-}" ]]; then
+    pattern="$3"
+  else
+    read -rp "输入规则内容: " pattern
+  fi
+  [[ -n "$pattern" ]] || die "规则内容不能为空"
+  if [[ -n "${4:-}" ]]; then
+    target="$4"
+  else
+    target="$(choose_rule_target)"
+  fi
+  python3 "$STATECTL" add-rule "$state_file" "$kind" "$pattern" "$target"
+}
+
+add_custom_rule() {
+  require_root
+  snapshot_before_change "add-rule"
+  add_rule_interactive "$RULES_STATE_FILE" "${1:-}" "${2:-}" "${3:-}"
+  post_state_change
+  sync_rules_repo_if_enabled
+  ok "自定义规则已添加"
 }
 
 remove_custom_rule() {
   require_root
-  require_statectl
-  list_rules_pretty
-  local idx
-  read -rp "输入要删除的规则 ID: " idx
+  local idx="${1:-}"
+  list_custom_rules_pretty
+  [[ -n "$idx" ]] || read -rp "输入要删除的规则 ID: " idx
+  snapshot_before_change "remove-rule"
   python3 "$STATECTL" remove-rule "$RULES_STATE_FILE" "$idx"
-  render_config
+  post_state_change
   sync_rules_repo_if_enabled
-  restart_service_if_active
-  ok "规则已删除"
+  ok "自定义规则已删除"
+}
+
+add_acl_rule() {
+  require_root
+  local kind="${1:-}"
+  local pattern="${2:-}"
+  local target="${3:-}"
+  snapshot_before_change "add-acl"
+  [[ -n "$kind" ]] || kind="$(choose_acl_rule_kind)"
+  [[ -n "$pattern" ]] || read -rp "输入 ACL 内容: " pattern
+  [[ -n "$pattern" ]] || die "ACL 内容不能为空"
+  [[ -n "$target" ]] || target="$(choose_rule_target)"
+  python3 "$STATECTL" add-rule "$ACL_STATE_FILE" "$kind" "$pattern" "$target"
+  post_state_change
+  ok "ACL 规则已添加"
+}
+
+remove_acl_rule() {
+  require_root
+  local idx="${1:-}"
+  list_acl_pretty
+  [[ -n "$idx" ]] || read -rp "输入要删除的 ACL 规则 ID: " idx
+  snapshot_before_change "remove-acl"
+  python3 "$STATECTL" remove-rule "$ACL_STATE_FILE" "$idx"
+  post_state_change
+  ok "ACL 规则已删除"
+}
+
+add_subscription_command() {
+  require_root
+  require_statectl
+  local name="${1:-}"
+  local url="${2:-}"
+  local enabled="${3:-1}"
+  [[ -n "$name" ]] || read -rp "订阅名称: " name
+  [[ -n "$url" ]] || read -rp "订阅 URL: " url
+  [[ -n "$name" && -n "$url" ]] || die "订阅名称和 URL 不能为空"
+  [[ "$enabled" == "0" || "$enabled" == "1" ]] || enabled="1"
+  snapshot_before_change "add-subscription"
+  python3 "$STATECTL" append-subscription "$SUBSCRIPTIONS_STATE_FILE" "$name" "$url" "$enabled" >/dev/null
+  ok "订阅已添加"
+}
+
+toggle_subscription_command() {
+  require_root
+  require_statectl
+  list_subscriptions_pretty
+  local idx
+  local enabled
+  local sub_id
+  read -rp "输入订阅 ID: " idx
+  read -rp "启用填 1，关闭填 0: " enabled
+  [[ "$enabled" == "1" || "$enabled" == "0" ]] || die "只能填 1 或 0"
+  sub_id="$(resolve_subscription_id_from_index "$idx")" || die "订阅不存在"
+  snapshot_before_change "toggle-subscription"
+  python3 "$STATECTL" set-subscription-enabled "$SUBSCRIPTIONS_STATE_FILE" "$sub_id" "$enabled"
+  ok "订阅状态已更新"
+}
+
+remove_subscription_command() {
+  require_root
+  require_statectl
+  list_subscriptions_pretty
+  local idx
+  local sub_id
+  read -rp "输入要删除的订阅 ID: " idx
+  sub_id="$(resolve_subscription_id_from_index "$idx")" || die "订阅不存在"
+  snapshot_before_change "remove-subscription"
+  python3 "$STATECTL" purge-subscription-nodes "$NODES_STATE_FILE" "$sub_id" >/dev/null
+  python3 "$STATECTL" remove-subscription "$SUBSCRIPTIONS_STATE_FILE" "$sub_id"
+  post_state_change
+  ok "订阅已删除"
+}
+
+update_subscriptions_command() {
+  require_root
+  require_statectl
+  ensure_layout
+  local tmp
+  local updated=0
+  local failed=0
+  local idx
+  local sub_id
+  local name
+  local url
+  local enabled
+  local last_success
+  local imported_count
+  local last_error
+  snapshot_before_change "update-subscriptions"
+  while IFS=$'\t' read -r idx sub_id name url enabled last_success imported_count last_error; do
+    [[ "$enabled" == "1" ]] || continue
+    tmp="$(mktemp)"
+    if curl_cmd -fsSL "$url" -o "$tmp"; then
+      imported_count="$(python3 "$STATECTL" sync-subscription-nodes "$NODES_STATE_FILE" "$sub_id" "$tmp")"
+      python3 "$STATECTL" mark-subscription-success "$SUBSCRIPTIONS_STATE_FILE" "$sub_id" "$imported_count" >/dev/null
+      ok "订阅已更新: ${name} (${imported_count} 节点)"
+      updated=$((updated + 1))
+    else
+      python3 "$STATECTL" mark-subscription-error "$SUBSCRIPTIONS_STATE_FILE" "$sub_id" "curl failed for ${url}" >/dev/null
+      warn "订阅更新失败: ${name}"
+      failed=$((failed + 1))
+    fi
+    rm -f "$tmp"
+  done < <(subscription_list_tsv)
+
+  if [[ "$updated" -gt 0 ]]; then
+    post_state_change
+  fi
+  if [[ "$updated" -eq 0 && "$failed" -eq 0 ]]; then
+    warn "没有启用中的订阅"
+    return 0
+  fi
+  [[ "$failed" -eq 0 ]] || return 1
+}
+
+list_templates_command() {
+  load_settings_readonly
+  load_router_env_readonly
+  local current="${TEMPLATE_NAME:-$PROFILE_TEMPLATE}"
+  for template_name in nas-single-lan-v4 nas-single-lan-dualstack nas-multi-bridge nas-explicit-proxy-only; do
+    printf '%s%s - %s\n' "$([[ "$current" == "$template_name" ]] && printf '* ' || printf '  ')" "$template_name" "$(template_summary "$template_name")"
+  done
+}
+
+set_template_command() {
+  require_root
+  local template_name="${1:-}"
+  if [[ -z "$template_name" ]]; then
+    echo "1) nas-single-lan-v4"
+    echo "2) nas-single-lan-dualstack"
+    echo "3) nas-multi-bridge"
+    echo "4) nas-explicit-proxy-only"
+    read -rp "模板 [1-4]: " template_name
+    case "$template_name" in
+      1) template_name="nas-single-lan-v4" ;;
+      2) template_name="nas-single-lan-dualstack" ;;
+      3) template_name="nas-multi-bridge" ;;
+      4) template_name="nas-explicit-proxy-only" ;;
+      *) die "无效模板" ;;
+    esac
+  fi
+  template_exists "$template_name" || die "未知模板: ${template_name}"
+  snapshot_before_change "set-template"
+  upsert_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$template_name"
+  write_router_env_from_template "$template_name"
+  post_state_change
+  ok "模板已切换为 ${template_name}"
 }
 
 configure_rules_sync_menu() {
@@ -208,8 +472,9 @@ configure_rules_sync_menu() {
   local repo_dir
   read -rp "启用规则仓库自动同步? 1/0 [${RULES_AUTO_SYNC:-1}]: " enabled
   enabled="${enabled:-${RULES_AUTO_SYNC:-1}}"
-  read -rp "规则仓库目录 [${RULES_REPO_DIR:-/root/mihomo-rules}]: " repo_dir
-  repo_dir="${repo_dir:-${RULES_REPO_DIR:-/root/mihomo-rules}}"
+  read -rp "规则仓库目录 [${RULES_REPO_DIR:-/home/projects/mihomo-rules}]: " repo_dir
+  repo_dir="${repo_dir:-${RULES_REPO_DIR:-/home/projects/mihomo-rules}}"
+  snapshot_before_change "configure-rules-sync"
   upsert_env_var "$SETTINGS_ENV" "RULES_AUTO_SYNC" "$enabled"
   upsert_env_var "$SETTINGS_ENV" "RULES_REPO_DIR" "$repo_dir"
   ok "规则仓库同步设置已更新"
@@ -222,9 +487,9 @@ set_mode() {
     rule|global|direct) ;;
     *) die "模式仅支持 rule|global|direct" ;;
   esac
+  snapshot_before_change "set-mode"
   upsert_env_var "$SETTINGS_ENV" "CONFIG_MODE" "$mode"
-  render_config
-  restart_service_if_active
+  post_state_change
   ok "当前模式已切换为 ${mode}"
 }
 
@@ -238,6 +503,7 @@ router_wizard() {
   local next_lan_cidrs
 
   echo
+  info "当前模板: ${TEMPLATE_NAME} ($(template_summary "${TEMPLATE_NAME}"))"
   info "当前可见 IPv4 接口:"
   ip -o -4 addr show scope global 2>/dev/null | awk '{printf "  - %s  %s\n", $2, $4}' | sort -u || true
   echo
@@ -247,8 +513,17 @@ router_wizard() {
 
   read -rp "局域网旁路由入口接口 [${PROXY_INGRESS_INTERFACES}]: " input
   next_ingress_ifaces="${input:-$PROXY_INGRESS_INTERFACES}"
+  read -rp "DNS 劫持接口 [${DNS_HIJACK_INTERFACES}]: " input
+  next_dns_ifaces="${input:-$DNS_HIJACK_INTERFACES}"
+  read -rp "宿主机本机流量是否接管 1/0 [${PROXY_HOST_OUTPUT}]: " input
+  next_host_output="${input:-$PROXY_HOST_OUTPUT}"
+  [[ "$next_host_output" == "0" || "$next_host_output" == "1" ]] || die "宿主机流量接管只能填 0 或 1"
+
+  snapshot_before_change "router-wizard"
   upsert_env_var "$ROUTER_ENV" "LAN_INTERFACES" "$next_ingress_ifaces"
   upsert_env_var "$ROUTER_ENV" "PROXY_INGRESS_INTERFACES" "$next_ingress_ifaces"
+  upsert_env_var "$ROUTER_ENV" "DNS_HIJACK_INTERFACES" "$next_dns_ifaces"
+  upsert_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "$next_host_output"
 
   next_lan_cidrs="$(detect_iface_networks "$next_ingress_ifaces" || true)"
   if [[ -n "$next_lan_cidrs" ]]; then
@@ -257,15 +532,6 @@ router_wizard() {
   else
     warn "未能从入口接口自动识别 IPv4 网段，将保留当前 LAN_CIDRS=${LAN_CIDRS:-未设置}"
   fi
-
-  read -rp "DNS 劫持接口 [${DNS_HIJACK_INTERFACES}]: " input
-  next_dns_ifaces="${input:-$DNS_HIJACK_INTERFACES}"
-  upsert_env_var "$ROUTER_ENV" "DNS_HIJACK_INTERFACES" "$next_dns_ifaces"
-
-  read -rp "宿主机本机流量是否接管 1/0（建议 0，仅让 LAN 走透明代理） [${PROXY_HOST_OUTPUT}]: " input
-  next_host_output="${input:-$PROXY_HOST_OUTPUT}"
-  [[ "$next_host_output" == "0" || "$next_host_output" == "1" ]] || die "宿主机流量接管只能填 0 或 1"
-  upsert_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "$next_host_output"
 
   read -rp "PT 等容器直连，空格分隔 [${BYPASS_CONTAINER_NAMES}]: " input
   upsert_env_var "$ROUTER_ENV" "BYPASS_CONTAINER_NAMES" "${input:-$BYPASS_CONTAINER_NAMES}"
@@ -276,16 +542,10 @@ router_wizard() {
   read -rp "额外绕过代理的 UID/用户名，空格分隔 [${BYPASS_UIDS}]: " input
   upsert_env_var "$ROUTER_ENV" "BYPASS_UIDS" "${input:-$BYPASS_UIDS}"
 
-  echo
-  echo "新的宿主机模式: $([[ "$next_host_output" == "1" ]] && echo '透明接管(高风险)' || echo '默认直连 + 显式代理 127.0.0.1:7890')"
-  echo "新的旁路由入口: ${next_ingress_ifaces}"
-  echo "新的 DNS 劫持入口: ${next_dns_ifaces}"
-  [[ -n "$next_lan_cidrs" ]] && echo "新的局域网网段: ${next_lan_cidrs}"
-
-  render_config
-  restart_service_if_active
+  post_state_change
   ok "旁路由参数已更新"
 }
+
 show_secret_command() {
   require_root
   local secret
@@ -293,6 +553,7 @@ show_secret_command() {
   [[ -n "$secret" ]] || die "当前没有可用的控制面密钥"
   printf '%s\n' "$secret"
 }
+
 show_status() {
   require_root
   load_settings_readonly
@@ -300,14 +561,14 @@ show_status() {
   local version="未安装"
   local service_state="inactive"
   local service_enable="disabled"
-  local enabled_nodes total_nodes controller_url counts next_step
+  local enabled_nodes total_nodes controller_url counts next_step sub_counts
   [[ -x "$MIHOMO_BIN" ]] && version="$("$MIHOMO_BIN" -v 2>/dev/null | head -n 1 || echo "$MIHOMO_BIN")"
   service_is_active && service_state="active"
   service_is_enabled && service_enable="enabled"
   counts="$(readonly_node_counts)"
+  sub_counts="$(subscription_counts)"
   enabled_nodes="${counts%%$'\t'*}"
   total_nodes="${counts##*$'\t'}"
-  secret="$(current_secret)"
   controller_scope_summary
   controller_url="http://${CONTROLLER_HOST}:${CONTROLLER_PORT}/ui/"
   echo
@@ -316,36 +577,56 @@ show_status() {
   echo "服务状态: ${service_state}"
   echo "开机自启: ${service_enable}"
   echo "当前模式: $(current_mode || echo rule)"
+  echo "模板: ${TEMPLATE_NAME:-$PROFILE_TEMPLATE} ($(template_summary "${TEMPLATE_NAME:-$PROFILE_TEMPLATE}"))"
+  echo "IPv6: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
   echo "节点: 启用 ${enabled_nodes} / 总计 ${total_nodes}"
+  echo "订阅: 启用 ${sub_counts%%$'\t'*} / 总计 ${sub_counts##*$'\t'}"
   echo "WebUI: ${controller_url}"
   echo "控制面范围: ${CONTROLLER_SCOPE}"
   echo "控制面密钥: 已隐藏；如需查看执行: mihomo show-secret"
   echo "Mixed/TProxy/DNS: ${MIXED_PORT}/${TPROXY_PORT}/${DNS_PORT}"
-  echo "局域网旁路由入口: ${PROXY_INGRESS_INTERFACES}"
+  echo "局域网旁路由入口: ${PROXY_INGRESS_INTERFACES:-未配置}"
   echo "局域网网段: ${LAN_CIDRS:-未设置}"
   echo "DNS 劫持入口: $([[ "${DNS_HIJACK_ENABLED}" == "1" ]] && echo "${DNS_HIJACK_INTERFACES}" || echo '关闭')"
   echo "宿主机流量: $([[ "$PROXY_HOST_OUTPUT" == "1" ]] && echo '透明接管(高风险)' || echo "默认直连；按需显式代理 http://127.0.0.1:${MIXED_PORT}")"
   echo "容器直连名单: ${BYPASS_CONTAINER_NAMES:-无}"
-  if [[ "$enabled_nodes" == "0" ]]; then
-    next_step="导入并启用节点: mihomo import-links"
+  if [[ "$enabled_nodes" == "0" && "${sub_counts%%$'\t'*}" == "0" ]]; then
+    next_step="导入节点: mihomo import-links 或添加订阅: mihomo add-subscription"
+  elif [[ "$enabled_nodes" == "0" ]]; then
+    next_step="更新订阅: mihomo update-subscriptions"
   elif [[ "$service_state" != "active" ]]; then
     next_step="启动服务: mihomo start"
-  elif [[ -z "${PROXY_INGRESS_INTERFACES:-}" ]]; then
-    next_step="配置局域网旁路由入口: mihomo router-wizard"
   else
     next_step="宿主机默认直连；局域网设备把网关和 DNS 指向 NAS 后即可走旁路由"
   fi
   echo "推荐下一步: ${next_step}"
   if [[ "$CONTROLLER_SCOPE" != "仅宿主机" ]]; then
-    warn "控制面当前已开放到局域网；这不符合宿主机旁路由的默认安全边界。"
-    warn "更推荐把 CONTROLLER_BIND_ADDRESS 保持为 127.0.0.1，只在宿主机本地访问 WebUI。"
+    warn "控制面当前已开放到局域网；更推荐保持 CONTROLLER_BIND_ADDRESS=127.0.0.1。"
   fi
   if [[ "$PROXY_HOST_OUTPUT" == "1" ]]; then
     warn "当前已接管宿主机外连；这可能影响 tailscaled、cloudflared、SSH 反向隧道等守护进程。"
-    warn "更推荐保持 0，并让宿主机按需显式走 127.0.0.1:${MIXED_PORT}。"
   fi
   echo "定时重启: ${RESTART_INTERVAL_HOURS:-0}h"
   echo "Alpha 自动更新: $([[ "${ALPHA_AUTO_UPDATE:-0}" == "1" ]] && echo "${ALPHA_UPDATE_ONCALENDAR}" || echo '关闭')"
+}
+
+repair_command() {
+  require_root
+  snapshot_before_change "repair"
+  ensure_layout
+  ensure_permissions
+  load_settings
+  load_router_env
+  render_config
+  write_service
+  write_sysctl
+  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
+  ensure_geosite_ready
+  if [[ ! -d "$UI_DIR" || -z "$(find "$UI_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1)" ]]; then
+    install_webui zashboard || warn "WebUI 修复失败；核心旁路由链已继续"
+  fi
+  config_test
+  ok "修复完成；核心部署已恢复到可测试状态"
 }
 
 prepare_runtime_assets() {
@@ -396,6 +677,16 @@ stop_service_command() {
   ok "mihomo 已停止"
 }
 
+rollback_config_command() {
+  require_root
+  restore_latest_snapshot
+  ensure_permissions
+  systemctl_cmd daemon-reload
+  config_test || true
+  restart_service_if_active
+  ok "已回滚到最近一次配置快照"
+}
+
 service_menu() {
   echo
   echo "1) 启动服务"
@@ -420,6 +711,28 @@ service_menu() {
   esac
 }
 
+subscriptions_menu() {
+  while true; do
+    echo
+    echo "1) 查看订阅"
+    echo "2) 添加订阅"
+    echo "3) 启用/关闭订阅"
+    echo "4) 删除订阅"
+    echo "5) 立即更新订阅"
+    echo "0) 返回"
+    read -rp "选择 [0-5]: " action
+    case "$action" in
+      1) list_subscriptions_pretty ;;
+      2) add_subscription_command ;;
+      3) toggle_subscription_command ;;
+      4) remove_subscription_command ;;
+      5) update_subscriptions_command ;;
+      0) break ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
 nodes_menu() {
   while true; do
     echo
@@ -427,47 +740,59 @@ nodes_menu() {
     echo "2) 导入节点"
     echo "3) 节点改名"
     echo "4) 启用/关闭节点"
+    echo "5) 订阅管理"
     echo "0) 返回"
-    read -rp "选择 [0-4]: " action
+    read -rp "选择 [0-5]: " action
     case "$action" in
       1) list_nodes_pretty ;;
       2) import_links ;;
       3) rename_node ;;
       4) toggle_node ;;
+      5) subscriptions_menu ;;
       0) break ;;
       *) warn "无效选择" ;;
     esac
   done
 }
 
-rules_menu() {
+acl_menu() {
   while true; do
     echo
-    echo "1) 查看自定义规则"
-    echo "2) 添加规则"
-    echo "3) 删除规则"
+    echo "1) 查看 ACL 规则"
+    echo "2) 添加 ACL 规则"
+    echo "3) 删除 ACL 规则"
+    echo "4) 查看自定义域名规则"
+    echo "5) 添加自定义域名规则"
+    echo "6) 删除自定义域名规则"
     echo "0) 返回"
-    read -rp "选择 [0-3]: " action
+    read -rp "选择 [0-6]: " action
     case "$action" in
-      1) list_rules_pretty ;;
-      2) add_custom_rule ;;
-      3) remove_custom_rule ;;
+      1) list_acl_pretty ;;
+      2) add_acl_rule ;;
+      3) remove_acl_rule ;;
+      4) list_custom_rules_pretty ;;
+      5) add_custom_rule ;;
+      6) remove_custom_rule ;;
       0) break ;;
       *) warn "无效选择" ;;
     esac
   done
 }
 
-diagnostics_menu() {
+network_menu() {
   while true; do
     echo
-    echo "1) 查看诊断信息"
-    echo "2) 查看最近日志"
+    echo "1) 查看模板"
+    echo "2) 切换模板"
+    echo "3) 旁路由入口向导"
+    echo "4) 端口设置"
     echo "0) 返回"
-    read -rp "选择 [0-2]: " action
+    read -rp "选择 [0-4]: " action
     case "$action" in
-      1) diagnose ;;
-      2) journalctl_cmd -u mihomo -n 100 --no-pager ;;
+      1) list_templates_command ;;
+      2) set_template_command ;;
+      3) router_wizard ;;
+      4) configure_ports ;;
       0) break ;;
       *) warn "无效选择" ;;
     esac
@@ -479,6 +804,7 @@ configure_restart_menu() {
   local hours
   read -rp "每隔多少小时自动重启服务？填 0 关闭 [${RESTART_INTERVAL_HOURS:-0}]: " hours
   hours="${hours:-${RESTART_INTERVAL_HOURS:-0}}"
+  snapshot_before_change "configure-restart"
   configure_restart_timer "$hours"
 }
 
@@ -490,42 +816,26 @@ configure_alpha_update_menu() {
   enabled="${enabled:-${ALPHA_AUTO_UPDATE:-0}}"
   read -rp "OnCalendar 表达式 [${ALPHA_UPDATE_ONCALENDAR:-daily}]: " schedule
   schedule="${schedule:-${ALPHA_UPDATE_ONCALENDAR:-daily}}"
+  snapshot_before_change "configure-alpha-update"
   configure_alpha_update "$enabled" "$schedule"
 }
 
-timers_menu() {
-  while true; do
-    echo
-    echo "1) 配置定时重启服务"
-    echo "2) 配置 Alpha 自动更新"
-    echo "0) 返回"
-    read -rp "选择 [0-2]: " action
-    case "$action" in
-      1) configure_restart_menu ;;
-      2) configure_alpha_update_menu ;;
-      0) break ;;
-      *) warn "无效选择" ;;
-    esac
-  done
-}
-
-advanced_menu() {
+maintenance_menu() {
   while true; do
     echo
     echo "1) 切换模式 rule/global/direct"
-    echo "2) 自定义规则（高级）"
-    echo "3) 端口设置"
-    echo "4) 更新 GeoSite 资产"
-    echo "5) 安装/更新 WebUI"
-    echo "6) 更新 Alpha 内核"
-    echo "7) 更新 Stable 内核"
-    echo "8) 回滚到上一版内核"
-    echo "9) 定时器管理"
-    echo "10) 安装审计"
-    echo "11) 同步自定义规则到规则仓库"
-    echo "12) 配置规则仓库同步"
+    echo "2) 更新 GeoSite 资产"
+    echo "3) 安装/更新 WebUI"
+    echo "4) 更新 Alpha 内核"
+    echo "5) 更新 Stable 内核"
+    echo "6) 回滚到上一版内核"
+    echo "7) 配置定时重启"
+    echo "8) 配置 Alpha 自动更新"
+    echo "9) 安装审计"
+    echo "10) 同步规则仓库"
+    echo "11) 配置规则仓库同步"
     echo "0) 返回"
-    read -rp "选择 [0-12]: " action
+    read -rp "选择 [0-11]: " action
     case "$action" in
       1)
         echo "1) rule"
@@ -538,27 +848,44 @@ advanced_menu() {
           3) set_mode direct ;;
           *) warn "无效选择" ;;
         esac
-        press_enter
         ;;
-      2) rules_menu; press_enter ;;
-      3) configure_ports; press_enter ;;
-      4) install_geosite_dat; press_enter ;;
-      5) install_webui zashboard; restart_service_if_active; press_enter ;;
-      6) install_binary alpha; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"; restart_service_if_active; press_enter ;;
-      7) install_binary stable; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"; restart_service_if_active; press_enter ;;
-      8) rollback_core; press_enter ;;
-      9) timers_menu; press_enter ;;
-      10) audit_installation; press_enter ;;
-      11) sync_rules_repo; press_enter ;;
-      12) configure_rules_sync_menu; press_enter ;;
+      2) install_geosite_dat ;;
+      3) install_webui zashboard || warn "WebUI 更新失败" ;;
+      4) snapshot_before_change "update-alpha"; install_binary alpha; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"; restart_service_if_active ;;
+      5) snapshot_before_change "update-stable"; install_binary stable; upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"; restart_service_if_active ;;
+      6) rollback_core ;;
+      7) configure_restart_menu ;;
+      8) configure_alpha_update_menu ;;
+      9) audit_installation ;;
+      10) sync_rules_repo ;;
+      11) configure_rules_sync_menu ;;
       0) break ;;
-      *) warn "无效选择"; press_enter ;;
+      *) warn "无效选择" ;;
+    esac
+  done
+}
+
+diagnostics_menu() {
+  while true; do
+    echo
+    echo "1) 查看诊断信息"
+    echo "2) 查看最近日志"
+    echo "3) 回滚最近配置"
+    echo "0) 返回"
+    read -rp "选择 [0-3]: " action
+    case "$action" in
+      1) diagnose ;;
+      2) journalctl_cmd -u mihomo -n 100 --no-pager ;;
+      3) rollback_config_command ;;
+      0) break ;;
+      *) warn "无效选择" ;;
     esac
   done
 }
 
 full_setup() {
   require_root
+  snapshot_before_change "setup"
   ensure_layout
   ensure_permissions
   load_settings
@@ -603,26 +930,50 @@ interactive_menu() {
     clear 2>/dev/null || true
     show_status
     echo
-    echo "1) 初始化/修复部署"
-    echo "2) 节点管理"
-    echo "3) 配置旁路由入口与容器直连"
-    echo "4) 服务管理"
-    echo "5) 健康检查"
-    echo "6) 运行审计"
-    echo "7) 日志与诊断"
-    echo "8) 高级维护（少用）"
+    echo "1) 状态总览"
+    echo "2) 一键部署/修复"
+    echo "3) 节点与订阅"
+    echo "4) 网络入口与模板"
+    echo "5) 访问控制 ACL"
+    echo "6) 服务与升级"
+    echo "7) 健康检查与审计"
+    echo "8) 回滚与诊断"
+    echo "9) 高级维护"
     echo "0) 退出"
     echo
-    read -rp "请选择 [0-8]: " action
+    read -rp "请选择 [0-9]: " action
     case "$action" in
-      1) full_setup; press_enter ;;
-      2) nodes_menu; press_enter ;;
-      3) router_wizard; press_enter ;;
-      4) service_menu; press_enter ;;
-      5) healthcheck; press_enter ;;
-      6) runtime_audit; press_enter ;;
-      7) diagnostics_menu; press_enter ;;
-      8) advanced_menu ;;
+      1) show_status; press_enter ;;
+      2)
+        echo "1) 初始化部署"
+        echo "2) 修复部署"
+        read -rp "选择 [1/2]: " sub_action
+        case "$sub_action" in
+          1) full_setup ;;
+          2) repair_command ;;
+          *) warn "无效选择" ;;
+        esac
+        press_enter
+        ;;
+      3) nodes_menu; press_enter ;;
+      4) network_menu; press_enter ;;
+      5) acl_menu; press_enter ;;
+      6) service_menu; press_enter ;;
+      7)
+        echo "1) 健康检查"
+        echo "2) 运行审计"
+        echo "3) 安装审计"
+        read -rp "选择 [1-3]: " sub_action
+        case "$sub_action" in
+          1) healthcheck ;;
+          2) runtime_audit ;;
+          3) audit_installation ;;
+          *) warn "无效选择" ;;
+        esac
+        press_enter
+        ;;
+      8) diagnostics_menu; press_enter ;;
+      9) maintenance_menu; press_enter ;;
       0) break ;;
       *) warn "无效选择"; press_enter ;;
     esac
@@ -637,40 +988,50 @@ mihomo v${SCRIPT_VERSION}
   $0
   $0 menu
   $0 setup
+  $0 repair
   $0 status
   $0 show-secret
   $0 start | restart | stop
   $0 enable-start | enable
   $0 import-links
   $0 nodes
-  $0 rename-node
-  $0 toggle-node
+  $0 subscriptions
+  $0 add-subscription [name] [url] [enabled]
+  $0 update-subscriptions
+  $0 templates
+  $0 set-template [name]
   $0 router-wizard
+  $0 acl
+  $0 add-acl [kind] [pattern] [target]
+  $0 remove-acl [index]
   $0 healthcheck
   $0 runtime-audit
   $0 diagnose
+  $0 rollback-config
   $0 logs
 
-进阶配置:
+兼容命令:
   $0 rules
-  $0 add-rule
-  $0 remove-rule
-  $0 set-mode [rule|global|direct]
-  $0 set-ports
-  $0 install-geosite
-  $0 test-config
-  $0 audit-installation
+  $0 add-rule [kind] [pattern] [target]
+  $0 remove-rule [index]
+  $0 rename-node
+  $0 toggle-node
 
 维护与内部命令:
   $0 update-alpha [--quiet]
   $0 update-stable [--quiet]
   $0 rollback-core
   $0 install-webui
+  $0 install-geosite
+  $0 set-mode [rule|global|direct]
+  $0 set-ports
   $0 configure-restart [hours]
   $0 configure-alpha-update [0|1] [OnCalendar]
   $0 sync-rules-repo
   $0 configure-rules-sync [0|1] [repo_dir]
   $0 render-config
+  $0 test-config
+  $0 audit-installation
   $0 apply-rules
   $0 clear-rules
   $0 install-self
@@ -688,30 +1049,41 @@ main() {
       ;;
     menu) interactive_menu ;;
     setup|bootstrap) full_setup ;;
+    repair) repair_command ;;
     install-self) install_self ;;
     import-links) import_links ;;
     nodes) list_nodes_pretty ;;
+    subscriptions) list_subscriptions_pretty ;;
+    add-subscription) add_subscription_command "${2:-}" "${3:-}" "${4:-1}" ;;
+    update-subscriptions) update_subscriptions_command ;;
+    templates) list_templates_command ;;
+    set-template) set_template_command "${2:-}" ;;
     rename-node) rename_node ;;
     toggle-node) toggle_node ;;
-    rules) list_rules_pretty ;;
-    add-rule) add_custom_rule ;;
-    remove-rule) remove_custom_rule ;;
+    acl) list_acl_pretty ;;
+    add-acl) add_acl_rule "${2:-}" "${3:-}" "${4:-}" ;;
+    remove-acl) remove_acl_rule "${2:-}" ;;
+    rules) list_custom_rules_pretty ;;
+    add-rule) add_custom_rule "${2:-}" "${3:-}" "${4:-}" ;;
+    remove-rule) remove_custom_rule "${2:-}" ;;
     set-mode) set_mode "${2:-rule}" ;;
     router-wizard) router_wizard ;;
-    set-ports) configure_ports ;;
+    set-ports) snapshot_before_change "set-ports"; configure_ports ;;
     install-geosite|update-geosite) install_geosite_dat ;;
     update-alpha)
+      snapshot_before_change "update-alpha"
       install_binary alpha "${2:-}"
       upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"
       restart_service_if_active
       ;;
     update-stable)
+      snapshot_before_change "update-stable"
       install_binary stable "${2:-}"
       upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"
       restart_service_if_active
       ;;
     rollback-core) rollback_core ;;
-    install-webui) install_webui zashboard; restart_service_if_active ;;
+    install-webui) install_webui zashboard ;;
     start) start_service_command ;;
     restart) restart_service_command ;;
     stop) stop_service_command ;;
@@ -719,6 +1091,7 @@ main() {
     enable) enable_service_command ;;
     configure-restart)
       if [[ -n "${2:-}" ]]; then
+        snapshot_before_change "configure-restart"
         configure_restart_timer "$2"
       else
         configure_restart_menu
@@ -726,6 +1099,7 @@ main() {
       ;;
     configure-alpha-update)
       if [[ -n "${2:-}" ]]; then
+        snapshot_before_change "configure-alpha-update"
         configure_alpha_update "$2" "${3:-daily}"
       else
         configure_alpha_update_menu
@@ -734,8 +1108,9 @@ main() {
     sync-rules-repo) sync_rules_repo ;;
     configure-rules-sync)
       if [[ -n "${2:-}" ]]; then
+        snapshot_before_change "configure-rules-sync"
         upsert_env_var "$SETTINGS_ENV" "RULES_AUTO_SYNC" "$2"
-        upsert_env_var "$SETTINGS_ENV" "RULES_REPO_DIR" "${3:-/root/mihomo-rules}"
+        upsert_env_var "$SETTINGS_ENV" "RULES_REPO_DIR" "${3:-/home/projects/mihomo-rules}"
         ok "规则仓库同步设置已更新"
       else
         configure_rules_sync_menu
@@ -748,6 +1123,7 @@ main() {
     diagnose) diagnose ;;
     runtime-audit|soak-report) runtime_audit ;;
     logs) journalctl_cmd -u mihomo -n 100 --no-pager ;;
+    rollback-config) rollback_config_command ;;
     apply-rules) apply_rules ;;
     clear-rules) clear_rules ;;
     status) show_status ;;

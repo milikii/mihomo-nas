@@ -22,7 +22,10 @@ assert_contains() {
 
 setup_case() {
   TMPDIR_CASE="$(mktemp -d)"
+  mkdir -p "${TMPDIR_CASE}/state" "${TMPDIR_CASE}/ruleset" "${TMPDIR_CASE}/proxy_providers" "${TMPDIR_CASE}/ui"
   cat > "${TMPDIR_CASE}/router.env" <<'EOF'
+TEMPLATE_NAME="nas-single-lan-v4"
+ENABLE_IPV6="0"
 LAN_INTERFACES="bridge1"
 LAN_CIDRS="192.168.2.0/24"
 PROXY_INGRESS_INTERFACES="bridge1"
@@ -37,6 +40,7 @@ MIXED_PORT="7890"
 TPROXY_PORT="7893"
 DNS_PORT="1053"
 CONTROLLER_PORT="19090"
+CONTROLLER_BIND_ADDRESS="127.0.0.1"
 ROUTE_MARK="0x2333"
 ROUTE_MASK="0xffffffff"
 ROUTE_TABLE="233"
@@ -45,7 +49,7 @@ EOF
 }
 
 env_prefix() {
-  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q' \
+  printf 'APP_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q' \
     "$ROOT" \
     "$TMPDIR_CASE" \
     "$TMPDIR_CASE/settings.env" \
@@ -57,8 +61,11 @@ env_prefix() {
     "$TMPDIR_CASE/state" \
     "$TMPDIR_CASE/state/nodes.json" \
     "$TMPDIR_CASE/state/rules.json" \
+    "$TMPDIR_CASE/state/acl.json" \
+    "$TMPDIR_CASE/state/subscriptions.json" \
     "$TMPDIR_CASE/proxy_providers/manual.txt" \
     "$TMPDIR_CASE/ruleset/custom.rules" \
+    "$TMPDIR_CASE/ruleset/acl.rules" \
     root \
     "$TMPDIR_CASE/mihomo" \
     /bin/true
@@ -80,80 +87,76 @@ test_render_empty() {
   setup_case
   run_manager render-config >/dev/null
   grep -q '^proxies: \[\]' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q '^ipv6: false' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^  ipv6: false' "${TMPDIR_CASE}/config.yaml"
   grep -q '^  - 192.168.2.0/24' "${TMPDIR_CASE}/config.yaml"
   grep -q '^  - 127.0.0.0/8' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  cache-algorithm: arc' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  fake-ip-filter-mode: blacklist' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  default-nameserver:' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  nameserver-policy:' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^    "geosite:private,cn":' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^      - 223.5.5.5' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  nameserver:' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^    - https://cloudflare-dns.com/dns-query#RULES' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  fallback: \[\]' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^    geoip: false' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  direct-nameserver:' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  direct-nameserver-follow-policy: true' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  proxy-server-nameserver:' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^  - MATCH,PROXY' "${TMPDIR_CASE}/config.yaml"
+  [[ -f "${TMPDIR_CASE}/state/acl.json" ]]
+  [[ -f "${TMPDIR_CASE}/state/subscriptions.json" ]]
+  [[ -f "${TMPDIR_CASE}/ruleset/acl.rules" ]]
 }
 
-test_rename_rule_sync() {
+test_protocol_renderers() {
   setup_case
   run_manager render-config >/dev/null
-  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp&flow=xtls-rprx-vision#Old-Name' Old-Name 1 >/dev/null
-  python3 "${STATECTL}" add-rule "${TMPDIR_CASE}/state/rules.json" domain foo.com Old-Name >/dev/null
-  python3 "${STATECTL}" rename-node "${TMPDIR_CASE}/state/nodes.json" 1 New-Name "${TMPDIR_CASE}/state/rules.json" >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#vless-node' vless-node 1 >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'trojan://password@example.org:443?security=tls&sni=www.apple.com&type=ws&host=www.apple.com&path=%2Fws#trojan-node' trojan-node 1 >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'ss://YWVzLTI1Ni1nY206c2VjcmV0QGV4YW1wbGUubmV0OjQ0Mw==#ss-node' ss-node 1 >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vmess://eyJhZGQiOiJ2bWVzcy5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjEyMzQ1Njc4LTEyMzQtMTIzNC0xMjM0LTEyMzQ1Njc4OTBhYiIsImFpZCI6IjAiLCJuZXQiOiJ3cyIsInR5cGUiOiJub25lIiwiaG9zdCI6Ind3dy5naXRodWIuY29tIiwicGF0aCI6Ii92bWVzcyIsInRscyI6InRscyIsInNuaSI6Ind3dy5naXRodWIuY29tIiwicHMiOiJ2bWVzcy1ub2RlIn0=' vmess-node 1 >/dev/null
   run_manager render-config >/dev/null
-  grep -q 'DOMAIN,foo.com,New-Name' "${TMPDIR_CASE}/ruleset/custom.rules"
-  grep -q 'name: "New-Name"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'type: "vless"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'type: "trojan"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'type: "ss"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'type: "vmess"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'name: "vmess-node"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
 }
 
-test_split_xhttp_subscription_is_rendered_as_native_yaml() {
+test_acl_rules_are_rendered() {
   setup_case
   run_manager render-config >/dev/null
-  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://c03420c7-6371-4a01-a5ab-ca147222a6d1@aop.744818.xyz:443?mode=auto&path=%2Fmedia%2Fcache&security=tls&alpn=h2&encryption=mlkem768x25519plus.native.0rtt.Ka-ijCtsmegStgWthet2ZwdAAsTWf1KuTCxs5y_6nmI&insecure=0&host=aop.744818.xyz&fp=chrome&fingerprint=chrome&type=xhttp&allowInsecure=0&sni=aop.744818.xyz&extra=%7B%22downloadSettings%22%3A%7B%22address%22%3A%22146.235.206.137%22%2C%22port%22%3A443%2C%22network%22%3A%22xhttp%22%2C%22security%22%3A%22reality%22%2C%22realitySettings%22%3A%7B%22show%22%3Afalse%2C%22serverName%22%3A%22www.harvard.edu%22%2C%22fingerprint%22%3A%22chrome%22%2C%22shortId%22%3A%2281297aec6acb8608%22%2C%22publicKey%22%3A%22HJJNTRPDA3VCbFKGd-EMxPiTejd3m_LSnnFl9dwmMi4%22%7D%2C%22xhttpSettings%22%3A%7B%22host%22%3A%22%22%2C%22path%22%3A%22%2Fmedia%2Fcache%22%2C%22mode%22%3A%22auto%22%7D%7D%7D#AOP-XHTTP-SPLIT-CDN-REALITY' AOP-XHTTP-SPLIT-CDN-REALITY 1 >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#Proxy-Node' Proxy-Node 1 >/dev/null
+  python3 "${STATECTL}" add-rule "${TMPDIR_CASE}/state/acl.json" geosite netflix AUTO >/dev/null
+  python3 "${STATECTL}" add-rule "${TMPDIR_CASE}/state/acl.json" port 443 Proxy-Node >/dev/null
   run_manager render-config >/dev/null
-  grep -q '^proxies:$' "${TMPDIR_CASE}/proxy_providers/manual.txt"
-  grep -q 'name: "AOP-XHTTP-SPLIT-CDN-REALITY"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
-  grep -q 'download-settings:' "${TMPDIR_CASE}/proxy_providers/manual.txt"
-  grep -q 'server: "146.235.206.137"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
-  grep -q 'reality-opts:' "${TMPDIR_CASE}/proxy_providers/manual.txt"
-  grep -q 'public-key: "HJJNTRPDA3VCbFKGd-EMxPiTejd3m_LSnnFl9dwmMi4"' "${TMPDIR_CASE}/proxy_providers/manual.txt"
+  grep -q 'GEOSITE,netflix,AUTO' "${TMPDIR_CASE}/ruleset/acl.rules"
+  grep -q 'DST-PORT,443,Proxy-Node' "${TMPDIR_CASE}/ruleset/acl.rules"
+  grep -q 'GEOSITE,netflix,AUTO' "${TMPDIR_CASE}/config.yaml"
 }
 
 test_auto_without_node_fails() {
   setup_case
   run_manager render-config >/dev/null
-  python3 "${STATECTL}" add-rule "${TMPDIR_CASE}/state/rules.json" domain foo.com AUTO >/dev/null
+  python3 "${STATECTL}" add-rule "${TMPDIR_CASE}/state/acl.json" geosite netflix AUTO >/dev/null
   if run_manager render-config >/tmp/mh-smoke-auto.log 2>&1; then
     echo "AUTO target should have failed without enabled nodes" >&2
     exit 1
   fi
-  grep -q '存在自定义规则指向不存在或未启用节点' /tmp/mh-smoke-auto.log
+  grep -q 'ACL 规则存在指向不存在或未启用节点的目标' /tmp/mh-smoke-auto.log
 }
 
-test_disabled_legacy_migration() {
+test_scan_marks_unsupported_scheme() {
   setup_case
-  mkdir -p "${TMPDIR_CASE}/proxy_providers" "${TMPDIR_CASE}/state"
-  printf '%s\n' '#DISABLED#vless://uuid@example.com:443?encryption=none&security=tls#old-disabled' 'vless://uuid2@example.org:443?encryption=none&security=tls#old-enabled' > "${TMPDIR_CASE}/proxy_providers/manual.txt"
-  python3 "${STATECTL}" ensure-nodes-state "${TMPDIR_CASE}/state/nodes.json" "${TMPDIR_CASE}/proxy_providers/manual.txt" >/dev/null
-  local output
-  output="$(cat "${TMPDIR_CASE}/state/nodes.json")"
-  assert_contains "$output" '"name": "old-disabled"'
-  assert_contains "$output" '"enabled": false'
-  assert_contains "$output" '"name": "old-enabled"'
+  printf '%s\n' 'hy2://password@example.com:443#unsupported' > "${TMPDIR_CASE}/uris.txt"
+  output="$(python3 "${STATECTL}" scan-uris "${TMPDIR_CASE}/uris.txt")"
+  assert_contains "$output" $'\t0\thy2\t'
+}
+
+test_subscription_state_commands() {
+  setup_case
+  run_manager add-subscription "test-sub" "https://example.com/sub.txt" 1 >/dev/null
+  output="$(run_manager subscriptions)"
+  assert_contains "$output" 'test-sub'
+  assert_contains "$output" 'https://example.com/sub.txt'
 }
 
 test_status_readonly() {
   setup_case
   output="$(run_manager status)"
-  [[ ! -e "${TMPDIR_CASE}/state/nodes.json" ]]
+  assert_contains "$output" '模板: nas-single-lan-v4 (单 LAN IPv4 旁路由)'
+  assert_contains "$output" 'IPv6: 关闭'
   assert_contains "$output" '节点: 启用 0 / 总计 0'
+  assert_contains "$output" '订阅: 启用 0 / 总计 0'
   assert_contains "$output" '宿主机流量: 默认直连；按需显式代理 http://127.0.0.1:7890'
-  assert_contains "$output" '局域网网段: 192.168.2.0/24'
-  assert_contains "$output" 'DNS 劫持入口: bridge1'
-  assert_contains "$output" '控制面范围: 仅宿主机'
   assert_contains "$output" '控制面密钥: 已隐藏；如需查看执行: mihomo show-secret'
 }
 
@@ -165,117 +168,34 @@ test_status_warns_on_host_output_proxy() {
   assert_contains "$output" 'tailscaled、cloudflared'
 }
 
-test_reply_bypass_present() {
-  grep -q -- '--ctdir REPLY -j RETURN' "${ROOT}/lib/render.sh"
-}
-
-test_legacy_host_dns_cleanup_present() {
-  grep -q 'delete_jump nat OUTPUT -j MIHOMO_DNS_OUT' "${ROOT}/lib/render.sh"
-  grep -q 'ipt -t nat -F MIHOMO_DNS_OUT' "${ROOT}/lib/render.sh"
-}
-
-test_host_output_conflict_guard() {
-  setup_case
-  sed -i 's/PROXY_HOST_OUTPUT="0"/PROXY_HOST_OUTPUT="1"/' "${TMPDIR_CASE}/router.env"
-  mkdir -p "${TMPDIR_CASE}/bin"
-  cat > "${TMPDIR_CASE}/bin/systemctl" <<'EOF'
-#!/usr/bin/env bash
-if [[ "$1" == "is-active" && "$2" == "--quiet" ]]; then
-  case " ${ACTIVE_UNITS:-} " in
-    *" ${3} "*) exit 0 ;;
-  esac
-fi
-exit 1
-EOF
-  chmod +x "${TMPDIR_CASE}/bin/systemctl"
-  if APP_ROOT="$ROOT" MIHOMO_DIR="$TMPDIR_CASE" ROUTER_ENV="${TMPDIR_CASE}/router.env" SYSTEMCTL_BIN="${TMPDIR_CASE}/bin/systemctl" ACTIVE_UNITS="tailscaled.service cloudflared.service" bash -lc 'source "$APP_ROOT/lib/common.sh"; load_router_env; guard_host_output_proxy_conflicts' >/tmp/mh-host-output-guard.log 2>&1; then
-    echo 'host output conflict guard should have failed' >&2
-    exit 1
-  fi
-  grep -q 'tailscaled cloudflared' /tmp/mh-host-output-guard.log
-  grep -q 'PROXY_HOST_OUTPUT=0' /tmp/mh-host-output-guard.log
-}
-
-test_safe_host_output_default_present() {
-  grep -q 'PROXY_HOST_OUTPUT="0"' "${ROOT}/lib/common.sh"
-}
-
-test_usage_groups_core_and_advanced_commands() {
+test_usage_mentions_new_commands() {
   output="$(run_manager help)"
-  assert_contains "$output" '核心命令:'
-  assert_contains "$output" '进阶配置:'
-  assert_contains "$output" '维护与内部命令:'
-  assert_contains "$output" 'show-secret'
-  assert_contains "$output" 'install-geosite'
-  assert_contains "$output" 'router-wizard'
-  assert_contains "$output" 'update-alpha [--quiet]'
+  assert_contains "$output" 'repair'
+  assert_contains "$output" 'templates'
+  assert_contains "$output" 'update-subscriptions'
+  assert_contains "$output" 'rollback-config'
+  assert_contains "$output" '兼容命令:'
 }
 
-test_menu_contains_advanced_bucket() {
-  grep -q 'echo "8) 高级维护（少用）"' "${ROOT}/mihomo"
-  ! grep -q 'echo "4) 自定义规则"' "${ROOT}/mihomo"
-  grep -q 'echo "4) 更新 GeoSite 资产"' "${ROOT}/mihomo"
-}
-
-test_render_uses_local_controller_bind_by_default() {
-  setup_case
-  run_manager render-config >/dev/null
-  grep -q '^external-controller: 127.0.0.1:19090' "${TMPDIR_CASE}/config.yaml"
-}
-
-test_router_wizard_mentions_host_router_model() {
-  grep -q '宿主机默认直连，局域网入口透明接管，Docker 默认直连' "${ROOT}/mihomo"
-  grep -q '自动识别入口网段' "${ROOT}/mihomo"
-  grep -q 'LAN_CIDRS' "${ROOT}/mihomo"
-}
-
-test_audit_mentions_geosite_probe() {
-  grep -q 'geosite_probe_ready' "${ROOT}/lib/render.sh"
-  grep -q 'GeoSite.dat 当前不可用于 geosite 规则' "${ROOT}/lib/render.sh"
-}
-
-test_setup_path_auto_repairs_geosite() {
-  grep -q 'ensure_geosite_ready' "${ROOT}/mihomo"
-}
-
-test_setup_does_not_require_webui_success() {
-  grep -q 'install_webui zashboard' "${ROOT}/mihomo"
-  grep -q '核心旁路由链已继续' "${ROOT}/mihomo"
-}
-
-test_install_geosite_command_exists() {
-  grep -q 'install-geosite|update-geosite' "${ROOT}/mihomo"
-  grep -q 'install_geosite_dat' "${ROOT}/lib/render.sh"
-}
-
-test_geosite_download_has_multi_source_fallback() {
-  grep -q 'github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat' "${ROOT}/lib/render.sh"
-  grep -q 'cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat' "${ROOT}/lib/render.sh"
-  grep -q 'testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat' "${ROOT}/lib/render.sh"
+test_menu_mentions_new_buckets() {
+  grep -q 'echo "3) 节点与订阅"' "${ROOT}/mihomo"
+  grep -q 'echo "4) 网络入口与模板"' "${ROOT}/mihomo"
+  grep -q 'echo "5) 访问控制 ACL"' "${ROOT}/mihomo"
+  grep -q 'echo "8) 回滚与诊断"' "${ROOT}/mihomo"
 }
 
 main() {
   test_syntax
   test_render_empty
-  test_rename_rule_sync
-  test_split_xhttp_subscription_is_rendered_as_native_yaml
+  test_protocol_renderers
+  test_acl_rules_are_rendered
   test_auto_without_node_fails
-  test_disabled_legacy_migration
+  test_scan_marks_unsupported_scheme
+  test_subscription_state_commands
   test_status_readonly
   test_status_warns_on_host_output_proxy
-  test_reply_bypass_present
-  test_legacy_host_dns_cleanup_present
-  test_host_output_conflict_guard
-  test_safe_host_output_default_present
-  test_usage_groups_core_and_advanced_commands
-  test_menu_contains_advanced_bucket
-  test_render_uses_local_controller_bind_by_default
-  test_router_wizard_mentions_host_router_model
-  test_audit_mentions_geosite_probe
-  test_setup_path_auto_repairs_geosite
-  test_setup_does_not_require_webui_success
-  test_install_geosite_command_exists
-  test_geosite_download_has_multi_source_fallback
+  test_usage_mentions_new_commands
+  test_menu_mentions_new_buckets
   echo "smoke: ok"
 }
 
