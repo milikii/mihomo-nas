@@ -87,10 +87,14 @@ test_render_empty() {
   grep -q '^  default-nameserver:' "${TMPDIR_CASE}/config.yaml"
   grep -q '^  nameserver-policy:' "${TMPDIR_CASE}/config.yaml"
   grep -q '^    "geosite:private,cn":' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^      - gfw' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^      - 223.5.5.5' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^  nameserver:' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^    - https://cloudflare-dns.com/dns-query#RULES' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^  fallback: \[\]' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^    geoip: false' "${TMPDIR_CASE}/config.yaml"
   grep -q '^  direct-nameserver:' "${TMPDIR_CASE}/config.yaml"
   grep -q '^  direct-nameserver-follow-policy: true' "${TMPDIR_CASE}/config.yaml"
-  grep -q '^    - https://cloudflare-dns.com/dns-query#RULES' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^  proxy-server-nameserver:' "${TMPDIR_CASE}/config.yaml"
   grep -q '^  - MATCH,PROXY' "${TMPDIR_CASE}/config.yaml"
 }
 

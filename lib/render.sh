@@ -144,32 +144,28 @@ dns:
     - 119.29.29.29
   nameserver-policy:
     "geosite:private,cn":
+      - 223.5.5.5
+      - 119.29.29.29
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
     "+.arpa":
+      - 223.5.5.5
+      - 119.29.29.29
       - https://dns.alidns.com/dns-query
       - https://doh.pub/dns-query
   nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
-  fallback:
     - https://cloudflare-dns.com/dns-query#RULES
     - https://dns.google/dns-query#RULES
+  fallback: []
+  fallback-filter:
+    geoip: false
   direct-nameserver:
     - https://dns.alidns.com/dns-query
     - https://doh.pub/dns-query
   direct-nameserver-follow-policy: true
   proxy-server-nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
-  fallback-filter:
-    geoip: true
-    geoip-code: CN
-    geosite:
-      - gfw
-    ipcidr:
-      - 240.0.0.0/4
-      - 0.0.0.0/32
+    - 223.5.5.5
+    - 119.29.29.29
 proxies: []
 EOF
 
