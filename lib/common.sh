@@ -292,11 +292,7 @@ have_global_ipv6() {
 }
 
 default_profile_template() {
-  if have_global_ipv6; then
-    printf '%s\n' "nas-single-lan-dualstack"
-  else
-    printf '%s\n' "nas-single-lan-v4"
-  fi
+  printf '%s\n' "nas-single-lan-v4"
 }
 
 template_exists() {
@@ -309,11 +305,15 @@ template_exists() {
 template_summary() {
   case "$1" in
     nas-single-lan-v4) printf '%s\n' "单 LAN IPv4 旁路由" ;;
-    nas-single-lan-dualstack) printf '%s\n' "单 LAN 双栈旁路由" ;;
+    nas-single-lan-dualstack) printf '%s\n' "双栈模板占位（未实现真双栈旁路由）" ;;
     nas-multi-bridge) printf '%s\n' "多 bridge/VLAN 旁路由" ;;
     nas-explicit-proxy-only) printf '%s\n' "仅显式代理，不接管 LAN" ;;
     *) printf '%s\n' "未知模板" ;;
   esac
+}
+
+template_is_deprecated() {
+  [[ "${1:-}" == "nas-single-lan-dualstack" ]]
 }
 
 default_rule_preset() {

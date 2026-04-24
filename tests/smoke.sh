@@ -370,6 +370,20 @@ test_status_warns_on_host_output_proxy() {
   assert_contains "$output" 'tailscaled、cloudflared'
 }
 
+test_templates_mark_dualstack_as_deprecated() {
+  setup_case
+  output="$(run_manager templates)"
+  assert_contains "$output" 'nas-single-lan-dualstack - 双栈模板占位（未实现真双栈旁路由）'
+}
+
+test_status_warns_on_dualstack_placeholder() {
+  setup_case
+  sed -i 's/TEMPLATE_NAME="nas-single-lan-v4"/TEMPLATE_NAME="nas-single-lan-dualstack"/' "${TMPDIR_CASE}/router.env"
+  output="$(run_manager status)"
+  assert_contains "$output" '模板: nas-single-lan-dualstack (双栈模板占位（未实现真双栈旁路由）)'
+  assert_contains "$output" '当前模板仅兼容保留；本项目当前只承诺 Debian NAS 的 IPv4 旁路由。'
+}
+
 test_usage_mentions_new_commands() {
   output="$(run_manager help)"
   assert_contains "$output" 'apply-default-template'
@@ -422,6 +436,8 @@ main() {
   test_rules_repo_find_command
   test_status_readonly
   test_status_warns_on_host_output_proxy
+  test_templates_mark_dualstack_as_deprecated
+  test_status_warns_on_dualstack_placeholder
   test_usage_mentions_new_commands
   test_menu_mentions_new_buckets
   echo "smoke: ok"

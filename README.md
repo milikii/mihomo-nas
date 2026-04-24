@@ -3,12 +3,14 @@
 用于 Debian NAS 的宿主机旁路由 Mihomo 管理脚本。
 
 ## 当前运行模型
+- 当前项目只承诺 Debian NAS 的 IPv4 旁路由。
 - 宿主机默认直连，不默认透明接管本机外连，默认 `PROXY_HOST_OUTPUT=0`。
 - 宿主机应用如需代理，显式使用 `http://127.0.0.1:7890`。
 - 局域网设备把网关和 DNS 指向 NAS 后，可复用 NAS 上的旁路由能力。
 - Docker 默认直连；只有显式设置代理，或后续把对应 bridge 接进透明代理，容器才会走 Mihomo。
 - `tailscaled` / `cloudflared` 运行时，脚本拒绝启用宿主机透明接管，避免误伤 SSH / 隧道链路。
 - 控制面默认只绑定 `127.0.0.1:${CONTROLLER_PORT:-19090}`；状态页不再默认打印密钥，需显式执行 `mihomo show-secret`。
+- `nas-single-lan-dualstack` 当前仅兼容保留，不代表项目已经实现真双栈旁路由。
 - 重构判断与后续路线见 [docs/refactor-roadmap.md](docs/refactor-roadmap.md)。
 
 ## 推荐入口
