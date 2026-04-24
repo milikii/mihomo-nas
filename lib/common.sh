@@ -646,7 +646,7 @@ node_enabled_count() {
 
 node_list_tsv() {
   require_statectl
-  python3 "$STATECTL" list-nodes "$NODES_STATE_FILE"
+  python3 "$STATECTL" list-nodes "$NODES_STATE_FILE" --exclude-source-kind subscription
 }
 
 node_enabled_names() {

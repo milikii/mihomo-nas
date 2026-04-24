@@ -474,11 +474,16 @@ test_subscription_nodes_are_readonly() {
   grep -q 'provider-managed' /tmp/mh-sub-toggle.err
 }
 
-test_nodes_list_marks_subscription_cache_as_readonly() {
+test_nodes_list_hides_subscription_cache_nodes() {
   setup_case
   python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'trojan://password@example.org:443?security=tls&sni=www.apple.com&type=ws&host=www.apple.com&path=%2Fws#sub-node-cache' sub-node-cache 1 subscription sub-001 >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
   output="$(run_manager nodes)"
-  assert_contains "$output" 'subscription(ro):sub-001'
+  assert_contains "$output" 'manual-node'
+  if [[ "$output" == *'sub-node-cache'* ]]; then
+    echo "subscription cache nodes should not appear in nodes list" >&2
+    exit 1
+  fi
 }
 
 test_usage_mentions_new_commands() {
@@ -540,7 +545,7 @@ main() {
   test_rule_targets_reject_subscription_cache_nodes
   test_status_distinguishes_manual_nodes_and_subscription_cache
   test_subscription_nodes_are_readonly
-  test_nodes_list_marks_subscription_cache_as_readonly
+  test_nodes_list_hides_subscription_cache_nodes
   test_usage_mentions_new_commands
   test_menu_mentions_new_buckets
   echo "smoke: ok"

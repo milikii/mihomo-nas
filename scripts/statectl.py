@@ -1011,7 +1011,8 @@ def cmd_ensure_subscriptions_state(args: argparse.Namespace) -> int:
 
 def cmd_list_nodes(args: argparse.Namespace) -> int:
     state = ensure_nodes_state(Path(args.state_file))
-    for idx, node in enumerate(state["nodes"], start=1):
+    filtered_nodes = [node for node in state["nodes"] if node_matches_source(node, args.source_kind, args.exclude_source_kind)]
+    for idx, node in enumerate(filtered_nodes, start=1):
         info = uri_info(node["uri"])
         source = node.get("source") or {}
         source_label = source.get("kind", "manual")
@@ -1082,6 +1083,13 @@ def cmd_sync_subscription_nodes(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_count_supported_uris(args: argparse.Namespace) -> int:
+    text = Path(args.input_file).read_text(encoding="utf-8", errors="ignore")
+    count = sum(1 for row in scan_uri_rows(text) if row["supported"] == "1")
+    print(count)
+    return 0
+
+
 def cmd_purge_subscription_nodes(args: argparse.Namespace) -> int:
     path = Path(args.state_file)
     state = ensure_nodes_state(path)
@@ -1095,10 +1103,11 @@ def cmd_purge_subscription_nodes(args: argparse.Namespace) -> int:
 def cmd_rename_node(args: argparse.Namespace) -> int:
     path = Path(args.state_file)
     state = ensure_nodes_state(path)
+    filtered_nodes = [node for node in state["nodes"] if node_matches_source(node, args.source_kind, args.exclude_source_kind)]
     index = int(args.index) - 1
-    if index < 0 or index >= len(state["nodes"]):
+    if index < 0 or index >= len(filtered_nodes):
         fail("node index out of range")
-    node = state["nodes"][index]
+    node = filtered_nodes[index]
     if node_source_kind(node) == "subscription":
         fail("subscription node is provider-managed; rename the upstream subscription content instead")
     ensure_unique_name(state["nodes"], args.new_name, ignore_id=node["id"])
@@ -1118,12 +1127,14 @@ def cmd_rename_node(args: argparse.Namespace) -> int:
 def cmd_set_node_enabled(args: argparse.Namespace) -> int:
     path = Path(args.state_file)
     state = ensure_nodes_state(path)
+    filtered_nodes = [node for node in state["nodes"] if node_matches_source(node, args.source_kind, args.exclude_source_kind)]
     index = int(args.index) - 1
-    if index < 0 or index >= len(state["nodes"]):
+    if index < 0 or index >= len(filtered_nodes):
         fail("node index out of range")
-    if node_source_kind(state["nodes"][index]) == "subscription":
+    node = filtered_nodes[index]
+    if node_source_kind(node) == "subscription":
         fail("subscription node is provider-managed; enable or disable the subscription instead")
-    state["nodes"][index]["enabled"] = args.enabled == "1"
+    node["enabled"] = args.enabled == "1"
     save_json(path, state)
     return 0
 
@@ -1353,6 +1364,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_nodes = sub.add_parser("list-nodes")
     list_nodes.add_argument("state_file")
+    list_nodes.add_argument("--source-kind")
+    list_nodes.add_argument("--exclude-source-kind")
     list_nodes.set_defaults(func=cmd_list_nodes)
 
     append_node = sub.add_parser("append-node")
@@ -1370,6 +1383,10 @@ def build_parser() -> argparse.ArgumentParser:
     sync_nodes.add_argument("input_file")
     sync_nodes.set_defaults(func=cmd_sync_subscription_nodes)
 
+    count_supported = sub.add_parser("count-supported-uris")
+    count_supported.add_argument("input_file")
+    count_supported.set_defaults(func=cmd_count_supported_uris)
+
     purge_nodes = sub.add_parser("purge-subscription-nodes")
     purge_nodes.add_argument("state_file")
     purge_nodes.add_argument("subscription_id")
@@ -1380,12 +1397,16 @@ def build_parser() -> argparse.ArgumentParser:
     rename_node.add_argument("index")
     rename_node.add_argument("new_name")
     rename_node.add_argument("rule_state_files", nargs="*")
+    rename_node.add_argument("--source-kind")
+    rename_node.add_argument("--exclude-source-kind")
     rename_node.set_defaults(func=cmd_rename_node)
 
     set_enabled = sub.add_parser("set-node-enabled")
     set_enabled.add_argument("state_file")
     set_enabled.add_argument("index")
     set_enabled.add_argument("enabled")
+    set_enabled.add_argument("--source-kind")
+    set_enabled.add_argument("--exclude-source-kind")
     set_enabled.set_defaults(func=cmd_set_node_enabled)
 
     enabled_count = sub.add_parser("enabled-count")

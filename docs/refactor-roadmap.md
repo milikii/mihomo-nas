@@ -168,6 +168,7 @@
 - `subscriptions.json` 已开始从扁平字段迁移到两组子对象：
   - `cache`: provider 缓存状态
   - `enumeration`: 本地只读枚举状态
+- `mihomo nodes` 已收口为只展示手动节点，订阅缓存节点不再进入节点交互主路径
 
 任务：
 

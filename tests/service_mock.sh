@@ -392,6 +392,19 @@ test_update_subscriptions_refreshes_provider_cache() {
   grep -q '^proxies: \[\]$' "${TMPDIR_CASE}/proxy_providers/manual.txt"
   grep -q "./proxy_providers/subscriptions/${sub_id}.txt" "${TMPDIR_CASE}/config.yaml"
   grep -q 'subscription-' "${TMPDIR_CASE}/config.yaml"
+  if python3 - "${TMPDIR_CASE}/state/nodes.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+nodes = data.get("nodes", [])
+raise SystemExit(0 if any((n.get("source") or {}).get("kind") == "subscription" for n in nodes) else 1)
+PY
+  then
+    echo "subscription cache nodes should not be stored in nodes.json after update" >&2
+    exit 1
+  fi
 }
 
 test_rollback_config_restores_template() {

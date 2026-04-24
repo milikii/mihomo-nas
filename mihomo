@@ -286,7 +286,7 @@ rename_node() {
   read -rp "新的名称: " new_name
   [[ -n "$new_name" ]] || die "名称不能为空"
   snapshot_before_change "rename-node"
-  python3 "$STATECTL" rename-node "$NODES_STATE_FILE" "$idx" "$new_name" "$RULES_STATE_FILE" "$ACL_STATE_FILE"
+  python3 "$STATECTL" rename-node "$NODES_STATE_FILE" "$idx" "$new_name" "$RULES_STATE_FILE" "$ACL_STATE_FILE" --exclude-source-kind subscription
   post_state_change
   ok "节点已重命名"
 }
@@ -301,7 +301,7 @@ toggle_node() {
   read -rp "启用填 1，关闭填 0: " enabled
   [[ "$enabled" == "1" || "$enabled" == "0" ]] || die "只能填 1 或 0"
   snapshot_before_change "toggle-node"
-  python3 "$STATECTL" set-node-enabled "$NODES_STATE_FILE" "$idx" "$enabled"
+  python3 "$STATECTL" set-node-enabled "$NODES_STATE_FILE" "$idx" "$enabled" --exclude-source-kind subscription
   post_state_change
   ok "节点状态已更新"
 }
@@ -450,7 +450,7 @@ update_subscriptions_command() {
       provider_file="$(subscription_provider_file "$sub_id")"
       install -D -m 0640 "$tmp" "$provider_file"
       chown root:"$MIHOMO_USER" "$provider_file"
-      enumerated_count="$(python3 "$STATECTL" sync-subscription-nodes "$NODES_STATE_FILE" "$sub_id" "$tmp")"
+      enumerated_count="$(python3 "$STATECTL" count-supported-uris "$tmp")"
       python3 "$STATECTL" mark-subscription-success "$SUBSCRIPTIONS_STATE_FILE" "$sub_id" "$enumerated_count" >/dev/null
       ok "订阅 provider 缓存已更新: ${name} (可枚举 ${enumerated_count} 节点)"
       updated=$((updated + 1))
