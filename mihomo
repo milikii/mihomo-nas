@@ -606,10 +606,9 @@ apply_default_template_command() {
   snapshot_before_change "apply-default-template"
   upsert_env_var "$SETTINGS_ENV" "CONFIG_MODE" "rule"
   upsert_env_var "$SETTINGS_ENV" "RULESET_PRESET" "default"
-  upsert_env_var "$ROUTER_ENV" "CONTROLLER_BIND_ADDRESS" "127.0.0.1"
   upsert_env_var "$ROUTER_ENV" "PROXY_HOST_OUTPUT" "0"
   post_state_change
-  ok "已应用项目默认模板：保留当前网络形态，启用项目内置规则仓库，并保持宿主机默认直连"
+  ok "已应用项目默认模板：保留当前网络形态和控制面绑定，启用项目内置规则仓库，并保持宿主机默认直连"
 }
 
 set_mode() {

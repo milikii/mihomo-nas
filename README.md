@@ -17,7 +17,7 @@
 - `mihomo healthcheck`：检查端口监听、WebUI 与 `127.0.0.1:7890` 显式代理是否可用。
 - `mihomo runtime-audit`：看 systemd 状态、近 24 小时 warning/error 和健康摘要。
 - `./mihomo install-self-sync [minutes]`：把当前 git 工作树安装到本机，并按分钟周期自动同步到 `/usr/local/lib/mihomo-manager`。
-- `mihomo apply-default-template`：一键应用项目默认模板，启用项目内置规则仓库并恢复安全默认值。
+- `mihomo apply-default-template`：一键应用项目默认模板，启用项目内置规则仓库，并把宿主机流量恢复为默认直连。
 - `mihomo rules-repo`：查看当前项目内置规则仓库摘要和各规则集条目数。
 - `mihomo rules-repo-entries [ruleset] [keyword]`：查看某个规则集当前的具体条目，可按关键字过滤。
 - `mihomo rules-repo-find [keyword]`：跨规则集搜索规则项。
@@ -33,7 +33,7 @@
 ## 推荐使用顺序
 1. `mihomo setup`
 2. `mihomo import-links`
-3. `mihomo apply-default-template`（保留当前网络形态，启用项目内置规则仓库，并恢复宿主机安全默认值）
+3. `mihomo apply-default-template`（保留当前网络形态和控制面绑定，启用项目内置规则仓库，并恢复宿主机默认直连）
 4. `mihomo router-wizard`（会按入口接口自动回写 `LAN_CIDRS`）
 5. `mihomo healthcheck`
 6. 局域网设备把网关和 DNS 指向 NAS
@@ -70,8 +70,8 @@
 - `mihomo apply-default-template` 会在不改你当前 LAN / bridge 入口形态的前提下，统一设置：
   - `CONFIG_MODE=rule`
   - `RULESET_PRESET=default`
-  - `CONTROLLER_BIND_ADDRESS=127.0.0.1`
   - `PROXY_HOST_OUTPUT=0`
+- 控制面绑定 `CONTROLLER_BIND_ADDRESS` 会保留当前值，不再被该命令强制改回 `127.0.0.1`。
 - 手工自定义规则和 ACL 仍优先于项目默认模板，便于你在机器侧做覆盖。
 
 ## 关键端口

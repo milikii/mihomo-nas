@@ -232,11 +232,12 @@ RULESET_PRESET="unknown"
 PROFILE_TEMPLATE="nas-single-lan-v4"
 EOF
   sed -i 's/PROXY_HOST_OUTPUT="0"/PROXY_HOST_OUTPUT="1"/' "${TMPDIR_CASE}/router.env"
+  sed -i 's/CONTROLLER_BIND_ADDRESS="127.0.0.1"/CONTROLLER_BIND_ADDRESS="0.0.0.0"/' "${TMPDIR_CASE}/router.env"
   run_manager apply-default-template >/dev/null
   grep -q '^CONFIG_MODE="rule"$' "${TMPDIR_CASE}/settings.env"
   grep -q '^RULESET_PRESET="default"$' "${TMPDIR_CASE}/settings.env"
   grep -q '^PROXY_HOST_OUTPUT="0"$' "${TMPDIR_CASE}/router.env"
-  grep -q '^CONTROLLER_BIND_ADDRESS="127.0.0.1"$' "${TMPDIR_CASE}/router.env"
+  grep -q '^CONTROLLER_BIND_ADDRESS="0.0.0.0"$' "${TMPDIR_CASE}/router.env"
   grep -q 'DOMAIN-SUFFIX,smzdm.com,DIRECT' "${TMPDIR_CASE}/ruleset/builtin.rules"
 }
 
