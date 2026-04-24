@@ -178,9 +178,25 @@ EOCURL
 
 }
 
+install_pipefail_ss_mock() {
+  cat > "${TMPDIR_CASE}/bin/ss" <<'EOSS'
+#!/usr/bin/env bash
+printf 'tcp LISTEN 0 4096 *:7890 *:* users:(("mihomo-core",pid=12345,fd=10))\n'
+printf 'tcp LISTEN 0 4096 *:7893 *:* users:(("mihomo-core",pid=12345,fd=7))\n'
+printf 'tcp LISTEN 0 4096 *:1053 *:* users:(("mihomo-core",pid=12345,fd=11))\n'
+printf 'tcp LISTEN 0 4096 *:19090 *:* users:(("mihomo-core",pid=12345,fd=6))\n'
+
+for _ in $(seq 1 32); do
+  printf 'tcp LISTEN 0 4096 *:65535 *:* users:(("other",pid=1,fd=1))\n' || exit 141
+done
+EOSS
+  chmod +x "${TMPDIR_CASE}/bin/ss"
+}
+
 env_prefix() {
-  printf 'APP_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q SYSTEMCTL_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
+  printf 'APP_ROOT=%q INSTALL_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q COMPAT_MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q SYSTEMCTL_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q MANAGER_SYNC_SERVICE_UNIT=%q MANAGER_SYNC_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
     "$ROOT" \
+    "${TMPDIR_CASE}/install-root" \
     "${TMPDIR_CASE}/rules-repo" \
     "$TMPDIR_CASE" \
     "$TMPDIR_CASE/settings.env" \
@@ -199,6 +215,7 @@ env_prefix() {
     "$TMPDIR_CASE/ruleset/acl.rules" \
     root \
     "$TMPDIR_CASE/mihomo" \
+    "$TMPDIR_CASE/mihomo-sidecar.sh" \
     /bin/true \
     "$TMPDIR_CASE/bin/systemctl" \
     "$TMPDIR_CASE/bin/journalctl" \
@@ -212,6 +229,8 @@ env_prefix() {
     "$TMPDIR_CASE/mihomo-restart.timer" \
     "$TMPDIR_CASE/mihomo-alpha-update.service" \
     "$TMPDIR_CASE/mihomo-alpha-update.timer" \
+    "$TMPDIR_CASE/mihomo-manager-sync.service" \
+    "$TMPDIR_CASE/mihomo-manager-sync.timer" \
     "$TMPDIR_CASE/99-mihomo-router.conf"
 }
 
@@ -275,6 +294,48 @@ test_healthcheck_uses_localhost_proxy_probe() {
   grep -Fq 'http://127.0.0.1:19090/ui/' "${TMPDIR_CASE}/curl.log"
   grep -Fq 'http://127.0.0.1:7890' "${TMPDIR_CASE}/curl.log"
   grep -Fq 'https://cp.cloudflare.com/generate_204' "${TMPDIR_CASE}/curl.log"
+}
+
+test_healthcheck_ignores_ss_pipefail_false_negative() {
+  setup_case
+  install_pipefail_ss_mock
+  touch "${TMPDIR_CASE}/Country.mmdb"
+  run_manager render-config >/dev/null
+  output="$(run_manager healthcheck)"
+  grep -q '健康检查通过' <<<"$output"
+  ! grep -q 'not listening' <<<"$output"
+}
+
+test_menu_survives_failed_healthcheck() {
+  setup_case
+  run_manager render-config >/dev/null
+  output="$(printf '7\n1\n0\n' | run_manager menu 2>&1)"
+  grep -q 'geo: missing Country.mmdb' <<<"$output"
+  [[ "$(grep -c 'Mihomo 管理器 v0.6.0' <<<"$output")" -ge 2 ]]
+}
+
+test_install_self_sync_writes_units_and_status() {
+  setup_case
+  run_manager install-self-sync 5 >/dev/null
+  [[ -x "${TMPDIR_CASE}/install-root/mihomo" ]]
+  [[ -L "${TMPDIR_CASE}/mihomo" ]]
+  [[ ! -d "${TMPDIR_CASE}/install-root/.git" ]]
+  [[ ! -d "${TMPDIR_CASE}/install-root/.codex" ]]
+  grep -q '^MANAGER_SYNC_ENABLED="1"$' "${TMPDIR_CASE}/settings.env"
+  grep -q '^MANAGER_SYNC_INTERVAL_MINUTES="5"$' "${TMPDIR_CASE}/settings.env"
+  grep -Fq "ExecStart=${ROOT}/mihomo install-self" "${TMPDIR_CASE}/mihomo-manager-sync.service"
+  grep -q '^OnUnitActiveSec=5min$' "${TMPDIR_CASE}/mihomo-manager-sync.timer"
+  output="$(run_manager status)"
+  grep -q "本机源码同步: 启用；每 5 分钟从 ${ROOT} 同步" <<<"$output"
+}
+
+test_disable_self_sync_removes_units() {
+  setup_case
+  run_manager install-self-sync 2 >/dev/null
+  run_manager disable-self-sync >/dev/null
+  grep -q '^MANAGER_SYNC_ENABLED="0"$' "${TMPDIR_CASE}/settings.env"
+  [[ ! -f "${TMPDIR_CASE}/mihomo-manager-sync.service" ]]
+  [[ ! -f "${TMPDIR_CASE}/mihomo-manager-sync.timer" ]]
 }
 
 test_install_geosite_downloads_official_asset() {
@@ -344,6 +405,10 @@ main() {
   test_disable_alpha_update_disables_timer
   test_runtime_audit_outputs
   test_healthcheck_uses_localhost_proxy_probe
+  test_healthcheck_ignores_ss_pipefail_false_negative
+  test_menu_survives_failed_healthcheck
+  test_install_self_sync_writes_units_and_status
+  test_disable_self_sync_removes_units
   test_install_geosite_downloads_official_asset
   test_setup_bootstraps_empty_installation_even_when_webui_fails
   test_enable_start_after_cold_setup

@@ -647,16 +647,78 @@ install_webui() {
 install_project() {
   require_root
   local src_root="$1"
-  local install_root="/usr/local/lib/mihomo-manager"
-  rm -rf "$install_root"
-  mkdir -p /usr/local/lib
-  cp -a "$src_root" "$install_root"
-  find "$install_root" -type d -name '__pycache__' -prune -exec rm -rf {} +
-  find "$install_root" -type f \( -name '*.bak.*' -o -name '*.pyc' \) -delete
-  chmod +x "$install_root/mihomo" "$install_root/scripts/statectl.py"
-  ln -sf "$install_root/mihomo" "$MANAGER_BIN"
-  ln -sf "$install_root/mihomo" "$COMPAT_MANAGER_BIN"
+  rm -rf "$INSTALL_ROOT"
+  mkdir -p "$(dirname "$INSTALL_ROOT")"
+  cp -a "$src_root" "$INSTALL_ROOT"
+  rm -rf "$INSTALL_ROOT/.git" "$INSTALL_ROOT/.codex"
+  find "$INSTALL_ROOT" -type d -name '__pycache__' -prune -exec rm -rf {} +
+  find "$INSTALL_ROOT" -type f \( -name '*.bak.*' -o -name '*.pyc' \) -delete
+  chmod +x "$INSTALL_ROOT/mihomo" "$INSTALL_ROOT/scripts/statectl.py"
+  ln -sf "$INSTALL_ROOT/mihomo" "$MANAGER_BIN"
+  ln -sf "$INSTALL_ROOT/mihomo" "$COMPAT_MANAGER_BIN"
   ok "已安装管理命令到 ${MANAGER_BIN}"
+}
+
+write_manager_sync_units() {
+  local src_root="$1"
+  local interval_minutes="$2"
+  cat >"$MANAGER_SYNC_SERVICE_UNIT" <<EOF
+[Unit]
+Description=Sync Mihomo Manager From Working Tree
+ConditionPathExists=${src_root}/.git
+ConditionPathExists=${src_root}/mihomo
+
+[Service]
+Type=oneshot
+WorkingDirectory=${src_root}
+ExecStart=${src_root}/mihomo install-self
+EOF
+  cat >"$MANAGER_SYNC_TIMER_UNIT" <<EOF
+[Unit]
+Description=Periodic Mihomo Manager Working Tree Sync Timer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=${interval_minutes}min
+AccuracySec=15s
+Persistent=true
+Unit=mihomo-manager-sync.service
+
+[Install]
+WantedBy=timers.target
+EOF
+}
+
+install_project_sync() {
+  require_root
+  local src_root="$1"
+  local interval_minutes="${2:-1}"
+  [[ -d "${src_root}/.git" ]] || die "install-self-sync 只能从 git 工作树执行"
+  [[ -x "${src_root}/mihomo" ]] || die "未找到源码入口: ${src_root}/mihomo"
+  [[ "$interval_minutes" =~ ^[0-9]+$ ]] || die "同步间隔必须是正整数分钟"
+  [[ "$interval_minutes" -gt 0 ]] || die "同步间隔必须大于 0 分钟"
+
+  ensure_settings
+  install_project "$src_root"
+  write_manager_sync_units "$src_root" "$interval_minutes"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "1"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "$interval_minutes"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "$src_root"
+  systemctl_cmd daemon-reload
+  systemctl_cmd enable --now mihomo-manager-sync.timer
+  ok "已启用本机源码自动同步: 每 ${interval_minutes} 分钟从 ${src_root} 同步到 ${INSTALL_ROOT}"
+}
+
+disable_project_sync() {
+  require_root
+  ensure_settings
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "0"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "1"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" ""
+  systemctl_cmd disable --now mihomo-manager-sync.timer >/dev/null 2>&1 || true
+  rm -f "$MANAGER_SYNC_SERVICE_UNIT" "$MANAGER_SYNC_TIMER_UNIT"
+  systemctl_cmd daemon-reload
+  ok "已关闭本机源码自动同步"
 }
 
 delete_jump() {
@@ -892,16 +954,28 @@ local_controller_probe() {
   curl_cmd --noproxy '*' -fsS --max-time 10 "http://127.0.0.1:${CONTROLLER_PORT}/ui/" >/tmp/mihomo-health-ui.html 2>/dev/null
 }
 
+listener_snapshot() {
+  ss_cmd -lntup 2>/dev/null || true
+}
+
+listener_has_port() {
+  local listeners="$1"
+  local port="$2"
+  grep -qE "[:.]${port}[[:space:]]" <<<"$listeners"
+}
+
 healthcheck() {
   require_root
   load_router_env
   local failed=0
+  local listeners
+  listeners="$(listener_snapshot)"
   service_is_active || { echo "service: inactive"; failed=1; }
   [[ -f "$COUNTRY_MMDB" ]] || { echo "geo: missing Country.mmdb"; failed=1; }
-  ss_cmd -lntup 2>/dev/null | grep -qE "[:.]${MIXED_PORT}[[:space:]]" || { echo "port: mixed ${MIXED_PORT} not listening"; failed=1; }
-  ss_cmd -lntup 2>/dev/null | grep -qE "[:.]${TPROXY_PORT}[[:space:]]" || { echo "port: tproxy ${TPROXY_PORT} not listening"; failed=1; }
-  ss_cmd -lntup 2>/dev/null | grep -qE "[:.]${DNS_PORT}[[:space:]]" || { echo "port: dns ${DNS_PORT} not listening"; failed=1; }
-  ss_cmd -lntup 2>/dev/null | grep -qE "[:.]${CONTROLLER_PORT}[[:space:]]" || { echo "port: controller ${CONTROLLER_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$MIXED_PORT" || { echo "port: mixed ${MIXED_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$TPROXY_PORT" || { echo "port: tproxy ${TPROXY_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$DNS_PORT" || { echo "port: dns ${DNS_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$CONTROLLER_PORT" || { echo "port: controller ${CONTROLLER_PORT} not listening"; failed=1; }
   local_controller_probe || {
     echo "webui: unavailable"
     failed=1

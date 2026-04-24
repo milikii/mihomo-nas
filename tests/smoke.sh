@@ -51,8 +51,9 @@ EOF
 }
 
 env_prefix() {
-  printf 'APP_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q' \
+  printf 'APP_ROOT=%q INSTALL_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q MIHOMO_BIN=%q' \
     "$ROOT" \
+    "${TMPDIR_CASE}/install-root" \
     "${TMPDIR_CASE}/rules-repo" \
     "$TMPDIR_CASE" \
     "$TMPDIR_CASE/settings.env" \
@@ -355,6 +356,7 @@ test_status_readonly() {
   assert_contains "$output" 'IPv6: 关闭'
   assert_contains "$output" '节点: 启用 0 / 总计 0'
   assert_contains "$output" '订阅: 启用 0 / 总计 0'
+  assert_contains "$output" '本机源码同步: 关闭'
   assert_contains "$output" '宿主机流量: 默认直连；按需显式代理 http://127.0.0.1:7890'
   assert_contains "$output" '控制面密钥: 已隐藏；如需查看执行: mihomo show-secret'
 }
@@ -377,6 +379,8 @@ test_usage_mentions_new_commands() {
   assert_contains "$output" 'remove-repo-rule'
   assert_contains "$output" 'remove-repo-rule-index'
   assert_contains "$output" 'repair'
+  assert_contains "$output" 'install-self-sync [minutes]'
+  assert_contains "$output" 'disable-self-sync'
   assert_contains "$output" 'templates'
   assert_contains "$output" 'rules-repo'
   assert_contains "$output" 'rule-presets'

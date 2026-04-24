@@ -717,6 +717,11 @@ show_status() {
   echo "WebUI: ${controller_url}"
   echo "控制面范围: ${CONTROLLER_SCOPE}"
   echo "控制面密钥: 已隐藏；如需查看执行: mihomo show-secret"
+  if [[ "${MANAGER_SYNC_ENABLED:-0}" == "1" ]]; then
+    echo "本机源码同步: 启用；每 ${MANAGER_SYNC_INTERVAL_MINUTES:-1} 分钟从 ${MANAGER_SYNC_SOURCE:-未知来源} 同步"
+  else
+    echo "本机源码同步: 关闭"
+  fi
   echo "Mixed/TProxy/DNS: ${MIXED_PORT}/${TPROXY_PORT}/${DNS_PORT}"
   echo "局域网旁路由入口: ${PROXY_INGRESS_INTERFACES:-未配置}"
   echo "局域网网段: ${LAN_CIDRS:-未设置}"
@@ -1075,9 +1080,25 @@ install_self() {
   install_project "$SOURCE_ROOT"
 }
 
+install_self_sync() {
+  require_root
+  install_project_sync "$SOURCE_ROOT" "${1:-1}"
+}
+
+disable_self_sync() {
+  require_root
+  disable_project_sync
+}
+
 press_enter() {
   [[ -t 0 && -t 1 ]] || return 0
   read -rp "按回车继续..." _
+}
+
+run_menu_action() {
+  if ! "$@"; then
+    warn "操作未完成；请根据上面的输出处理后重试。"
+  fi
 }
 
 interactive_menu() {
@@ -1099,37 +1120,37 @@ interactive_menu() {
     echo
     read -rp "请选择 [0-9]: " action
     case "$action" in
-      1) show_status; press_enter ;;
+      1) run_menu_action show_status; press_enter ;;
       2)
         echo "1) 初始化部署"
         echo "2) 修复部署"
         read -rp "选择 [1/2]: " sub_action
         case "$sub_action" in
-          1) full_setup ;;
-          2) repair_command ;;
+          1) run_menu_action full_setup ;;
+          2) run_menu_action repair_command ;;
           *) warn "无效选择" ;;
         esac
         press_enter
         ;;
-      3) nodes_menu; press_enter ;;
-      4) network_menu; press_enter ;;
-      5) acl_menu; press_enter ;;
-      6) service_menu; press_enter ;;
+      3) run_menu_action nodes_menu; press_enter ;;
+      4) run_menu_action network_menu; press_enter ;;
+      5) run_menu_action acl_menu; press_enter ;;
+      6) run_menu_action service_menu; press_enter ;;
       7)
         echo "1) 健康检查"
         echo "2) 运行审计"
         echo "3) 安装审计"
         read -rp "选择 [1-3]: " sub_action
         case "$sub_action" in
-          1) healthcheck ;;
-          2) runtime_audit ;;
-          3) audit_installation ;;
+          1) run_menu_action healthcheck ;;
+          2) run_menu_action runtime_audit ;;
+          3) run_menu_action audit_installation ;;
           *) warn "无效选择" ;;
         esac
         press_enter
         ;;
-      8) diagnostics_menu; press_enter ;;
-      9) maintenance_menu; press_enter ;;
+      8) run_menu_action diagnostics_menu; press_enter ;;
+      9) run_menu_action maintenance_menu; press_enter ;;
       0) break ;;
       *) warn "无效选择"; press_enter ;;
     esac
@@ -1198,6 +1219,8 @@ mihomo v${SCRIPT_VERSION}
   $0 apply-rules
   $0 clear-rules
   $0 install-self
+  $0 install-self-sync [minutes]
+  $0 disable-self-sync
 EOF
 }
 
@@ -1214,6 +1237,8 @@ main() {
     setup|bootstrap) full_setup ;;
     repair) repair_command ;;
     install-self) install_self ;;
+    install-self-sync) install_self_sync "${2:-1}" ;;
+    disable-self-sync) disable_self_sync ;;
     import-links) import_links ;;
     nodes) list_nodes_pretty ;;
     subscriptions) list_subscriptions_pretty ;;

@@ -16,6 +16,7 @@
 - `mihomo show-secret`：显式查看控制面密钥；默认状态页不会直接暴露。
 - `mihomo healthcheck`：检查端口监听、WebUI 与 `127.0.0.1:7890` 显式代理是否可用。
 - `mihomo runtime-audit`：看 systemd 状态、近 24 小时 warning/error 和健康摘要。
+- `./mihomo install-self-sync [minutes]`：把当前 git 工作树安装到本机，并按分钟周期自动同步到 `/usr/local/lib/mihomo-manager`。
 - `mihomo apply-default-template`：一键应用项目默认模板，启用项目内置规则仓库并恢复安全默认值。
 - `mihomo rules-repo`：查看当前项目内置规则仓库摘要和各规则集条目数。
 - `mihomo rules-repo-entries [ruleset] [keyword]`：查看某个规则集当前的具体条目，可按关键字过滤。
@@ -36,6 +37,13 @@
 4. `mihomo router-wizard`（会按入口接口自动回写 `LAN_CIDRS`）
 5. `mihomo healthcheck`
 6. 局域网设备把网关和 DNS 指向 NAS
+
+## 本机源码自动同步
+- 默认 `mihomo install-self` 仍然是一次性拷贝安装。
+- 如果这台机器直接以当前仓库工作树为真相源维护，可在仓库目录执行 `sudo ./mihomo install-self-sync`。
+- 该命令会先执行一次安装，再写入 `mihomo-manager-sync.service` 和 `mihomo-manager-sync.timer`，后续按分钟周期把工作树同步到安装目录。
+- 关闭自动同步：`sudo mihomo disable-self-sync`
+- 这只保证“本机安装目录跟随本机仓库工作树”，不会自动从 GitHub 拉取更新。
 
 ## 项目内置规则仓库
 - 网络模板仍只负责旁路由入口形态，例如单 LAN / 双栈 / 多 bridge；规则策略由项目内置默认模板提供。

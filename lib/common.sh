@@ -2,9 +2,10 @@
 
 set -euo pipefail
 
-SCRIPT_VERSION="${SCRIPT_VERSION:-0.5.0}"
+SCRIPT_VERSION="${SCRIPT_VERSION:-0.6.0}"
 
 APP_ROOT="${APP_ROOT:-/usr/local/lib/mihomo-manager}"
+INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/lib/mihomo-manager}"
 STATECTL="${STATECTL:-${APP_ROOT}/scripts/statectl.py}"
 RULEPRESETCTL="${RULEPRESETCTL:-${APP_ROOT}/scripts/rulepreset.py}"
 
@@ -39,6 +40,8 @@ RESTART_SERVICE_UNIT="${RESTART_SERVICE_UNIT:-/etc/systemd/system/mihomo-restart
 RESTART_TIMER_UNIT="${RESTART_TIMER_UNIT:-/etc/systemd/system/mihomo-restart.timer}"
 UPDATE_SERVICE_UNIT="${UPDATE_SERVICE_UNIT:-/etc/systemd/system/mihomo-alpha-update.service}"
 UPDATE_TIMER_UNIT="${UPDATE_TIMER_UNIT:-/etc/systemd/system/mihomo-alpha-update.timer}"
+MANAGER_SYNC_SERVICE_UNIT="${MANAGER_SYNC_SERVICE_UNIT:-/etc/systemd/system/mihomo-manager-sync.service}"
+MANAGER_SYNC_TIMER_UNIT="${MANAGER_SYNC_TIMER_UNIT:-/etc/systemd/system/mihomo-manager-sync.timer}"
 
 OVERRIDE_PROFILE_TEMPLATE="${PROFILE_TEMPLATE:-}"
 OVERRIDE_RULESET_PRESET="${RULESET_PRESET:-}"
@@ -452,6 +455,9 @@ ALPHA_AUTO_UPDATE="0"
 ALPHA_UPDATE_ONCALENDAR="daily"
 RESTART_INTERVAL_HOURS="0"
 RULESET_PRESET="default"
+MANAGER_SYNC_ENABLED="0"
+MANAGER_SYNC_INTERVAL_MINUTES="1"
+MANAGER_SYNC_SOURCE=""
 EOF
   local template_name
   local rule_preset_name
@@ -482,6 +488,9 @@ load_settings() {
   RESTART_INTERVAL_HOURS="$(read_env_var "$SETTINGS_ENV" "RESTART_INTERVAL_HOURS" "0")"
   PROFILE_TEMPLATE="${OVERRIDE_PROFILE_TEMPLATE:-$(read_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$(default_profile_template)")}"
   RULESET_PRESET="${OVERRIDE_RULESET_PRESET:-$(read_env_var "$SETTINGS_ENV" "RULESET_PRESET" "$(default_rule_preset)")}"
+  MANAGER_SYNC_ENABLED="$(read_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "0")"
+  MANAGER_SYNC_INTERVAL_MINUTES="$(read_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "1")"
+  MANAGER_SYNC_SOURCE="$(read_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "")"
 }
 
 load_settings_readonly() {
@@ -492,6 +501,9 @@ load_settings_readonly() {
   RESTART_INTERVAL_HOURS="$(read_env_var "$SETTINGS_ENV" "RESTART_INTERVAL_HOURS" "0")"
   PROFILE_TEMPLATE="${OVERRIDE_PROFILE_TEMPLATE:-$(read_env_var "$SETTINGS_ENV" "PROFILE_TEMPLATE" "$(default_profile_template)")}"
   RULESET_PRESET="${OVERRIDE_RULESET_PRESET:-$(read_env_var "$SETTINGS_ENV" "RULESET_PRESET" "$(default_rule_preset)")}"
+  MANAGER_SYNC_ENABLED="$(read_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "0")"
+  MANAGER_SYNC_INTERVAL_MINUTES="$(read_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "1")"
+  MANAGER_SYNC_SOURCE="$(read_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "")"
 }
 
 load_router_env() {
