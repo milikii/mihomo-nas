@@ -106,6 +106,14 @@ test_render_empty() {
     echo "authentication should be absent by default" >&2
     exit 1
   fi
+  if grep -q '^external-ui-name:' "${TMPDIR_CASE}/config.yaml"; then
+    echo "external-ui-name should be absent by default" >&2
+    exit 1
+  fi
+  if grep -q '^external-ui-url:' "${TMPDIR_CASE}/config.yaml"; then
+    echo "external-ui-url should be absent by default" >&2
+    exit 1
+  fi
   grep -q 'DOMAIN-SUFFIX,smzdm.com,DIRECT' "${TMPDIR_CASE}/config.yaml"
   [[ -f "${TMPDIR_CASE}/state/acl.json" ]]
   [[ -f "${TMPDIR_CASE}/state/subscriptions.json" ]]
@@ -286,6 +294,23 @@ EOF
   grep -q '^  - 192.168.2.0/24$' "${TMPDIR_CASE}/config.yaml"
 }
 
+test_render_config_renders_external_ui_fields() {
+  setup_case
+  cat > "${TMPDIR_CASE}/settings.env" <<'EOF'
+CONFIG_MODE="rule"
+CORE_CHANNEL="alpha"
+ALPHA_AUTO_UPDATE="0"
+ALPHA_UPDATE_ONCALENDAR="daily"
+RESTART_INTERVAL_HOURS="0"
+RULESET_PRESET="default"
+EXTERNAL_UI_NAME="metacubexd"
+EXTERNAL_UI_URL="https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+EOF
+  run_manager render-config >/dev/null
+  grep -q '^external-ui-name: "metacubexd"$' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"$' "${TMPDIR_CASE}/config.yaml"
+}
+
 test_default_rule_preset_is_rendered() {
   setup_case
   run_manager set-rule-preset default >/dev/null
@@ -431,6 +456,8 @@ test_status_readonly() {
   assert_contains "$output" '订阅: 启用 0 / 总计 0'
   assert_contains "$output" '订阅 provider: 启用 0 / 总计 0'
   assert_contains "$output" '订阅缓存: 就绪 0 / 总计 0'
+  assert_contains "$output" '外部 UI 名称: 未设置'
+  assert_contains "$output" '外部 UI 地址: 未设置'
   assert_contains "$output" '局域网禁止网段: 无'
   assert_contains "$output" '显式代理认证: 关闭'
   assert_contains "$output" '显式代理免认证网段: 无'
@@ -454,6 +481,23 @@ test_status_shows_official_access_fields() {
   assert_contains "$output" '局域网禁止网段: 192.168.2.10/32'
   assert_contains "$output" '显式代理认证: 启用 (2 组账号)'
   assert_contains "$output" '显式代理免认证网段: 127.0.0.1/32'
+}
+
+test_status_shows_external_ui_fields() {
+  setup_case
+  cat > "${TMPDIR_CASE}/settings.env" <<'EOF'
+CONFIG_MODE="rule"
+CORE_CHANNEL="alpha"
+ALPHA_AUTO_UPDATE="0"
+ALPHA_UPDATE_ONCALENDAR="daily"
+RESTART_INTERVAL_HOURS="0"
+RULESET_PRESET="default"
+EXTERNAL_UI_NAME="metacubexd"
+EXTERNAL_UI_URL="https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+EOF
+  output="$(run_manager status)"
+  assert_contains "$output" '外部 UI 名称: metacubexd'
+  assert_contains "$output" '外部 UI 地址: https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip'
 }
 
 test_templates_mark_dualstack_as_deprecated() {
@@ -587,6 +631,7 @@ main() {
   test_subscription_state_uses_cache_and_enumeration_subobjects
   test_config_loader_treats_values_as_literals
   test_render_config_renders_official_access_fields
+  test_render_config_renders_external_ui_fields
   test_default_rule_preset_is_rendered
   test_apply_default_template_command
   test_rules_repo_command
@@ -601,6 +646,7 @@ main() {
   test_status_readonly
   test_status_warns_on_host_output_proxy
   test_status_shows_official_access_fields
+  test_status_shows_external_ui_fields
   test_templates_mark_dualstack_as_deprecated
   test_status_warns_on_dualstack_placeholder
   test_render_config_uses_subscription_provider_cache

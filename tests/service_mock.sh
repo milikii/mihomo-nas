@@ -278,6 +278,8 @@ test_runtime_audit_outputs() {
   grep -q '当前模板: nas-single-lan-v4 (单 LAN IPv4 旁路由)' <<<"$output"
   grep -q '过去 24 小时 warning 数: 1' <<<"$output"
   grep -q '下次 Alpha 自动更新: Tue 2026-04-21 00:00:00 CST' <<<"$output"
+  grep -q '外部 UI 名称: 未设置' <<<"$output"
+  grep -q '外部 UI 地址: 未设置' <<<"$output"
   grep -q '控制面范围: 仅宿主机' <<<"$output"
   grep -q '局域网网段: 192.168.2.0/24' <<<"$output"
   grep -q '局域网禁止网段: 无' <<<"$output"

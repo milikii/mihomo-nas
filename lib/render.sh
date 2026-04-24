@@ -181,10 +181,17 @@ geox-url:
 external-controller: ${CONTROLLER_BIND_ADDRESS}:${CONTROLLER_PORT}
 secret: "${secret}"
 external-ui: ${UI_DIR}
+EOF
+  if [[ -n "${EXTERNAL_UI_NAME:-}" ]]; then
+    printf 'external-ui-name: %s\n' "$(printf '%s' "$EXTERNAL_UI_NAME" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()).strip())')" >>"$CONFIG_FILE"
+  fi
+  if [[ -n "${EXTERNAL_UI_URL:-}" ]]; then
+    printf 'external-ui-url: %s\n' "$(printf '%s' "$EXTERNAL_UI_URL" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()).strip())')" >>"$CONFIG_FILE"
+  fi
+  cat >>"$CONFIG_FILE" <<EOF
 profile:
   store-selected: true
   store-fake-ip: true
-
 dns:
   enable: true
   listen: 0.0.0.0:${DNS_PORT}
@@ -684,22 +691,35 @@ ensure_geosite_ready() {
   install_geosite_dat
 }
 
+webui_builtin_url() {
+  case "${1:-}" in
+    zashboard) printf '%s\n' "https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip" ;;
+    metacubexd) printf '%s\n' "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip" ;;
+    *) return 1 ;;
+  esac
+}
+
 install_webui() {
   require_root
-  local ui_name="${1:-zashboard}"
-  local ui_url
+  load_settings
+  local ui_name="${1:-${EXTERNAL_UI_NAME:-zashboard}}"
+  local ui_url="${2:-${EXTERNAL_UI_URL:-}}"
+  local ui_target_dir="$UI_DIR"
   local tmp
   local src
-  case "$ui_name" in
-    zashboard) ui_url="https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip" ;;
-    *) die "当前仅支持 zashboard" ;;
-  esac
+  if [[ -z "$ui_url" ]]; then
+    ui_url="$(webui_builtin_url "$ui_name" 2>/dev/null || true)"
+  fi
+  [[ -n "$ui_url" ]] || die "未找到 WebUI 下载地址；可执行: mihomo install-webui [name] [url]"
+  if [[ -n "$ui_name" ]]; then
+    ui_target_dir="${UI_DIR}/${ui_name}"
+  fi
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  mkdir -p "$UI_DIR"
-  info "下载 WebUI: ${ui_name}"
+  mkdir -p "$ui_target_dir"
+  info "下载 WebUI: ${ui_name:-custom}"
   if ! curl_cmd -fL --progress-bar -o "${tmp}/ui.zip" "$ui_url"; then
-    warn "WebUI 下载失败: ${ui_name}"
+    warn "WebUI 下载失败: ${ui_name:-custom}"
     rm -rf "$tmp"
     trap - RETURN
     return 1
@@ -717,12 +737,17 @@ install_webui() {
     trap - RETURN
     return 1
   fi
-  find "$UI_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-  cp -a "${src}/." "$UI_DIR/"
-  chown -R "${MIHOMO_USER}:${MIHOMO_USER}" "$UI_DIR"
+  find "$ui_target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  cp -a "${src}/." "$ui_target_dir/"
+  chown -R "${MIHOMO_USER}:${MIHOMO_USER}" "$ui_target_dir"
+  upsert_env_var "$SETTINGS_ENV" "EXTERNAL_UI_NAME" "$ui_name"
+  upsert_env_var "$SETTINGS_ENV" "EXTERNAL_UI_URL" "$ui_url"
+  if [[ -f "$CONFIG_FILE" ]]; then
+    render_config >/dev/null
+  fi
   rm -rf "$tmp"
   trap - RETURN
-  ok "WebUI 已安装到 ${UI_DIR}"
+  ok "WebUI 已安装到 ${ui_target_dir}"
 }
 
 install_project() {
@@ -1272,6 +1297,8 @@ runtime_audit() {
   echo "当前模板: ${TEMPLATE_NAME:-unknown} ($(template_summary "${TEMPLATE_NAME:-unknown}"))"
   echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
   echo "IPv6 模式: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
+  echo "外部 UI 名称: ${EXTERNAL_UI_NAME:-未设置}"
+  echo "外部 UI 地址: ${EXTERNAL_UI_URL:-未设置}"
   echo "控制面范围: ${CONTROLLER_SCOPE}"
   echo "局域网旁路由入口: ${PROXY_INGRESS_INTERFACES:-未配置}"
   echo "局域网网段: ${LAN_CIDRS:-未设置}"
