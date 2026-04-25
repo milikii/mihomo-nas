@@ -709,6 +709,7 @@ test_install_self_sync_writes_units_and_status() {
   setup_case
   output="$(run_manager install-self-sync 5)"
   [[ -x "${TMPDIR_CASE}/install-root/mihomo" ]]
+  [[ -x "${TMPDIR_CASE}/install-root/scripts/statectl.py" ]]
   [[ -d "${TMPDIR_CASE}/install-root/scripts" ]]
   [[ -L "${TMPDIR_CASE}/mihomo" ]]
   [[ ! -d "${TMPDIR_CASE}/install-root/.git" ]]
@@ -724,6 +725,7 @@ test_install_self_sync_writes_units_and_status() {
   grep -q '^OnUnitActiveSec=5min$' "${TMPDIR_CASE}/mihomo-manager-sync.timer"
   grep -q '^Persistent=true$' "${TMPDIR_CASE}/mihomo-manager-sync.timer"
   grep -q '^Unit=mihomo-manager-sync.service$' "${TMPDIR_CASE}/mihomo-manager-sync.timer"
+  grep -q "已安装管理命令到 ${TMPDIR_CASE}/mihomo" <<<"$output"
   grep -q "已启用本机源码自动同步: 每 5 分钟从 ${ROOT} 同步到 ${TMPDIR_CASE}/install-root" <<<"$output"
   status_output="$(run_manager status)"
   grep -q "本机源码同步: 启用；每 5 分钟从 ${ROOT} 同步" <<<"$status_output"

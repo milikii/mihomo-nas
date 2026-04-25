@@ -845,10 +845,7 @@ install_project() {
   require_root
   local src_root="$1"
   prepare_project_install_tree "$src_root"
-  chmod +x "$INSTALL_ROOT/mihomo" "$INSTALL_ROOT/scripts/statectl.py"
-  ln -sf "$INSTALL_ROOT/mihomo" "$MANAGER_BIN"
-  ln -sf "$INSTALL_ROOT/mihomo" "$COMPAT_MANAGER_BIN"
-  ok "已安装管理命令到 ${MANAGER_BIN}"
+  finalize_project_install
 }
 
 prepare_project_install_tree() {
@@ -860,6 +857,13 @@ prepare_project_install_tree() {
   rm -rf "$INSTALL_ROOT/.git" "$INSTALL_ROOT/.codex"
   find "$INSTALL_ROOT" -type d -name '__pycache__' -prune -exec rm -rf {} +
   find "$INSTALL_ROOT" -type f \( -name '*.bak.*' -o -name '*.pyc' \) -delete
+}
+
+finalize_project_install() {
+  chmod +x "$INSTALL_ROOT/mihomo" "$INSTALL_ROOT/scripts/statectl.py"
+  ln -sf "$INSTALL_ROOT/mihomo" "$MANAGER_BIN"
+  ln -sf "$INSTALL_ROOT/mihomo" "$COMPAT_MANAGER_BIN"
+  ok "已安装管理命令到 ${MANAGER_BIN}"
 }
 
 write_manager_sync_units() {
