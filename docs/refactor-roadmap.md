@@ -271,6 +271,7 @@
 - `install_webui` 的参数与目标解析已抽到共用 helper
 - `install_webui` 的临时工作区准备已抽到共用 helper
 - `install_project_sync` 的入参校验已抽到共用 helper
+- `install_project_sync` 的设置持久化已抽到共用 helper
 - `install_webui` 的解压失败告警已恢复为可见输出
 - 当前仍保持与重构前一致的输出文本与退化行为
 

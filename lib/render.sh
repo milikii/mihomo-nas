@@ -895,9 +895,7 @@ install_project_sync() {
   ensure_settings
   install_project "$src_root"
   write_manager_sync_units "$src_root" "$interval_minutes"
-  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "1"
-  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "$interval_minutes"
-  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "$src_root"
+  persist_project_sync_settings "$src_root" "$interval_minutes"
   systemctl_cmd daemon-reload
   systemctl_cmd enable --now mihomo-manager-sync.timer
   ok "已启用本机源码自动同步: 每 ${interval_minutes} 分钟从 ${src_root} 同步到 ${INSTALL_ROOT}"
@@ -923,6 +921,15 @@ validate_project_sync_inputs() {
   [[ -x "${src_root}/mihomo" ]] || die "未找到源码入口: ${src_root}/mihomo"
   [[ "$interval_minutes" =~ ^[0-9]+$ ]] || die "同步间隔必须是正整数分钟"
   [[ "$interval_minutes" -gt 0 ]] || die "同步间隔必须大于 0 分钟"
+}
+
+persist_project_sync_settings() {
+  local src_root="$1"
+  local interval_minutes="$2"
+
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "1"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "$interval_minutes"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "$src_root"
 }
 
 delete_jump() {
