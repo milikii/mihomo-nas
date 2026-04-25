@@ -101,7 +101,8 @@
 - 第五十五刀再抽离 `cleanup_project_install_tree_metadata` 的 Python 缓存清理 helper
 - 第五十六刀再抽离 `cleanup_project_install_tree_metadata` 的备份垃圾清理 helper
 - 第五十七刀再抽离 `cleanup_project_sync_runtime` 的 unit 文件删除 helper
-- 第五十八刀先抽离 `activate_project_sync_runtime` / `cleanup_project_sync_runtime` 的 systemd reload helper
+- 第五十八刀再抽离 `activate_project_sync_runtime` / `cleanup_project_sync_runtime` 的 systemd reload helper
+- 第五十九刀先抽离 `cleanup_project_sync_runtime` 的 timer 停用 helper
 - 目标是降低重复逻辑，不改变用户可见输出
 - 后续仍按“更小、更保守、可验证”的顺序继续抽离共用展示块，不直接做大拆分
 
