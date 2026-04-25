@@ -931,11 +931,9 @@ render_manager_sync_timer_unit() {
 render_manager_sync_timer_unit_sections() {
   local interval_minutes="$1"
 
-  cat <<EOF
-$(render_manager_sync_timer_unit_timer_block "$interval_minutes")
-
-$(render_manager_sync_timer_unit_install_block)
-EOF
+  render_manager_sync_unit_sections \
+    "$(render_manager_sync_timer_unit_timer_block "$interval_minutes")" \
+    "$(render_manager_sync_timer_unit_install_block)"
 }
 
 render_manager_sync_timer_unit_timer_block() {
