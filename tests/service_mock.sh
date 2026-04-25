@@ -335,6 +335,7 @@ test_disable_alpha_update_disables_timer() {
 
 test_runtime_audit_outputs() {
   setup_case
+  touch "${TMPDIR_CASE}/Country.mmdb"
   run_manager render-config >/dev/null
   output="$(run_manager runtime-audit)"
   grep -q '服务状态: active' <<<"$output"
@@ -367,6 +368,8 @@ test_runtime_audit_outputs() {
   grep -q '局域网透明代理命中包数: 66' <<<"$output"
   grep -q 'DNS 劫持命中包数: 18' <<<"$output"
   grep -q '旁路由流量摘要: 近期已观测到局域网旁路由流量' <<<"$output"
+  grep -q '== 健康摘要 ==' <<<"$output"
+  grep -q '健康检查通过' <<<"$output"
 }
 
 test_runtime_audit_reads_mode_from_controller() {

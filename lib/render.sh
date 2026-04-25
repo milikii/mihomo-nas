@@ -1099,6 +1099,12 @@ runtime_audit_probe_snapshot() {
     "$proxy_probe" "$controller_probe" "$tproxy_packets" "$dns_hijack_packets" "$lan_activity_summary"
 }
 
+print_runtime_audit_health_summary() {
+  echo
+  echo "== 健康摘要 =="
+  healthcheck || true
+}
+
 listener_snapshot() {
   ss_cmd -lntup 2>/dev/null || true
 }
@@ -1319,7 +1325,5 @@ runtime_audit() {
   print_network_access_lines audit
   print_runtime_audit_probe_lines "$proxy_probe" "$controller_probe" "$tproxy_packets" "$dns_hijack_packets" "$lan_activity_summary"
   print_runtime_audit_alert_lines "${warn_count:-0}" "${err_count:-0}" "${trigger_update:-disabled}" "${trigger_restart:-disabled}"
-  echo
-  echo "== 健康摘要 =="
-  healthcheck || true
+  print_runtime_audit_health_summary
 }
