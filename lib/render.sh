@@ -992,13 +992,17 @@ reset_project_sync_settings() {
 
 cleanup_project_sync_runtime() {
   systemctl_cmd disable --now mihomo-manager-sync.timer >/dev/null 2>&1 || true
-  rm -f "$MANAGER_SYNC_SERVICE_UNIT" "$MANAGER_SYNC_TIMER_UNIT"
+  remove_manager_sync_unit_files
   systemctl_cmd daemon-reload
 }
 
 activate_project_sync_runtime() {
   systemctl_cmd daemon-reload
   systemctl_cmd enable --now mihomo-manager-sync.timer
+}
+
+remove_manager_sync_unit_files() {
+  rm -f "$MANAGER_SYNC_SERVICE_UNIT" "$MANAGER_SYNC_TIMER_UNIT"
 }
 
 print_project_sync_enabled_message() {
