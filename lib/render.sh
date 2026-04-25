@@ -950,8 +950,7 @@ install_project_sync() {
   validate_project_sync_inputs "$src_root" "$interval_minutes"
 
   prepare_project_sync_installation "$src_root" "$interval_minutes"
-  activate_project_sync_runtime
-  print_project_sync_enabled_message "$src_root" "$interval_minutes"
+  finalize_project_sync_enablement "$src_root" "$interval_minutes"
 }
 
 disable_project_sync() {
@@ -1004,6 +1003,14 @@ prepare_project_sync_installation() {
   install_project "$src_root"
   write_manager_sync_units "$src_root" "$interval_minutes"
   persist_project_sync_settings "$src_root" "$interval_minutes"
+}
+
+finalize_project_sync_enablement() {
+  local src_root="$1"
+  local interval_minutes="$2"
+
+  activate_project_sync_runtime
+  print_project_sync_enabled_message "$src_root" "$interval_minutes"
 }
 
 persist_project_sync_settings() {
