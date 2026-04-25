@@ -941,9 +941,15 @@ render_manager_sync_timer_unit_timer_block() {
 
   cat <<EOF
 [Timer]
-OnUnitActiveSec=${interval_minutes}min
+$(render_manager_sync_timer_interval_line "$interval_minutes")
 $(render_manager_sync_timer_unit_static_settings)
 EOF
+}
+
+render_manager_sync_timer_interval_line() {
+  local interval_minutes="$1"
+
+  printf 'OnUnitActiveSec=%smin\n' "$interval_minutes"
 }
 
 render_manager_sync_timer_unit_static_settings() {
