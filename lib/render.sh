@@ -904,6 +904,14 @@ print_project_install_success() {
 write_manager_sync_units() {
   local src_root="$1"
   local interval_minutes="$2"
+
+  perform_manager_sync_unit_writes "$src_root" "$interval_minutes"
+}
+
+perform_manager_sync_unit_writes() {
+  local src_root="$1"
+  local interval_minutes="$2"
+
   write_manager_sync_service_unit "$src_root"
   write_manager_sync_timer_unit "$interval_minutes"
 }

@@ -842,6 +842,26 @@ test_project_sync_disablement_prelude_resets_settings() {
   grep -q '^MANAGER_SYNC_SOURCE=""$' "${TMPDIR_CASE}/settings.env"
 }
 
+test_manager_sync_unit_writer_outputs_both_unit_files() {
+  setup_case
+
+  (
+    export APP_ROOT="$ROOT"
+    export MANAGER_SYNC_SERVICE_UNIT="${TMPDIR_CASE}/mihomo-manager-sync.service"
+    export MANAGER_SYNC_TIMER_UNIT="${TMPDIR_CASE}/mihomo-manager-sync.timer"
+    # shellcheck disable=SC1091
+    source "${ROOT}/lib/common.sh"
+    # shellcheck disable=SC1091
+    source "${ROOT}/lib/render.sh"
+    write_manager_sync_units "${ROOT}" 7
+  )
+
+  grep -Fq "ConditionPathExists=${ROOT}/.git" "${TMPDIR_CASE}/mihomo-manager-sync.service"
+  grep -Fq "ExecStart=${ROOT}/mihomo install-self" "${TMPDIR_CASE}/mihomo-manager-sync.service"
+  grep -q '^OnUnitActiveSec=7min$' "${TMPDIR_CASE}/mihomo-manager-sync.timer"
+  grep -q '^Unit=mihomo-manager-sync.service$' "${TMPDIR_CASE}/mihomo-manager-sync.timer"
+}
+
 test_usage_mentions_new_commands() {
   output="$(run_manager help)"
   assert_contains "$output" 'apply-default-template'
@@ -914,6 +934,7 @@ main() {
   test_project_sync_validation_rejects_missing_source_entry
   test_project_sync_installation_prelude_prepares_units_and_settings
   test_project_sync_disablement_prelude_resets_settings
+  test_manager_sync_unit_writer_outputs_both_unit_files
   test_usage_mentions_new_commands
   test_menu_mentions_new_buckets
   echo "smoke: ok"
