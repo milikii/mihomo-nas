@@ -866,7 +866,7 @@ stage_project_install_tree() {
 cleanup_project_install_tree_metadata() {
   cleanup_project_install_tree_vcs_metadata
   cleanup_project_install_tree_python_cache
-  find "$INSTALL_ROOT" -type f -name '*.bak.*' -delete
+  cleanup_project_install_tree_backup_artifacts
 }
 
 cleanup_project_install_tree_vcs_metadata() {
@@ -876,6 +876,10 @@ cleanup_project_install_tree_vcs_metadata() {
 cleanup_project_install_tree_python_cache() {
   find "$INSTALL_ROOT" -type d -name '__pycache__' -prune -exec rm -rf {} +
   find "$INSTALL_ROOT" -type f -name '*.pyc' -delete
+}
+
+cleanup_project_install_tree_backup_artifacts() {
+  find "$INSTALL_ROOT" -type f -name '*.bak.*' -delete
 }
 
 finalize_project_install() {
