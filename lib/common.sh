@@ -1201,6 +1201,24 @@ runtime_audit_overview_snapshot() {
     "$active_state" "$enabled_state" "$sub_state" "$main_pid" "$active_since" "$n_restarts" "$memory_current" "$memory_peak" "$cpu_nsec"
 }
 
+runtime_audit_alert_snapshot() {
+  local warn_count err_count
+  local trigger_update="disabled"
+  local trigger_restart="disabled"
+
+  if systemctl_cmd is-enabled mihomo-alpha-update.timer >/dev/null 2>&1; then
+    trigger_update="$(systemctl_show_value mihomo-alpha-update.timer NextElapseUSecRealtime)"
+  fi
+  if systemctl_cmd is-enabled mihomo-restart.timer >/dev/null 2>&1; then
+    trigger_restart="$(systemctl_show_value mihomo-restart.timer NextElapseUSecRealtime)"
+  fi
+
+  warn_count="$(journalctl_cmd -u mihomo --since '24 hours ago' -p warning --no-pager 2>/dev/null | grep -c '^' || true)"
+  err_count="$(journalctl_cmd -u mihomo --since '24 hours ago' -p err --no-pager 2>/dev/null | grep -c '^' || true)"
+
+  printf '%s\t%s\t%s\t%s\n' "$warn_count" "$err_count" "$trigger_update" "$trigger_restart"
+}
+
 print_status_overview_lines() {
   local version="${1:-未安装}"
   local service_state="${2:-inactive}"

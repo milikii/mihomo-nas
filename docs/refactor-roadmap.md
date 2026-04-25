@@ -251,6 +251,7 @@
 - `runtime-audit` 的基础状态采集已抽到共用 helper
 - `runtime-audit` 的探测状态采集已抽到共用 helper
 - `runtime-audit` 的健康摘要收尾已抽到共用 helper
+- `runtime-audit` 的告警与定时器状态采集已抽到共用 helper
 - 当前仍保持原有输出文本与退化行为不变
 
 任务：

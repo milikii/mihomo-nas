@@ -1296,16 +1296,7 @@ runtime_audit() {
 
   controller_scope_summary
   IFS=$'\t' read -r active_state enabled_state sub_state main_pid active_since n_restarts memory_current memory_peak cpu_nsec < <(runtime_audit_overview_snapshot)
-
-  if systemctl_cmd is-enabled mihomo-alpha-update.timer >/dev/null 2>&1; then
-    trigger_update="$(systemctl_show_value mihomo-alpha-update.timer NextElapseUSecRealtime)"
-  fi
-  if systemctl_cmd is-enabled mihomo-restart.timer >/dev/null 2>&1; then
-    trigger_restart="$(systemctl_show_value mihomo-restart.timer NextElapseUSecRealtime)"
-  fi
-
-  warn_count="$(journalctl_cmd -u mihomo --since '24 hours ago' -p warning --no-pager 2>/dev/null | grep -c '^' || true)"
-  err_count="$(journalctl_cmd -u mihomo --since '24 hours ago' -p err --no-pager 2>/dev/null | grep -c '^' || true)"
+  IFS=$'\t' read -r warn_count err_count trigger_update trigger_restart < <(runtime_audit_alert_snapshot)
   IFS=$'\t' read -r proxy_probe controller_probe tproxy_packets dns_hijack_packets lan_activity_summary < <(runtime_audit_probe_snapshot)
 
   print_runtime_audit_overview_lines \

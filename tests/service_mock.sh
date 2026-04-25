@@ -409,6 +409,51 @@ EOIPT
   grep -q '旁路由流量摘要: 当前未观测到局域网旁路由命中包；若你刚切好网关/DNS，可再从局域网设备发起一次请求' <<<"$output"
 }
 
+test_runtime_audit_alert_summary_with_restart_timer_enabled() {
+  setup_case
+  cat > "${TMPDIR_CASE}/bin/systemctl" <<'EOSYS'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${SYSTEMCTL_LOG:?}"
+case "$1" in
+  show)
+    prop="$4"
+    case "$prop" in
+      ActiveState) echo "active" ;;
+      SubState) echo "running" ;;
+      MainPID) echo "12345" ;;
+      ActiveEnterTimestamp) echo "Mon 2026-04-20 12:00:00 CST" ;;
+      NRestarts) echo "0" ;;
+      MemoryCurrent) echo "10485760" ;;
+      MemoryPeak) echo "20971520" ;;
+      CPUUsageNSec) echo "123456789" ;;
+      NextElapseUSecRealtime) echo "Wed 2026-04-22 00:00:00 CST" ;;
+      *) echo "" ;;
+    esac
+    exit 0
+    ;;
+  is-active|is-enabled)
+    unit="$2"
+    if [[ "$unit" == "--quiet" ]]; then
+      unit="$3"
+    fi
+    case "$unit" in
+      mihomo|mihomo-alpha-update.timer|mihomo-restart.timer) exit 0 ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOSYS
+  chmod +x "${TMPDIR_CASE}/bin/systemctl"
+  touch "${TMPDIR_CASE}/Country.mmdb"
+  run_manager render-config >/dev/null
+  output="$(run_manager runtime-audit)"
+  grep -q '下次 Alpha 自动更新: Wed 2026-04-22 00:00:00 CST' <<<"$output"
+  grep -q '下次定时重启: Wed 2026-04-22 00:00:00 CST' <<<"$output"
+}
+
 test_status_reads_mode_from_controller() {
   setup_case
   run_manager render-config >/dev/null
