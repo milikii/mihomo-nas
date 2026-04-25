@@ -146,7 +146,8 @@
 - 第一百刀再抽离 `AccuracySec=15s` 行 helper
 - 第一百零一刀再抽离 `Persistent=true` 行 helper
 - 第一百零二刀再抽离 timer 静态设置组合 helper
-- 第一百零三刀先抽离 service body 组合 helper
+- 第一百零三刀再抽离 service body 组合 helper
+- 第一百零四刀先抽离 service conditions 组合 helper
 - 目标是降低重复逻辑，不改变用户可见输出
 - 后续仍按“更小、更保守、可验证”的顺序继续抽离共用展示块，不直接做大拆分
 

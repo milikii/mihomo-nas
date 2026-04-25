@@ -1092,12 +1092,7 @@ render_manager_sync_condition_path_exists() {
 render_manager_sync_service_unit_body() {
   local src_root="$1"
 
-  cat <<EOF
-$(render_manager_sync_service_header_line)
-$(render_manager_sync_service_type_line)
-$(render_manager_sync_working_directory_line "$src_root")
-$(render_manager_sync_exec_start_line "$src_root")
-EOF
+  render_manager_sync_service_body_lines "$src_root"
 }
 
 render_manager_sync_service_header_line() {
@@ -1118,6 +1113,17 @@ render_manager_sync_exec_start_line() {
   local src_root="$1"
 
   printf 'ExecStart=%s/mihomo install-self\n' "$src_root"
+}
+
+render_manager_sync_service_body_lines() {
+  local src_root="$1"
+
+  cat <<EOF
+$(render_manager_sync_service_header_line)
+$(render_manager_sync_service_type_line)
+$(render_manager_sync_working_directory_line "$src_root")
+$(render_manager_sync_exec_start_line "$src_root")
+EOF
 }
 
 install_project_sync() {
