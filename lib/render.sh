@@ -1123,6 +1123,17 @@ print_diagnose_recent_logs_section() {
   journalctl_cmd -u mihomo -n 60 --no-pager || true
 }
 
+audit_installation_required_files_check() {
+  local failed=0
+
+  [[ -f "$CONFIG_FILE" ]] || { echo "missing: ${CONFIG_FILE}"; failed=1; }
+  [[ -f "$SETTINGS_ENV" ]] || { echo "missing: ${SETTINGS_ENV}"; failed=1; }
+  [[ -f "$ROUTER_ENV" ]] || { echo "missing: ${ROUTER_ENV}"; failed=1; }
+  [[ -f "$SUBSCRIPTIONS_STATE_FILE" ]] || { echo "missing: ${SUBSCRIPTIONS_STATE_FILE}"; failed=1; }
+
+  return "$failed"
+}
+
 listener_snapshot() {
   ss_cmd -lntup 2>/dev/null || true
 }
@@ -1215,9 +1226,7 @@ audit_installation() {
   trap 'rm -rf "$tmpdir"' RETURN
 
   echo "== audit =="
-  [[ -f "$CONFIG_FILE" ]] || { echo "missing: ${CONFIG_FILE}"; status=1; }
-  [[ -f "$SETTINGS_ENV" ]] || { echo "missing: ${SETTINGS_ENV}"; status=1; }
-  [[ -f "$ROUTER_ENV" ]] || { echo "missing: ${ROUTER_ENV}"; status=1; }
+  audit_installation_required_files_check || status=1
 
   if [[ -f "$NODES_STATE_FILE" ]]; then
     python3 "$STATECTL" render-provider "$NODES_STATE_FILE" "$tmpdir/provider.txt"
@@ -1277,8 +1286,6 @@ audit_installation() {
       status=1
     fi
   fi
-
-  [[ -f "$SUBSCRIPTIONS_STATE_FILE" ]] || { echo "missing: ${SUBSCRIPTIONS_STATE_FILE}"; status=1; }
 
   if [[ "${ALPHA_AUTO_UPDATE:-0}" == "1" ]]; then
     if ! systemctl_cmd is-enabled mihomo-alpha-update.timer >/dev/null 2>&1; then

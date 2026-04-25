@@ -257,6 +257,7 @@
 - `diagnose` 的配置摘要展示已抽到共用 helper
 - `diagnose` 的 systemd / listeners / logs 分段展示已抽到共用 helper
 - `healthcheck` 的基础状态检查已抽到共用 helper
+- `audit_installation` 的基础文件存在性检查已抽到共用 helper
 - 当前仍保持原有输出文本与退化行为不变
 
 任务：

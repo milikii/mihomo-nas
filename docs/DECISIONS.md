@@ -69,6 +69,7 @@
 - 第二十三刀再抽离 `diagnose` 的 systemd / listeners / logs 分段展示 helper
 - 第二十四刀再抽离 `healthcheck` 的基础状态检查 helper
 - 第二十五刀再抽离 `audit_installation` 的基础文件存在性检查 helper
+- 第二十六刀再抽离 `audit_installation` 的 nodes/rules 渲染漂移检查 helper
 - 目标是降低重复逻辑，不改变用户可见输出
 - 后续仍按“更小、更保守、可验证”的顺序继续抽离共用展示块，不直接做大拆分
 

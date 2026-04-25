@@ -611,6 +611,17 @@ test_diagnose_outputs_config_summary() {
   grep -q 'journal output' <<<"$output"
 }
 
+test_audit_installation_reports_missing_required_file() {
+  setup_case
+  run_manager render-config >/dev/null
+  rm -f "${TMPDIR_CASE}/config.yaml"
+  if run_manager audit-installation >/tmp/mh-audit-missing-config.out 2>&1; then
+    echo "audit-installation should fail when config file is missing" >&2
+    exit 1
+  fi
+  grep -q "missing: ${TMPDIR_CASE}/config.yaml" /tmp/mh-audit-missing-config.out
+}
+
 test_menu_survives_failed_healthcheck() {
   setup_case
   run_manager render-config >/dev/null
