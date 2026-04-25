@@ -192,6 +192,18 @@ if [[ "$target" == *"/proxies" ]]; then
   exit 22
 fi
 
+if [[ "$target" == *"/version" ]]; then
+  if [[ -n "${CONTROLLER_VERSION_JSON_FILE:-}" && -f "${CONTROLLER_VERSION_JSON_FILE}" ]]; then
+    if [[ -n "$out" ]]; then
+      cat "${CONTROLLER_VERSION_JSON_FILE}" > "$out"
+    else
+      cat "${CONTROLLER_VERSION_JSON_FILE}"
+    fi
+    exit 0
+  fi
+  exit 22
+fi
+
 if [[ -n "$out" ]]; then
   printf '<!doctype html>\n' > "$out"
 else
@@ -240,7 +252,7 @@ EOSS
 }
 
 env_prefix() {
-  printf 'PATH=%q UNZIP_OK_FLAG=%q APP_ROOT=%q INSTALL_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q COMPAT_MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q CONTROLLER_CONFIGS_JSON_FILE=%q CONTROLLER_PROXIES_JSON_FILE=%q SYSTEMCTL_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q MANAGER_SYNC_SERVICE_UNIT=%q MANAGER_SYNC_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
+  printf 'PATH=%q UNZIP_OK_FLAG=%q APP_ROOT=%q INSTALL_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q COMPAT_MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q CONTROLLER_CONFIGS_JSON_FILE=%q CONTROLLER_PROXIES_JSON_FILE=%q CONTROLLER_VERSION_JSON_FILE=%q SYSTEMCTL_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q MANAGER_SYNC_SERVICE_UNIT=%q MANAGER_SYNC_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
     "${TMPDIR_CASE}/bin:${PATH}" \
     "${TMPDIR_CASE}/unzip-ok" \
     "$ROOT" \
@@ -272,6 +284,7 @@ env_prefix() {
     "$TMPDIR_CASE/bin/iptables" \
     "${TMPDIR_CASE}/controller-configs.json" \
     "${TMPDIR_CASE}/controller-proxies.json" \
+    "${TMPDIR_CASE}/controller-version.json" \
     "$TMPDIR_CASE/systemctl.log" \
     "$TMPDIR_CASE/curl.log" \
     "$TMPDIR_CASE/mihomo.service" \
@@ -374,13 +387,18 @@ EOF
   cat > "${TMPDIR_CASE}/controller-proxies.json" <<'EOF'
 {"proxies":{"PROXY":{"type":"Selector","now":"AUTO","all":["DIRECT","AUTO"]},"AUTO":{"type":"URLTest","now":"manual-node","all":["manual-node"]}}}
 EOF
+  cat > "${TMPDIR_CASE}/controller-version.json" <<'EOF'
+{"meta":true,"version":"Mihomo Meta v1.19.10"}
+EOF
   output="$(run_manager status)"
   grep -q '当前模式: global' <<<"$output"
   grep -q '当前模式来源: Mihomo REST API' <<<"$output"
   grep -q '本地配置模式: rule' <<<"$output"
   grep -q '运行态策略组: PROXY=AUTO; AUTO=manual-node' <<<"$output"
+  grep -q '控制面运行态: API 可达; 版本 Mihomo Meta v1.19.10' <<<"$output"
   grep -Fq 'http://127.0.0.1:19090/configs' "${TMPDIR_CASE}/curl.log"
   grep -Fq 'http://127.0.0.1:19090/proxies' "${TMPDIR_CASE}/curl.log"
+  grep -Fq 'http://127.0.0.1:19090/version' "${TMPDIR_CASE}/curl.log"
 }
 
 test_healthcheck_uses_localhost_proxy_probe() {

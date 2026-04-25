@@ -936,3 +936,22 @@ if not summary:
 print("; ".join(summary))
 ' <<<"$json"
 }
+
+controller_runtime_summary() {
+  local raw
+  raw="$(controller_api_get "/version" 2>/dev/null)" || return 1
+  python3 -c 'import json, sys
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit(1)
+try:
+    data = json.loads(raw)
+except Exception:
+    print(f"API 可达; 版本 {raw}")
+    raise SystemExit(0)
+version = data.get("version")
+if not isinstance(version, str) or not version:
+    raise SystemExit(1)
+print(f"API 可达; 版本 {version}")
+' <<<"$raw"
+}

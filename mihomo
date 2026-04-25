@@ -761,7 +761,7 @@ show_status() {
   local service_enable="disabled"
   local controller_url next_step sub_counts manual_counts provider_counts
   local manual_enabled manual_total sub_enabled sub_total sub_ready
-  local current_mode_summary current_mode_value current_mode_source configured_mode_value runtime_policy_groups
+  local current_mode_summary current_mode_value current_mode_source configured_mode_value runtime_policy_groups controller_runtime_summary_text
   [[ -x "$MIHOMO_BIN" ]] && version="$("$MIHOMO_BIN" -v 2>/dev/null | head -n 1 || echo "$MIHOMO_BIN")"
   service_is_active && service_state="active"
   service_is_enabled && service_enable="enabled"
@@ -783,6 +783,8 @@ show_status() {
   [[ -n "$configured_mode_value" ]] || configured_mode_value="rule"
   runtime_policy_groups="$(runtime_policy_group_summary 2>/dev/null || true)"
   [[ -n "$runtime_policy_groups" ]] || runtime_policy_groups="未获取"
+  controller_runtime_summary_text="$(controller_runtime_summary 2>/dev/null || true)"
+  [[ -n "$controller_runtime_summary_text" ]] || controller_runtime_summary_text="未获取"
   echo
   echo "Mihomo 管理器 v${SCRIPT_VERSION}"
   echo "核心版本: ${version}"
@@ -805,6 +807,7 @@ show_status() {
   echo "控制面 CORS Origins: $([[ -n "${CONTROLLER_CORS_ALLOW_ORIGINS:-}" ]] && echo "${CONTROLLER_CORS_ALLOW_ORIGINS}" || echo '未设置')"
   echo "控制面 CORS Private-Network: $([[ "${CONTROLLER_CORS_ALLOW_PRIVATE_NETWORK:-0}" == "1" ]] && echo '启用' || echo '关闭')"
   echo "控制面范围: ${CONTROLLER_SCOPE}"
+  echo "控制面运行态: ${controller_runtime_summary_text}"
   echo "控制面密钥: 已隐藏；如需查看执行: mihomo show-secret"
   if [[ "${MANAGER_SYNC_ENABLED:-0}" == "1" ]]; then
     echo "本机源码同步: 启用；每 ${MANAGER_SYNC_INTERVAL_MINUTES:-1} 分钟从 ${MANAGER_SYNC_SOURCE:-未知来源} 同步"
