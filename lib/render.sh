@@ -1160,14 +1160,22 @@ healthcheck_probe_checks() {
   return "$failed"
 }
 
+healthcheck_basic_state_checks() {
+  local failed=0
+
+  service_is_active || { echo "service: inactive"; failed=1; }
+  [[ -f "$COUNTRY_MMDB" ]] || { echo "geo: missing Country.mmdb"; failed=1; }
+
+  return "$failed"
+}
+
 healthcheck() {
   require_root
   load_router_env
   local failed=0
   local listeners
   listeners="$(listener_snapshot)"
-  service_is_active || { echo "service: inactive"; failed=1; }
-  [[ -f "$COUNTRY_MMDB" ]] || { echo "geo: missing Country.mmdb"; failed=1; }
+  healthcheck_basic_state_checks || failed=1
   healthcheck_listener_checks "$listeners" || failed=1
   healthcheck_probe_checks || failed=1
   if [[ "$failed" -eq 0 ]]; then

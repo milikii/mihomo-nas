@@ -496,6 +496,33 @@ test_healthcheck_uses_localhost_proxy_probe() {
   grep -Fq 'https://cp.cloudflare.com/generate_204' "${TMPDIR_CASE}/curl.log"
 }
 
+test_healthcheck_reports_inactive_service() {
+  setup_case
+  touch "${TMPDIR_CASE}/Country.mmdb"
+  cat > "${TMPDIR_CASE}/bin/systemctl" <<'EOSYS'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${SYSTEMCTL_LOG:?}"
+case "$1" in
+  is-active)
+    exit 1
+    ;;
+  is-enabled)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOSYS
+  chmod +x "${TMPDIR_CASE}/bin/systemctl"
+  run_manager render-config >/dev/null
+  if run_manager healthcheck >/tmp/mh-healthcheck-inactive-service.out 2>&1; then
+    echo "healthcheck should fail when service is inactive" >&2
+    exit 1
+  fi
+  grep -q 'service: inactive' /tmp/mh-healthcheck-inactive-service.out
+}
+
 test_healthcheck_ignores_ss_pipefail_false_negative() {
   setup_case
   install_pipefail_ss_mock

@@ -2,7 +2,7 @@
 
 ## 当前主线
 
-- 当前主线已进入阶段 5，已完成第二十三刀：`diagnose` 的 systemd / listeners / logs 分段展示已抽到共用 helper。
+- 当前主线已进入阶段 5，已完成第二十四刀：`healthcheck` 的基础状态检查已抽到共用 helper。
 - 项目权威文档基线已补齐并生效：`STATUS.md`、`NEXT_STEP.md`、`DECISIONS.md`、`ARCHITECTURE.md`。
 
 ## 当前真相
@@ -61,8 +61,9 @@
   - `healthcheck` 的探测检查已抽到共用 helper
   - `diagnose` 的配置摘要展示已抽到共用 helper
   - `diagnose` 的 systemd / listeners / logs 分段展示已抽到共用 helper
+  - `healthcheck` 的基础状态检查已抽到共用 helper
   - 当前行为与输出文本保持不变
-  - `healthcheck` 的基础状态检查仍在函数内联，尚未继续收口
+  - `audit_installation` 的基础文件存在性检查仍在函数内联，尚未继续收口
 
 ## 质量状态
 
@@ -74,6 +75,6 @@
 
 ## 当前风险与限制
 
-- `healthcheck` 的基础状态检查仍在函数内联，阶段 5 后续可继续收口
+- `audit_installation` 的基础文件存在性检查仍在函数内联，阶段 5 后续可继续收口
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由
