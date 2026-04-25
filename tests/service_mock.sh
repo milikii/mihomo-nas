@@ -338,7 +338,9 @@ test_runtime_audit_outputs() {
   run_manager render-config >/dev/null
   output="$(run_manager runtime-audit)"
   grep -q '服务状态: active' <<<"$output"
+  grep -q '运行子状态: running' <<<"$output"
   grep -q '主进程 PID: 12345' <<<"$output"
+  grep -q '累计 CPU 时间(ns): 123456789' <<<"$output"
   grep -q '端口监听: mixed=7890 tproxy=7893 dns=1053 controller=19090' <<<"$output"
   grep -q '当前模式: rule' <<<"$output"
   grep -q '当前模式来源: 本地配置回退' <<<"$output"

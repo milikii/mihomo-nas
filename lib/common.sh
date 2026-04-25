@@ -1174,6 +1174,33 @@ status_overview_snapshot() {
   printf '%s\t%s\t%s\n' "$version" "$service_state" "$service_enable"
 }
 
+runtime_audit_overview_snapshot() {
+  local active_state enabled_state sub_state main_pid active_since n_restarts memory_current memory_peak cpu_nsec
+
+  active_state="$(systemctl_show_value mihomo ActiveState)"
+  enabled_state="$(systemctl_cmd is-enabled mihomo 2>/dev/null || true)"
+  sub_state="$(systemctl_show_value mihomo SubState)"
+  main_pid="$(systemctl_show_value mihomo MainPID)"
+  active_since="$(systemctl_show_value mihomo ActiveEnterTimestamp)"
+  n_restarts="$(systemctl_show_value mihomo NRestarts)"
+  memory_current="$(systemctl_show_value mihomo MemoryCurrent)"
+  memory_peak="$(systemctl_show_value mihomo MemoryPeak)"
+  cpu_nsec="$(systemctl_show_value mihomo CPUUsageNSec)"
+
+  [[ -n "$active_state" ]] || active_state="unknown"
+  [[ -n "$enabled_state" ]] || enabled_state="unknown"
+  [[ -n "$sub_state" ]] || sub_state="unknown"
+  [[ -n "$main_pid" ]] || main_pid="0"
+  [[ -n "$active_since" ]] || active_since="unknown"
+  [[ -n "$n_restarts" ]] || n_restarts="0"
+  [[ -n "$memory_current" ]] || memory_current="0"
+  [[ -n "$memory_peak" ]] || memory_peak="0"
+  [[ -n "$cpu_nsec" ]] || cpu_nsec="0"
+
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$active_state" "$enabled_state" "$sub_state" "$main_pid" "$active_since" "$n_restarts" "$memory_current" "$memory_peak" "$cpu_nsec"
+}
+
 print_status_overview_lines() {
   local version="${1:-未安装}"
   local service_state="${2:-inactive}"

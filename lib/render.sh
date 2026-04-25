@@ -1266,15 +1266,7 @@ runtime_audit() {
   local tproxy_packets dns_hijack_packets lan_activity_summary
 
   controller_scope_summary
-  active_state="$(systemctl_show_value mihomo ActiveState)"
-  enabled_state="$(systemctl_cmd is-enabled mihomo 2>/dev/null || true)"
-  sub_state="$(systemctl_show_value mihomo SubState)"
-  main_pid="$(systemctl_show_value mihomo MainPID)"
-  active_since="$(systemctl_show_value mihomo ActiveEnterTimestamp)"
-  n_restarts="$(systemctl_show_value mihomo NRestarts)"
-  memory_current="$(systemctl_show_value mihomo MemoryCurrent)"
-  memory_peak="$(systemctl_show_value mihomo MemoryPeak)"
-  cpu_nsec="$(systemctl_show_value mihomo CPUUsageNSec)"
+  IFS=$'\t' read -r active_state enabled_state sub_state main_pid active_since n_restarts memory_current memory_peak cpu_nsec < <(runtime_audit_overview_snapshot)
 
   if systemctl_cmd is-enabled mihomo-alpha-update.timer >/dev/null 2>&1; then
     trigger_update="$(systemctl_show_value mihomo-alpha-update.timer NextElapseUSecRealtime)"
