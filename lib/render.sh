@@ -931,8 +931,7 @@ Description=Periodic Mihomo Manager Working Tree Sync Timer
 
 $(render_manager_sync_timer_unit_timer_block "$interval_minutes")
 
-[Install]
-WantedBy=timers.target
+$(render_manager_sync_timer_unit_install_block)
 EOF
 }
 
@@ -946,6 +945,13 @@ OnUnitActiveSec=${interval_minutes}min
 AccuracySec=15s
 Persistent=true
 Unit=mihomo-manager-sync.service
+EOF
+}
+
+render_manager_sync_timer_unit_install_block() {
+  cat <<'EOF'
+[Install]
+WantedBy=timers.target
 EOF
 }
 
