@@ -972,9 +972,7 @@ render_manager_sync_service_unit() {
 
   cat <<EOF
 $(render_manager_sync_unit_header "Sync Mihomo Manager From Working Tree")
-$(render_manager_sync_service_unit_conditions "$src_root")
-
-$(render_manager_sync_service_unit_body "$src_root")
+$(render_manager_sync_service_unit_sections "$src_root")
 EOF
 }
 
@@ -984,6 +982,16 @@ render_manager_sync_unit_header() {
   cat <<EOF
 [Unit]
 Description=${description}
+EOF
+}
+
+render_manager_sync_service_unit_sections() {
+  local src_root="$1"
+
+  cat <<EOF
+$(render_manager_sync_service_unit_conditions "$src_root")
+
+$(render_manager_sync_service_unit_body "$src_root")
 EOF
 }
 
