@@ -712,6 +712,7 @@ test_install_self_sync_writes_units_and_status() {
   [[ -x "${TMPDIR_CASE}/install-root/scripts/statectl.py" ]]
   [[ -d "${TMPDIR_CASE}/install-root/scripts" ]]
   [[ -L "${TMPDIR_CASE}/mihomo" ]]
+  [[ -L "${TMPDIR_CASE}/mihomo-sidecar.sh" ]]
   [[ ! -d "${TMPDIR_CASE}/install-root/.git" ]]
   [[ ! -d "${TMPDIR_CASE}/install-root/.codex" ]]
   grep -q '^MANAGER_SYNC_ENABLED="1"$' "${TMPDIR_CASE}/settings.env"

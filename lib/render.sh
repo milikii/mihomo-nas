@@ -861,9 +861,13 @@ prepare_project_install_tree() {
 
 finalize_project_install() {
   chmod +x "$INSTALL_ROOT/mihomo" "$INSTALL_ROOT/scripts/statectl.py"
+  write_project_command_links
+  ok "已安装管理命令到 ${MANAGER_BIN}"
+}
+
+write_project_command_links() {
   ln -sf "$INSTALL_ROOT/mihomo" "$MANAGER_BIN"
   ln -sf "$INSTALL_ROOT/mihomo" "$COMPAT_MANAGER_BIN"
-  ok "已安装管理命令到 ${MANAGER_BIN}"
 }
 
 write_manager_sync_units() {
