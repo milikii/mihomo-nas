@@ -691,6 +691,40 @@ test_nodes_list_hides_subscription_cache_nodes() {
   fi
 }
 
+test_project_install_tree_cleanup_removes_install_artifacts() {
+  local source_root
+
+  setup_case
+  source_root="${TMPDIR_CASE}/source-tree"
+  mkdir -p "${source_root}/.git" "${source_root}/.codex" "${source_root}/pkg/__pycache__"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "${source_root}/mihomo"
+  chmod +x "${source_root}/mihomo"
+  touch "${source_root}/pkg/__pycache__/module.pyc"
+  touch "${source_root}/pkg/cache.pyc"
+  touch "${source_root}/pkg/cache.bak.test"
+
+  (
+    export APP_ROOT="$ROOT"
+    export INSTALL_ROOT="${TMPDIR_CASE}/install-root"
+    export MIHOMO_BIN=/bin/true
+    export MANAGER_BIN="${TMPDIR_CASE}/mihomo"
+    export COMPAT_MANAGER_BIN="${TMPDIR_CASE}/mihomo-sidecar.sh"
+    # shellcheck disable=SC1091
+    source "${ROOT}/lib/common.sh"
+    # shellcheck disable=SC1091
+    source "${ROOT}/lib/render.sh"
+    stage_project_install_tree "${source_root}"
+    cleanup_project_install_tree_metadata
+  )
+
+  [[ ! -d "${TMPDIR_CASE}/install-root/.git" ]]
+  [[ ! -d "${TMPDIR_CASE}/install-root/.codex" ]]
+  [[ ! -d "${TMPDIR_CASE}/install-root/pkg/__pycache__" ]]
+  [[ ! -f "${TMPDIR_CASE}/install-root/pkg/cache.pyc" ]]
+  [[ ! -f "${TMPDIR_CASE}/install-root/pkg/cache.bak.test" ]]
+  [[ -f "${TMPDIR_CASE}/install-root/mihomo" ]]
+}
+
 test_usage_mentions_new_commands() {
   output="$(run_manager help)"
   assert_contains "$output" 'apply-default-template'
@@ -758,6 +792,7 @@ main() {
   test_status_distinguishes_manual_nodes_and_subscription_cache
   test_subscription_nodes_are_readonly
   test_nodes_list_hides_subscription_cache_nodes
+  test_project_install_tree_cleanup_removes_install_artifacts
   test_usage_mentions_new_commands
   test_menu_mentions_new_buckets
   echo "smoke: ok"
