@@ -957,12 +957,16 @@ render_manager_sync_timer_unit_static_settings() {
 $(render_manager_sync_timer_on_boot_line)
 AccuracySec=15s
 Persistent=true
-Unit=mihomo-manager-sync.service
+$(render_manager_sync_timer_target_unit_line)
 EOF
 }
 
 render_manager_sync_timer_on_boot_line() {
   printf '%s\n' 'OnBootSec=1min'
+}
+
+render_manager_sync_timer_target_unit_line() {
+  printf '%s\n' 'Unit=mihomo-manager-sync.service'
 }
 
 render_manager_sync_timer_unit_install_block() {
