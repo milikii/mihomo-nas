@@ -3,13 +3,13 @@
 ## 当前阶段
 
 - 下一闭环进入阶段 5：代码结构收口。
-- 当前已完成阶段 4：`mihomo status` 与 `mihomo runtime-audit` 已能输出最小运行态摘要。
-- 目标不是扩功能，而是在不改变行为的前提下，先消除刚形成的重复摘要拼装逻辑。
+- 当前已完成第一刀：`status` / `runtime-audit` 已共享运行态摘要 helper。
+- 目标不是扩功能，而是在不改变行为的前提下，继续消除展示层重复逻辑。
 
 ## 下一最小闭环
 
-- 提取 `status` / `runtime-audit` 共用的运行态摘要 helper
-- 保持现有输出文本与退化行为不变
+- 提取 `status` / `runtime-audit` 共用的控制面静态信息展示 helper
+- 保持现有输出文本、顺序与退化行为不变
 - 补 focused tests，确保重构不改变行为
 - 文档同步切到阶段 5 当前真相
 
@@ -22,7 +22,7 @@
 
 ## 退出条件
 
-- `status` / `runtime-audit` 共享同一份运行态摘要拼装逻辑
+- `status` / `runtime-audit` 共享同一份控制面静态信息展示逻辑
 - 控制面可达与不可达场景输出保持不变
 - 相关 smoke / service-mock 回归通过
 - 文档同步更新当前阶段结论

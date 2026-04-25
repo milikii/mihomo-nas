@@ -1264,7 +1264,6 @@ runtime_audit() {
   local trigger_restart="disabled"
   local controller_scope controller_host proxy_probe="failed" controller_probe="failed"
   local tproxy_packets dns_hijack_packets lan_activity_summary
-  local current_mode_summary current_mode_value current_mode_source configured_mode_value runtime_policy_groups controller_runtime_summary_text
 
   controller_scope_summary
   active_state="$(systemctl_show_value mihomo ActiveState)"
@@ -1299,15 +1298,6 @@ runtime_audit() {
   else
     lan_activity_summary="当前未观测到局域网旁路由命中包；若你刚切好网关/DNS，可再从局域网设备发起一次请求"
   fi
-  current_mode_summary="$(current_mode_with_source)"
-  current_mode_value="${current_mode_summary%%$'\t'*}"
-  current_mode_source="${current_mode_summary#*$'\t'}"
-  configured_mode_value="$(configured_mode || true)"
-  [[ -n "$configured_mode_value" ]] || configured_mode_value="rule"
-  runtime_policy_groups="$(runtime_policy_group_summary 2>/dev/null || true)"
-  [[ -n "$runtime_policy_groups" ]] || runtime_policy_groups="未获取"
-  controller_runtime_summary_text="$(controller_runtime_summary 2>/dev/null || true)"
-  [[ -n "$controller_runtime_summary_text" ]] || controller_runtime_summary_text="未获取"
 
   echo "== 运行审计 =="
   echo "服务状态: ${active_state:-unknown}"
@@ -1320,11 +1310,7 @@ runtime_audit() {
   echo "历史峰值内存(字节): ${memory_peak:-0}"
   echo "累计 CPU 时间(ns): ${cpu_nsec:-0}"
   echo "端口监听: mixed=${MIXED_PORT} tproxy=${TPROXY_PORT} dns=${DNS_PORT} controller=${CONTROLLER_PORT}"
-  echo "当前模式: ${current_mode_value}"
-  echo "当前模式来源: ${current_mode_source}"
-  echo "本地配置模式: ${configured_mode_value}"
-  echo "运行态策略组: ${runtime_policy_groups}"
-  echo "控制面运行态: ${controller_runtime_summary_text}"
+  print_runtime_summary_lines
   echo "当前模板: ${TEMPLATE_NAME:-unknown} ($(template_summary "${TEMPLATE_NAME:-unknown}"))"
   echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
   echo "IPv6 模式: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
