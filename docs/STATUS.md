@@ -2,7 +2,7 @@
 
 ## 当前主线
 
-- 当前主线已进入阶段 5，已完成第五十八刀：`activate_project_sync_runtime` / `cleanup_project_sync_runtime` 的 systemd reload 已抽到共用 helper。
+- 当前主线已进入阶段 5，已完成第五十九刀：`cleanup_project_sync_runtime` 的 timer 停用已抽到共用 helper。
 - 项目权威文档基线已补齐并生效：`STATUS.md`、`NEXT_STEP.md`、`DECISIONS.md`、`ARCHITECTURE.md`。
 
 ## 当前真相
@@ -96,6 +96,7 @@
   - `cleanup_project_install_tree_metadata` 的备份垃圾清理已抽到共用 helper
   - `cleanup_project_sync_runtime` 的 unit 文件删除已抽到共用 helper
   - `activate_project_sync_runtime` / `cleanup_project_sync_runtime` 的 systemd reload 已抽到共用 helper
+  - `cleanup_project_sync_runtime` 的 timer 停用已抽到共用 helper
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -109,6 +110,6 @@
 
 ## 当前风险与限制
 
-- `cleanup_project_sync_runtime` 的 timer 停用仍内联在主函数中，阶段 5 后续可继续收口
+- `activate_project_sync_runtime` 的 timer 启用仍内联在主函数中，阶段 5 后续可继续收口
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

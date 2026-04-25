@@ -756,6 +756,30 @@ test_disable_self_sync_removes_units() {
   grep -q '已关闭本机源码自动同步' <<<"$output"
 }
 
+test_disable_self_sync_tolerates_timer_disable_failure() {
+  setup_case
+  run_manager install-self-sync 2 >/dev/null
+  cat > "${TMPDIR_CASE}/bin/systemctl" <<'EOSYS'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${SYSTEMCTL_LOG:?}"
+if [[ "$1" == "disable" && "$2" == "--now" && "$3" == "mihomo-manager-sync.timer" ]]; then
+  exit 1
+fi
+exit 0
+EOSYS
+  chmod +x "${TMPDIR_CASE}/bin/systemctl"
+
+  output="$(run_manager disable-self-sync)"
+  grep -q '^MANAGER_SYNC_ENABLED="0"$' "${TMPDIR_CASE}/settings.env"
+  grep -q '^MANAGER_SYNC_INTERVAL_MINUTES="1"$' "${TMPDIR_CASE}/settings.env"
+  grep -q '^MANAGER_SYNC_SOURCE=""$' "${TMPDIR_CASE}/settings.env"
+  grep -Fq 'disable --now mihomo-manager-sync.timer' "${TMPDIR_CASE}/systemctl.log"
+  grep -Fq 'daemon-reload' "${TMPDIR_CASE}/systemctl.log"
+  [[ ! -f "${TMPDIR_CASE}/mihomo-manager-sync.service" ]]
+  [[ ! -f "${TMPDIR_CASE}/mihomo-manager-sync.timer" ]]
+  grep -q '已关闭本机源码自动同步' <<<"$output"
+}
+
 test_install_geosite_downloads_official_asset() {
   setup_case
   output="$(run_manager install-geosite)"
@@ -897,6 +921,7 @@ main() {
   test_install_self_sync_writes_units_and_status
   test_install_self_sync_rejects_invalid_interval
   test_disable_self_sync_removes_units
+  test_disable_self_sync_tolerates_timer_disable_failure
   test_install_geosite_downloads_official_asset
   test_install_webui_persists_external_ui_source
   test_install_webui_uses_builtin_url_when_url_missing
