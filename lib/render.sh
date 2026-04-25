@@ -1127,6 +1127,21 @@ healthcheck_listener_checks() {
   return "$failed"
 }
 
+healthcheck_probe_checks() {
+  local failed=0
+
+  local_controller_probe || {
+    echo "webui: unavailable"
+    failed=1
+  }
+  localhost_proxy_probe || {
+    echo "proxy: localhost mixed ${MIXED_PORT} unavailable"
+    failed=1
+  }
+
+  return "$failed"
+}
+
 healthcheck() {
   require_root
   load_router_env
@@ -1136,14 +1151,7 @@ healthcheck() {
   service_is_active || { echo "service: inactive"; failed=1; }
   [[ -f "$COUNTRY_MMDB" ]] || { echo "geo: missing Country.mmdb"; failed=1; }
   healthcheck_listener_checks "$listeners" || failed=1
-  local_controller_probe || {
-    echo "webui: unavailable"
-    failed=1
-  }
-  localhost_proxy_probe || {
-    echo "proxy: localhost mixed ${MIXED_PORT} unavailable"
-    failed=1
-  }
+  healthcheck_probe_checks || failed=1
   if [[ "$failed" -eq 0 ]]; then
     ok "健康检查通过"
     return 0

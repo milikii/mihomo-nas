@@ -526,6 +526,49 @@ EOSS
   grep -q 'port: controller 19090 not listening' /tmp/mh-healthcheck-missing-controller.out
 }
 
+test_healthcheck_reports_unavailable_webui_probe() {
+  setup_case
+  touch "${TMPDIR_CASE}/Country.mmdb"
+  cat > "${TMPDIR_CASE}/bin/curl" <<'EOCURL'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CURL_LOG:?}"
+out=""
+target=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    http*|https*)
+      target="$1"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ "$target" == *"/ui/" ]]; then
+  exit 22
+fi
+
+if [[ -n "$out" ]]; then
+  printf '<!doctype html>\n' > "$out"
+else
+  printf '<!doctype html>\n'
+fi
+EOCURL
+  chmod +x "${TMPDIR_CASE}/bin/curl"
+  run_manager render-config >/dev/null
+  if run_manager healthcheck >/tmp/mh-healthcheck-webui.out 2>&1; then
+    echo "healthcheck should fail when webui probe is unavailable" >&2
+    exit 1
+  fi
+  grep -q 'webui: unavailable' /tmp/mh-healthcheck-webui.out
+}
+
 test_menu_survives_failed_healthcheck() {
   setup_case
   run_manager render-config >/dev/null
