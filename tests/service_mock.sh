@@ -738,6 +738,8 @@ test_disable_self_sync_removes_units() {
   grep -q '^MANAGER_SYNC_ENABLED="0"$' "${TMPDIR_CASE}/settings.env"
   grep -q '^MANAGER_SYNC_INTERVAL_MINUTES="1"$' "${TMPDIR_CASE}/settings.env"
   grep -q '^MANAGER_SYNC_SOURCE=""$' "${TMPDIR_CASE}/settings.env"
+  grep -Fq 'disable --now mihomo-manager-sync.timer' "${TMPDIR_CASE}/systemctl.log"
+  grep -Fq 'daemon-reload' "${TMPDIR_CASE}/systemctl.log"
   [[ ! -f "${TMPDIR_CASE}/mihomo-manager-sync.service" ]]
   [[ ! -f "${TMPDIR_CASE}/mihomo-manager-sync.timer" ]]
 }

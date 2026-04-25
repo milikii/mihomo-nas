@@ -905,9 +905,7 @@ disable_project_sync() {
   require_root
   ensure_settings
   reset_project_sync_settings
-  systemctl_cmd disable --now mihomo-manager-sync.timer >/dev/null 2>&1 || true
-  rm -f "$MANAGER_SYNC_SERVICE_UNIT" "$MANAGER_SYNC_TIMER_UNIT"
-  systemctl_cmd daemon-reload
+  cleanup_project_sync_runtime
   ok "已关闭本机源码自动同步"
 }
 
@@ -934,6 +932,12 @@ reset_project_sync_settings() {
   upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "0"
   upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "1"
   upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" ""
+}
+
+cleanup_project_sync_runtime() {
+  systemctl_cmd disable --now mihomo-manager-sync.timer >/dev/null 2>&1 || true
+  rm -f "$MANAGER_SYNC_SERVICE_UNIT" "$MANAGER_SYNC_TIMER_UNIT"
+  systemctl_cmd daemon-reload
 }
 
 delete_jump() {
