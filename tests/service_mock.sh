@@ -746,6 +746,16 @@ test_install_webui_persists_external_ui_source() {
   grep -q "WebUI 已安装到 ${TMPDIR_CASE}/ui/metacubexd" <<<"$output"
 }
 
+test_install_webui_uses_builtin_url_when_url_missing() {
+  setup_case
+  touch "${TMPDIR_CASE}/unzip-ok"
+  output="$(run_manager install-webui zashboard)"
+  grep -q '^EXTERNAL_UI_NAME="zashboard"$' "${TMPDIR_CASE}/settings.env"
+  grep -q '^EXTERNAL_UI_URL="https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip"$' "${TMPDIR_CASE}/settings.env"
+  grep -Fq 'https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip' "${TMPDIR_CASE}/curl.log"
+  grep -q "WebUI 已安装到 ${TMPDIR_CASE}/ui/zashboard" <<<"$output"
+}
+
 test_install_webui_reports_download_failure() {
   setup_case
   cat > "${TMPDIR_CASE}/bin/curl" <<'EOCURL'
@@ -861,6 +871,7 @@ main() {
   test_disable_self_sync_removes_units
   test_install_geosite_downloads_official_asset
   test_install_webui_persists_external_ui_source
+  test_install_webui_uses_builtin_url_when_url_missing
   test_install_webui_reports_download_failure
   test_install_webui_reports_unzip_failure
   test_setup_bootstraps_empty_installation_even_when_webui_fails

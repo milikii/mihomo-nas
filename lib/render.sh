@@ -724,18 +724,12 @@ webui_builtin_url() {
 install_webui() {
   require_root
   load_settings
-  local ui_name="${1:-${EXTERNAL_UI_NAME:-zashboard}}"
-  local ui_url="${2:-${EXTERNAL_UI_URL:-}}"
+  local ui_name
+  local ui_url
   local ui_target_dir="$UI_DIR"
   local tmp
   local src
-  if [[ -z "$ui_url" ]]; then
-    ui_url="$(webui_builtin_url "$ui_name" 2>/dev/null || true)"
-  fi
-  [[ -n "$ui_url" ]] || die "未找到 WebUI 下载地址；可执行: mihomo install-webui [name] [url]"
-  if [[ -n "$ui_name" ]]; then
-    ui_target_dir="${UI_DIR}/${ui_name}"
-  fi
+  resolve_webui_install_target "${1:-}" "${2:-}" ui_name ui_url ui_target_dir
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$ui_target_dir"
@@ -769,6 +763,29 @@ deploy_webui_files() {
     render_config >/dev/null
   fi
   ok "WebUI 已安装到 ${ui_target_dir}"
+}
+
+resolve_webui_install_target() {
+  local requested_name="$1"
+  local requested_url="$2"
+  local __ui_name_var="$3"
+  local __ui_url_var="$4"
+  local __ui_target_dir_var="$5"
+  local resolved_ui_name="${requested_name:-${EXTERNAL_UI_NAME:-zashboard}}"
+  local resolved_ui_url="${requested_url:-${EXTERNAL_UI_URL:-}}"
+  local resolved_ui_target_dir="$UI_DIR"
+
+  if [[ -z "$resolved_ui_url" ]]; then
+    resolved_ui_url="$(webui_builtin_url "$resolved_ui_name" 2>/dev/null || true)"
+  fi
+  [[ -n "$resolved_ui_url" ]] || die "未找到 WebUI 下载地址；可执行: mihomo install-webui [name] [url]"
+  if [[ -n "$resolved_ui_name" ]]; then
+    resolved_ui_target_dir="${UI_DIR}/${resolved_ui_name}"
+  fi
+
+  printf -v "$__ui_name_var" '%s' "$resolved_ui_name"
+  printf -v "$__ui_url_var" '%s' "$resolved_ui_url"
+  printf -v "$__ui_target_dir_var" '%s' "$resolved_ui_target_dir"
 }
 
 download_webui_archive() {
