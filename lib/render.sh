@@ -1076,6 +1076,29 @@ local_controller_probe() {
   curl_cmd --noproxy '*' -fsS --max-time 10 "http://127.0.0.1:${CONTROLLER_PORT}/ui/" >/tmp/mihomo-health-ui.html 2>/dev/null
 }
 
+runtime_audit_probe_snapshot() {
+  local proxy_probe="failed"
+  local controller_probe="failed"
+  local tproxy_packets dns_hijack_packets lan_activity_summary
+
+  if localhost_proxy_probe; then
+    proxy_probe="ok"
+  fi
+  if local_controller_probe; then
+    controller_probe="ok"
+  fi
+  tproxy_packets="$(iptables_counter_sum mangle MIHOMO_PRE_HANDLE TPROXY)"
+  dns_hijack_packets="$(iptables_counter_sum nat MIHOMO_DNS_HANDLE REDIRECT)"
+  if [[ "$tproxy_packets" -gt 0 || "$dns_hijack_packets" -gt 0 ]]; then
+    lan_activity_summary="近期已观测到局域网旁路由流量"
+  else
+    lan_activity_summary="当前未观测到局域网旁路由命中包；若你刚切好网关/DNS，可再从局域网设备发起一次请求"
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$proxy_probe" "$controller_probe" "$tproxy_packets" "$dns_hijack_packets" "$lan_activity_summary"
+}
+
 listener_snapshot() {
   ss_cmd -lntup 2>/dev/null || true
 }
@@ -1277,19 +1300,7 @@ runtime_audit() {
 
   warn_count="$(journalctl_cmd -u mihomo --since '24 hours ago' -p warning --no-pager 2>/dev/null | grep -c '^' || true)"
   err_count="$(journalctl_cmd -u mihomo --since '24 hours ago' -p err --no-pager 2>/dev/null | grep -c '^' || true)"
-  if localhost_proxy_probe; then
-    proxy_probe="ok"
-  fi
-  if local_controller_probe; then
-    controller_probe="ok"
-  fi
-  tproxy_packets="$(iptables_counter_sum mangle MIHOMO_PRE_HANDLE TPROXY)"
-  dns_hijack_packets="$(iptables_counter_sum nat MIHOMO_DNS_HANDLE REDIRECT)"
-  if [[ "$tproxy_packets" -gt 0 || "$dns_hijack_packets" -gt 0 ]]; then
-    lan_activity_summary="近期已观测到局域网旁路由流量"
-  else
-    lan_activity_summary="当前未观测到局域网旁路由命中包；若你刚切好网关/DNS，可再从局域网设备发起一次请求"
-  fi
+  IFS=$'\t' read -r proxy_probe controller_probe tproxy_packets dns_hijack_packets lan_activity_summary < <(runtime_audit_probe_snapshot)
 
   print_runtime_audit_overview_lines \
     "${active_state:-unknown}" \

@@ -392,6 +392,20 @@ EOF
   grep -Fq 'http://127.0.0.1:19090/version' "${TMPDIR_CASE}/curl.log"
 }
 
+test_runtime_audit_probe_summary_without_hits() {
+  setup_case
+  cat > "${TMPDIR_CASE}/bin/iptables" <<'EOIPT'
+#!/usr/bin/env bash
+exit 0
+EOIPT
+  chmod +x "${TMPDIR_CASE}/bin/iptables"
+  run_manager render-config >/dev/null
+  output="$(run_manager runtime-audit)"
+  grep -q '局域网透明代理命中包数: 0' <<<"$output"
+  grep -q 'DNS 劫持命中包数: 0' <<<"$output"
+  grep -q '旁路由流量摘要: 当前未观测到局域网旁路由命中包；若你刚切好网关/DNS，可再从局域网设备发起一次请求' <<<"$output"
+}
+
 test_status_reads_mode_from_controller() {
   setup_case
   run_manager render-config >/dev/null
