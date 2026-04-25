@@ -914,6 +914,22 @@ test_manager_sync_timer_static_settings_render_expected_lines() {
   grep -q '^Unit=mihomo-manager-sync.service$' /tmp/mh-timer-static.out
 }
 
+test_manager_sync_timer_install_block_renders_expected_lines() {
+  setup_case
+
+  (
+    export APP_ROOT="$ROOT"
+    # shellcheck disable=SC1091
+    source "${ROOT}/lib/common.sh"
+    # shellcheck disable=SC1091
+    source "${ROOT}/lib/render.sh"
+    render_manager_sync_timer_unit_install_block
+  ) >/tmp/mh-timer-install.out
+
+  grep -q '^\[Install\]$' /tmp/mh-timer-install.out
+  grep -q '^WantedBy=timers.target$' /tmp/mh-timer-install.out
+}
+
 test_usage_mentions_new_commands() {
   output="$(run_manager help)"
   assert_contains "$output" 'apply-default-template'
@@ -990,6 +1006,7 @@ main() {
   test_manager_sync_unit_file_writer_persists_rendered_content
   test_manager_sync_render_and_write_helper_persists_unit
   test_manager_sync_timer_static_settings_render_expected_lines
+  test_manager_sync_timer_install_block_renders_expected_lines
   test_usage_mentions_new_commands
   test_menu_mentions_new_buckets
   echo "smoke: ok"
