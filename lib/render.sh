@@ -730,9 +730,8 @@ install_webui() {
   local tmp
   local src
   resolve_webui_install_target "${1:-}" "${2:-}" ui_name ui_url ui_target_dir
-  tmp="$(mktemp -d)"
+  prepare_webui_install_workspace "$ui_target_dir" tmp
   trap 'rm -rf "$tmp"' RETURN
-  mkdir -p "$ui_target_dir"
   if ! download_webui_archive "$ui_name" "$ui_url" "$tmp"; then
     finalize_webui_install_failure "$tmp"
     trap - RETURN
@@ -763,6 +762,16 @@ deploy_webui_files() {
     render_config >/dev/null
   fi
   ok "WebUI 已安装到 ${ui_target_dir}"
+}
+
+prepare_webui_install_workspace() {
+  local ui_target_dir="$1"
+  local __tmp_var="$2"
+  local workspace_tmp
+
+  workspace_tmp="$(mktemp -d)"
+  mkdir -p "$ui_target_dir"
+  printf -v "$__tmp_var" '%s' "$workspace_tmp"
 }
 
 resolve_webui_install_target() {
