@@ -2,7 +2,7 @@
 
 ## 当前主线
 
-- 当前主线已完成阶段 3 的字段对齐收口，下一闭环进入阶段 4 的运行态读取改造。
+- 当前主线已进入阶段 4，已完成第一刀：`mihomo status` 的当前模式改为 REST 运行态优先、控制面不可达时回退本地配置。
 - 本轮已补齐项目要求的权威文档基线：`STATUS.md`、`NEXT_STEP.md`、`DECISIONS.md`、`ARCHITECTURE.md`。
 
 ## 当前真相
@@ -27,7 +27,10 @@
   - 已接入 `external-controller-cors.allow-origins`
   - 已接入 `external-controller-cors.allow-private-network`
   - `external-controller-tls` 已明确暂缓，不进入当前阶段实现
-- 阶段 4：未开始，`show_status` / `runtime-audit` 仍主要依赖本地配置与 systemd 信息，不以 Mihomo REST API 为主真相
+- 阶段 4：已开始
+  - `mihomo status` 的“当前模式”已优先读取 Mihomo REST API `/configs`
+  - 控制面不可达时会回退到本地 `config.yaml`
+  - `runtime-audit` 仍主要依赖本地配置、systemd 和系统探测信息
 
 ## 质量状态
 
@@ -39,6 +42,6 @@
 
 ## 当前风险与限制
 
-- 运行态模式、策略组选择和控制面摘要还没有从 Mihomo REST API 读取
+- `runtime-audit`、策略组选择和控制面摘要还没有从 Mihomo REST API 读取
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

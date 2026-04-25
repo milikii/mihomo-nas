@@ -839,8 +839,72 @@ restart_service_if_active() {
 }
 
 current_mode() {
+  current_mode_with_source | awk -F $'\t' 'NR == 1 { print $1 }'
+}
+
+configured_mode() {
   if [[ -f "$CONFIG_FILE" ]]; then
     awk '/^mode:/ { print $2; exit }' "$CONFIG_FILE"
   fi
   return 0
+}
+
+controller_api_host() {
+  case "${CONTROLLER_BIND_ADDRESS:-127.0.0.1}" in
+    ""|0.0.0.0|"*") printf '%s\n' "127.0.0.1" ;;
+    *) printf '%s\n' "${CONTROLLER_BIND_ADDRESS}" ;;
+  esac
+}
+
+controller_api_url() {
+  local path="${1:-/}"
+  printf 'http://%s:%s%s\n' "$(controller_api_host)" "${CONTROLLER_PORT:-19090}" "$path"
+}
+
+controller_secret() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    awk -F '"' '/^secret:/ { print $2; exit }' "$CONFIG_FILE"
+  fi
+  return 0
+}
+
+controller_api_get() {
+  local path="$1"
+  local url secret
+
+  url="$(controller_api_url "$path")"
+  secret="$(controller_secret)"
+  if [[ -n "$secret" ]]; then
+    curl_cmd --noproxy '*' -fsS --connect-timeout 1 --max-time 1 -H "Authorization: Bearer ${secret}" "$url"
+    return 0
+  fi
+  curl_cmd --noproxy '*' -fsS --connect-timeout 1 --max-time 1 "$url"
+}
+
+runtime_mode() {
+  local json
+  json="$(controller_api_get "/configs" 2>/dev/null)" || return 1
+  python3 -c 'import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+mode = data.get("mode")
+if not isinstance(mode, str) or not mode:
+    raise SystemExit(1)
+print(mode)
+' <<<"$json"
+}
+
+current_mode_with_source() {
+  local mode_value
+
+  if mode_value="$(runtime_mode 2>/dev/null)"; then
+    printf '%s\t%s\n' "$mode_value" "Mihomo REST API"
+    return 0
+  fi
+
+  mode_value="$(configured_mode || true)"
+  [[ -n "$mode_value" ]] || mode_value="rule"
+  printf '%s\t%s\n' "$mode_value" "本地配置回退"
 }

@@ -40,7 +40,7 @@
 3. `statectl.py` 生成 provider / rules 渲染产物
 4. `lib/render.sh` 组装 `config.yaml`
 5. systemd 启停 `mihomo-core`
-6. `status` / `runtime-audit` 读取本地配置、systemd、端口和日志，当前还不是 REST 运行态优先
+6. `status` 的“当前模式”已优先读取 Mihomo REST API；其余状态和 `runtime-audit` 仍主要读取本地配置、systemd、端口和日志
 
 ## 已收口边界
 
@@ -52,5 +52,5 @@
 ## 下一阶段边界
 
 - 阶段 4 只新增“运行态读取优先”能力
-- 第一刀仅覆盖 `mihomo status` 的当前模式读取与控制面回退
+- 下一刀收口到 `mihomo runtime-audit` 的运行态模式读取与控制面回退
 - 不在该阶段顺手重构脚本结构或扩展更多控制面能力

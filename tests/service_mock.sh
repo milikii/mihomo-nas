@@ -168,6 +168,18 @@ OUT
   exit 0
 fi
 
+if [[ "$target" == *"/configs" ]]; then
+  if [[ -n "${CONTROLLER_CONFIGS_JSON_FILE:-}" && -f "${CONTROLLER_CONFIGS_JSON_FILE}" ]]; then
+    if [[ -n "$out" ]]; then
+      cat "${CONTROLLER_CONFIGS_JSON_FILE}" > "$out"
+    else
+      cat "${CONTROLLER_CONFIGS_JSON_FILE}"
+    fi
+    exit 0
+  fi
+  exit 22
+fi
+
 if [[ -n "$out" ]]; then
   printf '<!doctype html>\n' > "$out"
 else
@@ -216,7 +228,7 @@ EOSS
 }
 
 env_prefix() {
-  printf 'PATH=%q UNZIP_OK_FLAG=%q APP_ROOT=%q INSTALL_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q COMPAT_MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q SYSTEMCTL_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q MANAGER_SYNC_SERVICE_UNIT=%q MANAGER_SYNC_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
+  printf 'PATH=%q UNZIP_OK_FLAG=%q APP_ROOT=%q INSTALL_ROOT=%q RULE_REPO_ROOT=%q MIHOMO_DIR=%q SETTINGS_ENV=%q ROUTER_ENV=%q CONFIG_FILE=%q RULES_DIR=%q PROVIDER_DIR=%q UI_DIR=%q STATE_DIR=%q NODES_STATE_FILE=%q RULES_STATE_FILE=%q ACL_STATE_FILE=%q SUBSCRIPTIONS_STATE_FILE=%q PROVIDER_FILE=%q RENDERED_RULES_FILE=%q ACL_RENDERED_RULES_FILE=%q MIHOMO_USER=%q MANAGER_BIN=%q COMPAT_MANAGER_BIN=%q MIHOMO_BIN=%q SYSTEMCTL_BIN=%q JOURNALCTL_BIN=%q SS_BIN=%q CURL_BIN=%q IPTABLES_BIN=%q CONTROLLER_CONFIGS_JSON_FILE=%q SYSTEMCTL_LOG=%q CURL_LOG=%q SYSTEMD_UNIT=%q RESTART_SERVICE_UNIT=%q RESTART_TIMER_UNIT=%q UPDATE_SERVICE_UNIT=%q UPDATE_TIMER_UNIT=%q MANAGER_SYNC_SERVICE_UNIT=%q MANAGER_SYNC_TIMER_UNIT=%q ROUTER_SYSCTL=%q' \
     "${TMPDIR_CASE}/bin:${PATH}" \
     "${TMPDIR_CASE}/unzip-ok" \
     "$ROOT" \
@@ -246,6 +258,7 @@ env_prefix() {
     "$TMPDIR_CASE/bin/ss" \
     "$TMPDIR_CASE/bin/curl" \
     "$TMPDIR_CASE/bin/iptables" \
+    "${TMPDIR_CASE}/controller-configs.json" \
     "$TMPDIR_CASE/systemctl.log" \
     "$TMPDIR_CASE/curl.log" \
     "$TMPDIR_CASE/mihomo.service" \
@@ -315,6 +328,19 @@ test_runtime_audit_outputs() {
   grep -q 'localhost 显式代理探测: ok' <<<"$output"
   grep -q '局域网透明代理命中包数: 66' <<<"$output"
   grep -q 'DNS 劫持命中包数: 18' <<<"$output"
+}
+
+test_status_reads_mode_from_controller() {
+  setup_case
+  run_manager render-config >/dev/null
+  cat > "${TMPDIR_CASE}/controller-configs.json" <<'EOF'
+{"mode":"global"}
+EOF
+  output="$(run_manager status)"
+  grep -q '当前模式: global' <<<"$output"
+  grep -q '当前模式来源: Mihomo REST API' <<<"$output"
+  grep -q '本地配置模式: rule' <<<"$output"
+  grep -Fq 'http://127.0.0.1:19090/configs' "${TMPDIR_CASE}/curl.log"
 }
 
 test_healthcheck_uses_localhost_proxy_probe() {

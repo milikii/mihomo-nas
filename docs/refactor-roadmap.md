@@ -209,6 +209,11 @@
 
 - 让状态页和审计结果优先基于 Mihomo 运行态
 
+当前进展：
+
+- `mihomo status` 的“当前模式”已优先读取 Mihomo REST API `/configs`
+- 控制面不可达时已回退到本地 `config.yaml`，避免状态页因控制面短暂失败而退化不可用
+
 任务：
 
 - 用 REST API 读取当前模式
