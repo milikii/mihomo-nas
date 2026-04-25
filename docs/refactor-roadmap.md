@@ -333,6 +333,7 @@
 - `[Install]` 标题行已抽到共用 helper
 - `WantedBy=timers.target` 行已抽到共用 helper
 - `AccuracySec=15s` 行已抽到共用 helper
+- `Persistent=true` 行已抽到共用 helper
 - `install_webui` 的解压失败告警已恢复为可见输出
 - 当前仍保持与重构前一致的输出文本与退化行为
 

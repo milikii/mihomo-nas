@@ -144,7 +144,8 @@
 - 第九十八刀再抽离 `[Install]` 标题行 helper
 - 第九十九刀再抽离 `WantedBy=timers.target` 行 helper
 - 第一百刀再抽离 `AccuracySec=15s` 行 helper
-- 第一百零一刀先抽离 `Persistent=true` 行 helper
+- 第一百零一刀再抽离 `Persistent=true` 行 helper
+- 第一百零二刀先抽离 timer 静态设置组合 helper
 - 目标是降低重复逻辑，不改变用户可见输出
 - 后续仍按“更小、更保守、可验证”的顺序继续抽离共用展示块，不直接做大拆分
 

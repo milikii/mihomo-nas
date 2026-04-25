@@ -152,5 +152,6 @@
 - 当前已抽离 `[Install]` 标题行 helper
 - 当前已抽离 `WantedBy=timers.target` 行 helper
 - 当前已抽离 `AccuracySec=15s` 行 helper
-- 下一刀先抽离 `Persistent=true` 行 helper
+- 当前已抽离 `Persistent=true` 行 helper
+- 下一刀先抽离 timer 静态设置组合 helper
 - 不在该阶段顺手重构脚本结构或扩展更多控制面能力
