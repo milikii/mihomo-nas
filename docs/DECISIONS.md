@@ -75,6 +75,7 @@
 - 第二十九刀再抽离 `audit_installation` 的成功收尾 helper
 - 第三十刀再抽离 `install_geosite_dat` 的成功安装收尾 helper
 - 第三十一刀再抽离 `install_webui` 的下载阶段 helper
+- 第三十二刀再抽离 `install_webui` 的解压与源码目录识别 helper
 - 目标是降低重复逻辑，不改变用户可见输出
 - 后续仍按“更小、更保守、可验证”的顺序继续抽离共用展示块，不直接做大拆分
 

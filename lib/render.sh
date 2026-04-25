@@ -739,9 +739,7 @@ install_webui() {
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$ui_target_dir"
-  info "下载 WebUI: ${ui_name:-custom}"
-  if ! curl_cmd -fL --progress-bar -o "${tmp}/ui.zip" "$ui_url"; then
-    warn "WebUI 下载失败: ${ui_name:-custom}"
+  if ! download_webui_archive "$ui_name" "$ui_url" "$tmp"; then
     rm -rf "$tmp"
     trap - RETURN
     return 1
@@ -770,6 +768,20 @@ install_webui() {
   rm -rf "$tmp"
   trap - RETURN
   ok "WebUI 已安装到 ${ui_target_dir}"
+}
+
+download_webui_archive() {
+  local ui_name="$1"
+  local ui_url="$2"
+  local tmp="$3"
+
+  info "下载 WebUI: ${ui_name:-custom}"
+  if ! curl_cmd -fL --progress-bar -o "${tmp}/ui.zip" "$ui_url"; then
+    warn "WebUI 下载失败: ${ui_name:-custom}"
+    return 1
+  fi
+
+  return 0
 }
 
 install_project() {

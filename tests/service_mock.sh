@@ -745,6 +745,21 @@ test_install_webui_persists_external_ui_source() {
   grep -q '^EXTERNAL_UI_URL="https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"$' "${TMPDIR_CASE}/settings.env"
 }
 
+test_install_webui_reports_download_failure() {
+  setup_case
+  cat > "${TMPDIR_CASE}/bin/curl" <<'EOCURL'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${CURL_LOG:?}"
+exit 22
+EOCURL
+  chmod +x "${TMPDIR_CASE}/bin/curl"
+  if run_manager install-webui metacubexd https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip >/tmp/mh-install-webui-download-fail.out 2>&1; then
+    echo "install-webui should fail when download fails" >&2
+    exit 1
+  fi
+  grep -q 'WebUI 下载失败: metacubexd' /tmp/mh-install-webui-download-fail.out
+}
+
 test_setup_bootstraps_empty_installation_even_when_webui_fails() {
   setup_case
   rm -f "${TMPDIR_CASE}/router.env" "${TMPDIR_CASE}/settings.env" "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat"
