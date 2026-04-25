@@ -955,10 +955,7 @@ render_manager_sync_service_unit() {
 Description=Sync Mihomo Manager From Working Tree
 $(render_manager_sync_service_unit_conditions "$src_root")
 
-[Service]
-Type=oneshot
-WorkingDirectory=${src_root}
-ExecStart=${src_root}/mihomo install-self
+$(render_manager_sync_service_unit_body "$src_root")
 EOF
 }
 
@@ -968,6 +965,17 @@ render_manager_sync_service_unit_conditions() {
   cat <<EOF
 ConditionPathExists=${src_root}/.git
 ConditionPathExists=${src_root}/mihomo
+EOF
+}
+
+render_manager_sync_service_unit_body() {
+  local src_root="$1"
+
+  cat <<EOF
+[Service]
+Type=oneshot
+WorkingDirectory=${src_root}
+ExecStart=${src_root}/mihomo install-self
 EOF
 }
 
