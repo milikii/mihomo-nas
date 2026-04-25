@@ -740,9 +740,10 @@ test_install_geosite_downloads_official_asset() {
 test_install_webui_persists_external_ui_source() {
   setup_case
   touch "${TMPDIR_CASE}/unzip-ok"
-  run_manager install-webui metacubexd https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip >/dev/null
+  output="$(run_manager install-webui metacubexd https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip)"
   grep -q '^EXTERNAL_UI_NAME="metacubexd"$' "${TMPDIR_CASE}/settings.env"
   grep -q '^EXTERNAL_UI_URL="https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"$' "${TMPDIR_CASE}/settings.env"
+  grep -q "WebUI 已安装到 ${TMPDIR_CASE}/ui/metacubexd" <<<"$output"
 }
 
 test_install_webui_reports_download_failure() {

@@ -749,6 +749,17 @@ install_webui() {
     trap - RETURN
     return 1
   }
+  deploy_webui_files "$src" "$ui_target_dir" "$ui_name" "$ui_url"
+  rm -rf "$tmp"
+  trap - RETURN
+}
+
+deploy_webui_files() {
+  local src="$1"
+  local ui_target_dir="$2"
+  local ui_name="$3"
+  local ui_url="$4"
+
   find "$ui_target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
   cp -a "${src}/." "$ui_target_dir/"
   chown -R "${MIHOMO_USER}:${MIHOMO_USER}" "$ui_target_dir"
@@ -757,8 +768,6 @@ install_webui() {
   if [[ -f "$CONFIG_FILE" ]]; then
     render_config >/dev/null
   fi
-  rm -rf "$tmp"
-  trap - RETURN
   ok "WebUI 已安装到 ${ui_target_dir}"
 }
 
