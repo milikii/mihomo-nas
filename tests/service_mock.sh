@@ -688,6 +688,15 @@ test_audit_installation_reports_missing_geosite() {
   grep -q "missing: ${TMPDIR_CASE}/GeoSite.dat" /tmp/mh-audit-missing-geosite.out
 }
 
+test_audit_installation_succeeds_with_consistent_state() {
+  setup_case
+  run_manager render-config >/dev/null
+  touch "${TMPDIR_CASE}/GeoSite.dat"
+  output="$(run_manager audit-installation)"
+  grep -q '安装审计通过' <<<"$output"
+  grep -q 'ok: GeoSite.dat 可用于 geosite 规则' <<<"$output"
+}
+
 test_menu_survives_failed_healthcheck() {
   setup_case
   run_manager render-config >/dev/null

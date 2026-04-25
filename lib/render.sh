@@ -1243,6 +1243,10 @@ audit_installation_timer_and_geosite_check() {
   return "$failed"
 }
 
+print_audit_installation_success() {
+  ok "安装审计通过"
+}
+
 listener_snapshot() {
   ss_cmd -lntup 2>/dev/null || true
 }
@@ -1340,7 +1344,7 @@ audit_installation() {
   audit_installation_timer_and_geosite_check || status=1
 
   if [[ "$status" -eq 0 ]]; then
-    ok "安装审计通过"
+    print_audit_installation_success
   fi
 
   rm -rf "$tmpdir"
