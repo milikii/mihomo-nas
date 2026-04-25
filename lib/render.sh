@@ -957,15 +957,19 @@ render_manager_sync_timer_interval_line() {
 }
 
 render_manager_sync_timer_unit_static_settings() {
+  render_manager_sync_timer_static_setting_lines
+}
+
+render_manager_sync_timer_on_boot_line() {
+  printf '%s\n' 'OnBootSec=1min'
+}
+
+render_manager_sync_timer_static_setting_lines() {
   cat <<EOF
 $(render_manager_sync_timer_on_boot_line)
 $(render_manager_sync_timer_static_detail_lines)
 $(render_manager_sync_timer_target_unit_line)
 EOF
-}
-
-render_manager_sync_timer_on_boot_line() {
-  printf '%s\n' 'OnBootSec=1min'
 }
 
 render_manager_sync_timer_static_detail_lines() {
