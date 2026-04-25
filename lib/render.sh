@@ -740,12 +740,12 @@ install_webui() {
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$ui_target_dir"
   if ! download_webui_archive "$ui_name" "$ui_url" "$tmp"; then
-    rm -rf "$tmp"
+    finalize_webui_install_failure "$tmp"
     trap - RETURN
     return 1
   fi
   src="$(extract_webui_archive "$tmp")" || {
-    rm -rf "$tmp"
+    finalize_webui_install_failure "$tmp"
     trap - RETURN
     return 1
   }
@@ -790,17 +790,23 @@ extract_webui_archive() {
   local src
 
   if ! unzip -q "${tmp}/ui.zip" -d "$tmp" >/dev/null 2>&1; then
-    warn "WebUI 解压失败: ${tmp}/ui.zip"
+    warn "WebUI 解压失败: ${tmp}/ui.zip" >&2
     return 1
   fi
 
   src="$(find "$tmp" -maxdepth 1 -mindepth 1 -type d | head -n 1)"
   if [[ -z "$src" ]]; then
-    warn "未找到解压后的 WebUI 目录"
+    warn "未找到解压后的 WebUI 目录" >&2
     return 1
   fi
 
   printf '%s\n' "$src"
+}
+
+finalize_webui_install_failure() {
+  local tmp="$1"
+
+  rm -rf "$tmp"
 }
 
 install_project() {

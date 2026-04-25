@@ -266,7 +266,9 @@
 - `install_webui` 的下载阶段已抽到共用 helper
 - `install_webui` 的解压与源码目录识别已抽到共用 helper
 - `install_webui` 的部署与持久化收尾已抽到共用 helper
-- 当前仍保持原有输出文本与退化行为不变
+- `install_webui` 的失败收尾已抽到共用 helper
+- `install_webui` 的解压失败告警已恢复为可见输出
+- 当前仍保持与重构前一致的输出文本与退化行为
 
 任务：
 

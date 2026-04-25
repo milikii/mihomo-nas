@@ -759,6 +759,10 @@ EOCURL
     exit 1
   fi
   grep -q 'WebUI 下载失败: metacubexd' /tmp/mh-install-webui-download-fail.out
+  if [[ -f "${TMPDIR_CASE}/settings.env" ]]; then
+    grep -q '^EXTERNAL_UI_NAME=""$' "${TMPDIR_CASE}/settings.env"
+    grep -q '^EXTERNAL_UI_URL=""$' "${TMPDIR_CASE}/settings.env"
+  fi
 }
 
 test_install_webui_reports_unzip_failure() {
@@ -768,6 +772,10 @@ test_install_webui_reports_unzip_failure() {
     exit 1
   fi
   grep -q 'WebUI 解压失败:' /tmp/mh-install-webui-unzip-fail.out
+  if [[ -f "${TMPDIR_CASE}/settings.env" ]]; then
+    grep -q '^EXTERNAL_UI_NAME=""$' "${TMPDIR_CASE}/settings.env"
+    grep -q '^EXTERNAL_UI_URL=""$' "${TMPDIR_CASE}/settings.env"
+  fi
 }
 
 test_setup_bootstraps_empty_installation_even_when_webui_fails() {
@@ -853,6 +861,8 @@ main() {
   test_disable_self_sync_removes_units
   test_install_geosite_downloads_official_asset
   test_install_webui_persists_external_ui_source
+  test_install_webui_reports_download_failure
+  test_install_webui_reports_unzip_failure
   test_setup_bootstraps_empty_installation_even_when_webui_fails
   test_enable_start_after_cold_setup
   test_repair_restores_missing_assets
