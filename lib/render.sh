@@ -1070,7 +1070,7 @@ render_manager_sync_service_unit_body() {
 
   cat <<EOF
 $(render_manager_sync_service_header_line)
-Type=oneshot
+$(render_manager_sync_service_type_line)
 $(render_manager_sync_working_directory_line "$src_root")
 $(render_manager_sync_exec_start_line "$src_root")
 EOF
@@ -1078,6 +1078,10 @@ EOF
 
 render_manager_sync_service_header_line() {
   printf '%s\n' '[Service]'
+}
+
+render_manager_sync_service_type_line() {
+  printf '%s\n' 'Type=oneshot'
 }
 
 render_manager_sync_working_directory_line() {
