@@ -969,10 +969,14 @@ render_manager_sync_timer_on_boot_line() {
 }
 
 render_manager_sync_timer_static_detail_lines() {
-  cat <<'EOF'
-AccuracySec=15s
+  cat <<EOF
+$(render_manager_sync_timer_accuracy_line)
 Persistent=true
 EOF
+}
+
+render_manager_sync_timer_accuracy_line() {
+  printf '%s\n' 'AccuracySec=15s'
 }
 
 render_manager_sync_timer_target_unit_line() {
