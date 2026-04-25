@@ -971,6 +971,12 @@ validate_project_sync_inputs() {
 
   [[ -d "${src_root}/.git" ]] || die "install-self-sync 只能从 git 工作树执行"
   [[ -x "${src_root}/mihomo" ]] || die "未找到源码入口: ${src_root}/mihomo"
+  validate_project_sync_interval "$interval_minutes"
+}
+
+validate_project_sync_interval() {
+  local interval_minutes="$1"
+
   [[ "$interval_minutes" =~ ^[0-9]+$ ]] || die "同步间隔必须是正整数分钟"
   [[ "$interval_minutes" -gt 0 ]] || die "同步间隔必须大于 0 分钟"
 }
