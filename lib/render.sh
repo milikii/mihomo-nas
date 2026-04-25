@@ -1134,6 +1134,40 @@ audit_installation_required_files_check() {
   return "$failed"
 }
 
+audit_installation_nodes_and_rules_check() {
+  local tmpdir="$1"
+  local failed=0
+
+  if [[ -f "$NODES_STATE_FILE" ]]; then
+    python3 "$STATECTL" render-provider "$NODES_STATE_FILE" "$tmpdir/provider.txt"
+    if [[ -f "$PROVIDER_FILE" ]] && ! cmp -s "$tmpdir/provider.txt" "$PROVIDER_FILE"; then
+      echo "drift: provider file differs from nodes state"
+      failed=1
+    fi
+  else
+    echo "missing: ${NODES_STATE_FILE}"
+    failed=1
+  fi
+
+  if [[ -f "$RULES_STATE_FILE" ]]; then
+    python3 "$STATECTL" render-rules "$RULES_STATE_FILE" "$tmpdir/rules.txt"
+    if [[ -f "$RENDERED_RULES_FILE" ]] && ! cmp -s "$tmpdir/rules.txt" "$RENDERED_RULES_FILE"; then
+      echo "drift: rendered rules file differs from rules state"
+      failed=1
+    fi
+    if ! python3 "$STATECTL" validate-rule-targets "$RULES_STATE_FILE" "$NODES_STATE_FILE" >/tmp/mihomo-audit-targets.log 2>&1; then
+      echo "invalid: rule targets reference unavailable targets"
+      sed -n '1,20p' /tmp/mihomo-audit-targets.log
+      failed=1
+    fi
+  else
+    echo "missing: ${RULES_STATE_FILE}"
+    failed=1
+  fi
+
+  return "$failed"
+}
+
 listener_snapshot() {
   ss_cmd -lntup 2>/dev/null || true
 }
@@ -1227,33 +1261,7 @@ audit_installation() {
 
   echo "== audit =="
   audit_installation_required_files_check || status=1
-
-  if [[ -f "$NODES_STATE_FILE" ]]; then
-    python3 "$STATECTL" render-provider "$NODES_STATE_FILE" "$tmpdir/provider.txt"
-    if [[ -f "$PROVIDER_FILE" ]] && ! cmp -s "$tmpdir/provider.txt" "$PROVIDER_FILE"; then
-      echo "drift: provider file differs from nodes state"
-      status=1
-    fi
-  else
-    echo "missing: ${NODES_STATE_FILE}"
-    status=1
-  fi
-
-  if [[ -f "$RULES_STATE_FILE" ]]; then
-    python3 "$STATECTL" render-rules "$RULES_STATE_FILE" "$tmpdir/rules.txt"
-    if [[ -f "$RENDERED_RULES_FILE" ]] && ! cmp -s "$tmpdir/rules.txt" "$RENDERED_RULES_FILE"; then
-      echo "drift: rendered rules file differs from rules state"
-      status=1
-    fi
-    if ! python3 "$STATECTL" validate-rule-targets "$RULES_STATE_FILE" "$NODES_STATE_FILE" >/tmp/mihomo-audit-targets.log 2>&1; then
-      echo "invalid: rule targets reference unavailable targets"
-      sed -n '1,20p' /tmp/mihomo-audit-targets.log
-      status=1
-    fi
-  else
-    echo "missing: ${RULES_STATE_FILE}"
-    status=1
-  fi
+  audit_installation_nodes_and_rules_check "$tmpdir" || status=1
 
   if [[ -f "$ACL_STATE_FILE" ]]; then
     python3 "$STATECTL" render-rules "$ACL_STATE_FILE" "$tmpdir/acl.txt"

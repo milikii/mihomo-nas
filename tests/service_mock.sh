@@ -622,6 +622,28 @@ test_audit_installation_reports_missing_required_file() {
   grep -q "missing: ${TMPDIR_CASE}/config.yaml" /tmp/mh-audit-missing-config.out
 }
 
+test_audit_installation_reports_provider_drift() {
+  setup_case
+  run_manager render-config >/dev/null
+  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  if run_manager audit-installation >/tmp/mh-audit-provider-drift.out 2>&1; then
+    echo "audit-installation should fail when provider file drifts from nodes state" >&2
+    exit 1
+  fi
+  grep -q 'drift: provider file differs from nodes state' /tmp/mh-audit-provider-drift.out
+}
+
+test_audit_installation_reports_rules_drift() {
+  setup_case
+  run_manager render-config >/dev/null
+  python3 "${ROOT}/scripts/statectl.py" add-rule "${TMPDIR_CASE}/state/rules.json" domain example.com DIRECT >/dev/null
+  if run_manager audit-installation >/tmp/mh-audit-rules-drift.out 2>&1; then
+    echo "audit-installation should fail when rendered rules drift from rules state" >&2
+    exit 1
+  fi
+  grep -q 'drift: rendered rules file differs from rules state' /tmp/mh-audit-rules-drift.out
+}
+
 test_menu_survives_failed_healthcheck() {
   setup_case
   run_manager render-config >/dev/null
