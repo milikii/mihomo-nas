@@ -292,6 +292,7 @@
 - `cleanup_project_sync_runtime` 的 unit 文件删除已抽到共用 helper
 - `activate_project_sync_runtime` / `cleanup_project_sync_runtime` 的 systemd reload 已抽到共用 helper
 - `cleanup_project_sync_runtime` 的 timer 停用已抽到共用 helper
+- `activate_project_sync_runtime` 的 timer 启用已抽到共用 helper
 - `install_webui` 的解压失败告警已恢复为可见输出
 - 当前仍保持与重构前一致的输出文本与退化行为
 

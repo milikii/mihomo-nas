@@ -998,11 +998,15 @@ cleanup_project_sync_runtime() {
 
 activate_project_sync_runtime() {
   reload_manager_sync_systemd
-  systemctl_cmd enable --now mihomo-manager-sync.timer
+  enable_manager_sync_timer
 }
 
 disable_manager_sync_timer() {
   systemctl_cmd disable --now mihomo-manager-sync.timer >/dev/null 2>&1 || true
+}
+
+enable_manager_sync_timer() {
+  systemctl_cmd enable --now mihomo-manager-sync.timer
 }
 
 remove_manager_sync_unit_files() {

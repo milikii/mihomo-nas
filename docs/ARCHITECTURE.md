@@ -111,5 +111,6 @@
 - 当前已抽离 `cleanup_project_sync_runtime` 的 unit 文件删除 helper
 - 当前已抽离 `activate_project_sync_runtime` / `cleanup_project_sync_runtime` 的 systemd reload helper
 - 当前已抽离 `cleanup_project_sync_runtime` 的 timer 停用 helper
-- 下一刀先抽离 `activate_project_sync_runtime` 的 timer 启用 helper
+- 当前已抽离 `activate_project_sync_runtime` 的 timer 启用 helper
+- 下一刀先抽离 `persist_project_sync_settings` 的 MANAGER_SYNC 三连写 helper
 - 不在该阶段顺手重构脚本结构或扩展更多控制面能力
