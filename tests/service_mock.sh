@@ -573,10 +573,15 @@ test_diagnose_outputs_config_summary() {
   setup_case
   run_manager render-config >/dev/null
   output="$(run_manager diagnose)"
+  grep -q '== status ==' <<<"$output"
+  grep -q '== timers ==' <<<"$output"
+  grep -q '== listeners ==' <<<"$output"
   grep -q '== config summary ==' <<<"$output"
+  grep -q '== recent logs ==' <<<"$output"
   grep -q '^mode=rule$' <<<"$output"
   grep -q '^enabled_nodes=0$' <<<"$output"
   grep -q '^core_channel=alpha$' <<<"$output"
+  grep -q 'journal output' <<<"$output"
 }
 
 test_menu_survives_failed_healthcheck() {

@@ -1105,6 +1105,24 @@ print_runtime_audit_health_summary() {
   healthcheck || true
 }
 
+print_diagnose_systemd_sections() {
+  echo "== status =="
+  systemctl_cmd status mihomo --no-pager || true
+  echo
+  echo "== timers =="
+  systemctl_cmd status mihomo-alpha-update.timer mihomo-restart.timer --no-pager 2>/dev/null || true
+}
+
+print_diagnose_listeners_section() {
+  echo "== listeners =="
+  ss_cmd -lntup 2>/dev/null | grep -E "[:.](${MIXED_PORT}|${TPROXY_PORT}|${DNS_PORT}|${CONTROLLER_PORT})[[:space:]]" || true
+}
+
+print_diagnose_recent_logs_section() {
+  echo "== recent logs =="
+  journalctl_cmd -u mihomo -n 60 --no-pager || true
+}
+
 listener_snapshot() {
   ss_cmd -lntup 2>/dev/null || true
 }
@@ -1163,20 +1181,14 @@ diagnose() {
   require_root
   load_settings
   load_router_env
-  echo "== status =="
-  systemctl_cmd status mihomo --no-pager || true
+  print_diagnose_systemd_sections
   echo
-  echo "== timers =="
-  systemctl_cmd status mihomo-alpha-update.timer mihomo-restart.timer --no-pager 2>/dev/null || true
-  echo
-  echo "== listeners =="
-  ss_cmd -lntup 2>/dev/null | grep -E "[:.](${MIXED_PORT}|${TPROXY_PORT}|${DNS_PORT}|${CONTROLLER_PORT})[[:space:]]" || true
+  print_diagnose_listeners_section
   echo
   echo "== config summary =="
   print_diagnose_config_summary_lines
   echo
-  echo "== recent logs =="
-  journalctl_cmd -u mihomo -n 60 --no-pager || true
+  print_diagnose_recent_logs_section
 }
 
 geosite_probe_ready() {
