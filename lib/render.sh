@@ -956,8 +956,7 @@ install_project_sync() {
 disable_project_sync() {
   require_root
   prepare_project_sync_disablement
-  cleanup_project_sync_runtime
-  print_project_sync_disabled_message
+  finalize_project_sync_disablement
 }
 
 validate_project_sync_inputs() {
@@ -1015,6 +1014,11 @@ finalize_project_sync_enablement() {
 prepare_project_sync_disablement() {
   ensure_settings
   reset_project_sync_settings
+}
+
+finalize_project_sync_disablement() {
+  cleanup_project_sync_runtime
+  print_project_sync_disabled_message
 }
 
 persist_project_sync_settings() {
