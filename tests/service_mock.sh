@@ -357,8 +357,10 @@ test_runtime_audit_outputs() {
   grep -q '显式代理认证: 关闭' <<<"$output"
   grep -q '显式代理免认证网段: 无' <<<"$output"
   grep -q 'localhost 显式代理探测: ok' <<<"$output"
+  grep -q '本机 WebUI 探测: ok' <<<"$output"
   grep -q '局域网透明代理命中包数: 66' <<<"$output"
   grep -q 'DNS 劫持命中包数: 18' <<<"$output"
+  grep -q '旁路由流量摘要: 近期已观测到局域网旁路由流量' <<<"$output"
 }
 
 test_runtime_audit_reads_mode_from_controller() {

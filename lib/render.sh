@@ -1315,11 +1315,7 @@ runtime_audit() {
   print_count_summary_lines audit
   print_controller_static_lines
   print_network_access_lines audit
-  echo "localhost 显式代理探测: ${proxy_probe}"
-  echo "本机 WebUI 探测: ${controller_probe}"
-  echo "局域网透明代理命中包数: ${tproxy_packets}"
-  echo "DNS 劫持命中包数: ${dns_hijack_packets}"
-  echo "旁路由流量摘要: ${lan_activity_summary}"
+  print_runtime_audit_probe_lines "$proxy_probe" "$controller_probe" "$tproxy_packets" "$dns_hijack_packets" "$lan_activity_summary"
   echo "过去 24 小时 warning 数: ${warn_count:-0}"
   echo "过去 24 小时 error 数: ${err_count:-0}"
   echo "下次 Alpha 自动更新: ${trigger_update:-disabled}"

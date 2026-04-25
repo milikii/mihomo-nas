@@ -1185,3 +1185,17 @@ print_status_overview_lines() {
   echo "服务状态: ${service_state}"
   echo "开机自启: ${service_enable}"
 }
+
+print_runtime_audit_probe_lines() {
+  local proxy_probe="${1:-fail}"
+  local controller_probe="${2:-fail}"
+  local tproxy_packets="${3:-0}"
+  local dns_hijack_packets="${4:-0}"
+  local lan_activity_summary="${5:-未获取}"
+
+  echo "localhost 显式代理探测: ${proxy_probe}"
+  echo "本机 WebUI 探测: ${controller_probe}"
+  echo "局域网透明代理命中包数: ${tproxy_packets}"
+  echo "DNS 劫持命中包数: ${dns_hijack_packets}"
+  echo "旁路由流量摘要: ${lan_activity_summary}"
+}
