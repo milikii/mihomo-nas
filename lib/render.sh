@@ -979,15 +979,23 @@ persist_project_sync_settings() {
   local src_root="$1"
   local interval_minutes="$2"
 
-  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "1"
-  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "$interval_minutes"
-  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "$src_root"
+  write_manager_sync_settings "1" "$interval_minutes" "$src_root"
 }
 
 reset_project_sync_settings() {
   upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "0"
   upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "1"
   upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" ""
+}
+
+write_manager_sync_settings() {
+  local enabled="$1"
+  local interval_minutes="$2"
+  local src_root="$3"
+
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_ENABLED" "$enabled"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_INTERVAL_MINUTES" "$interval_minutes"
+  upsert_env_var "$SETTINGS_ENV" "MANAGER_SYNC_SOURCE" "$src_root"
 }
 
 cleanup_project_sync_runtime() {
