@@ -1311,9 +1311,7 @@ runtime_audit() {
   echo "累计 CPU 时间(ns): ${cpu_nsec:-0}"
   echo "端口监听: mixed=${MIXED_PORT} tproxy=${TPROXY_PORT} dns=${DNS_PORT} controller=${CONTROLLER_PORT}"
   print_runtime_summary_lines
-  echo "当前模板: ${TEMPLATE_NAME:-unknown} ($(template_summary "${TEMPLATE_NAME:-unknown}"))"
-  echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
-  echo "IPv6 模式: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
+  print_profile_summary_lines audit
   print_controller_static_lines
   print_network_access_lines audit
   echo "localhost 显式代理探测: ${proxy_probe}"

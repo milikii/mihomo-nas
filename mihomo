@@ -781,9 +781,7 @@ show_status() {
   echo "服务状态: ${service_state}"
   echo "开机自启: ${service_enable}"
   print_runtime_summary_lines
-  echo "模板: ${TEMPLATE_NAME:-$PROFILE_TEMPLATE} ($(template_summary "${TEMPLATE_NAME:-$PROFILE_TEMPLATE}"))"
-  echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
-  echo "IPv6: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
+  print_profile_summary_lines status
   echo "手动节点: 启用 ${manual_enabled} / 总计 ${manual_total}"
   echo "订阅: 启用 ${sub_counts%%$'\t'*} / 总计 ${sub_counts##*$'\t'}"
   echo "订阅 provider: 启用 ${sub_enabled} / 总计 ${sub_total}"

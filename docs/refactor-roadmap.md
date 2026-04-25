@@ -236,6 +236,7 @@
 - `status` / `runtime-audit` 的运行态摘要拼装逻辑已抽到共用 helper
 - `status` / `runtime-audit` 的控制面静态信息展示已抽到共用 helper
 - `status` / `runtime-audit` 的网络与访问静态信息展示已抽到共用 helper
+- `status` / `runtime-audit` 的模板/规则预设/IPv6 展示已抽到共用 helper
 - 当前仍保持原有输出文本与退化行为不变
 
 任务：

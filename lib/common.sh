@@ -1013,3 +1013,18 @@ print_network_access_lines() {
     echo "容器直连名单: ${BYPASS_CONTAINER_NAMES:-无}"
   fi
 }
+
+print_profile_summary_lines() {
+  local mode="${1:-status}"
+
+  if [[ "$mode" == "audit" ]]; then
+    echo "当前模板: ${TEMPLATE_NAME:-unknown} ($(template_summary "${TEMPLATE_NAME:-unknown}"))"
+    echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
+    echo "IPv6 模式: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
+    return 0
+  fi
+
+  echo "模板: ${TEMPLATE_NAME:-$PROFILE_TEMPLATE} ($(template_summary "${TEMPLATE_NAME:-$PROFILE_TEMPLATE}"))"
+  echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
+  echo "IPv6: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
+}
