@@ -1312,6 +1312,7 @@ runtime_audit() {
   echo "端口监听: mixed=${MIXED_PORT} tproxy=${TPROXY_PORT} dns=${DNS_PORT} controller=${CONTROLLER_PORT}"
   print_runtime_summary_lines
   print_profile_summary_lines audit
+  print_count_summary_lines audit
   print_controller_static_lines
   print_network_access_lines audit
   echo "localhost 显式代理探测: ${proxy_probe}"
@@ -1319,7 +1320,6 @@ runtime_audit() {
   echo "局域网透明代理命中包数: ${tproxy_packets}"
   echo "DNS 劫持命中包数: ${dns_hijack_packets}"
   echo "旁路由流量摘要: ${lan_activity_summary}"
-  echo "节点统计: 启用=$(readonly_node_counts | cut -f1) 总计=$(readonly_node_counts | cut -f2)"
   echo "过去 24 小时 warning 数: ${warn_count:-0}"
   echo "过去 24 小时 error 数: ${err_count:-0}"
   echo "下次 Alpha 自动更新: ${trigger_update:-disabled}"

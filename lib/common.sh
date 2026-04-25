@@ -702,6 +702,41 @@ acl_list_tsv() {
   python3 "$STATECTL" list-rules "$ACL_STATE_FILE"
 }
 
+manual_node_counts() {
+  local enabled=0
+  local total=0
+  while IFS=$'\t' read -r _ enabled_flag _ _ _ _ _ _ source; do
+    [[ "$source" == subscription:* ]] && continue
+    total=$((total + 1))
+    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
+  done < <(node_list_tsv || true)
+  printf '%s\t%s\n' "$enabled" "$total"
+}
+
+subscription_counts() {
+  local enabled=0
+  local total=0
+  while IFS=$'\t' read -r _ _ _ _ enabled_flag _ _ _ _; do
+    total=$((total + 1))
+    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
+  done < <(subscription_list_tsv || true)
+  printf '%s\t%s\n' "$enabled" "$total"
+}
+
+subscription_provider_counts() {
+  local enabled=0
+  local total=0
+  local ready=0
+  local sub_id
+  local enabled_flag
+  while IFS=$'\t' read -r _ sub_id _ _ enabled_flag _ _ _; do
+    total=$((total + 1))
+    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
+    [[ -s "$(subscription_provider_file "$sub_id")" ]] && ready=$((ready + 1))
+  done < <(subscription_list_tsv || true)
+  printf '%s\t%s\t%s\n' "$enabled" "$total" "$ready"
+}
+
 subscription_list_tsv() {
   require_statectl
   python3 "$STATECTL" list-subscriptions "$SUBSCRIPTIONS_STATE_FILE"
@@ -1027,4 +1062,31 @@ print_profile_summary_lines() {
   echo "模板: ${TEMPLATE_NAME:-$PROFILE_TEMPLATE} ($(template_summary "${TEMPLATE_NAME:-$PROFILE_TEMPLATE}"))"
   echo "规则预设: ${RULESET_PRESET:-$(default_rule_preset)} ($(rule_preset_summary "${RULESET_PRESET:-$(default_rule_preset)}"))"
   echo "IPv6: $([[ "${ENABLE_IPV6:-0}" == "1" ]] && echo '启用' || echo '关闭')"
+}
+
+print_count_summary_lines() {
+  local mode="${1:-status}"
+  local counts manual_enabled sub_enabled sub_total sub_ready
+
+  if [[ "$mode" == "audit" ]]; then
+    counts="$(readonly_node_counts)"
+    echo "节点统计: 启用=${counts%%$'\t'*} 总计=${counts##*$'\t'}"
+    return 0
+  fi
+
+  counts="$(manual_node_counts)"
+  manual_enabled="${counts%%$'\t'*}"
+  counts="${counts##*$'\t'}"
+  echo "手动节点: 启用 ${manual_enabled} / 总计 ${counts}"
+
+  counts="$(subscription_counts)"
+  echo "订阅: 启用 ${counts%%$'\t'*} / 总计 ${counts##*$'\t'}"
+
+  counts="$(subscription_provider_counts)"
+  sub_enabled="${counts%%$'\t'*}"
+  counts="${counts#*$'\t'}"
+  sub_total="${counts%%$'\t'*}"
+  sub_ready="${counts##*$'\t'}"
+  echo "订阅 provider: 启用 ${sub_enabled} / 总计 ${sub_total}"
+  echo "订阅缓存: 就绪 ${sub_ready} / 总计 ${sub_total}"
 }

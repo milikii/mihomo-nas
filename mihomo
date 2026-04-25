@@ -15,51 +15,12 @@ snapshot_before_change() {
   snapshot_current_state "${1:-change}" >/dev/null 2>&1 || true
 }
 
-node_count_total() {
+list_nodes_pretty() {
   local total=0
   while IFS=$'\t' read -r _ _ _ _ _ _ _ _ _; do
     total=$((total + 1))
   done < <(node_list_tsv || true)
-  printf '%s\n' "$total"
-}
-
-manual_node_counts() {
-  local enabled=0
-  local total=0
-  while IFS=$'\t' read -r _ enabled_flag _ _ _ _ _ _ source; do
-    [[ "$source" == subscription:* ]] && continue
-    total=$((total + 1))
-    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
-  done < <(node_list_tsv || true)
-  printf '%s\t%s\n' "$enabled" "$total"
-}
-
-subscription_counts() {
-  local enabled=0
-  local total=0
-  while IFS=$'\t' read -r _ _ _ _ enabled_flag _ _ _ _; do
-    total=$((total + 1))
-    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
-  done < <(subscription_list_tsv || true)
-  printf '%s\t%s\n' "$enabled" "$total"
-}
-
-subscription_provider_counts() {
-  local enabled=0
-  local total=0
-  local ready=0
-  local sub_id
-  local enabled_flag
-  while IFS=$'\t' read -r _ sub_id _ _ enabled_flag _ _ _; do
-    total=$((total + 1))
-    [[ "$enabled_flag" == "1" ]] && enabled=$((enabled + 1))
-    [[ -s "$(subscription_provider_file "$sub_id")" ]] && ready=$((ready + 1))
-  done < <(subscription_list_tsv || true)
-  printf '%s\t%s\t%s\n' "$enabled" "$total" "$ready"
-}
-
-list_nodes_pretty() {
-  if [[ "$(node_count_total)" -eq 0 ]]; then
+  if [[ "$total" -eq 0 ]]; then
     echo "暂无节点"
     return 0
   fi
@@ -782,10 +743,7 @@ show_status() {
   echo "开机自启: ${service_enable}"
   print_runtime_summary_lines
   print_profile_summary_lines status
-  echo "手动节点: 启用 ${manual_enabled} / 总计 ${manual_total}"
-  echo "订阅: 启用 ${sub_counts%%$'\t'*} / 总计 ${sub_counts##*$'\t'}"
-  echo "订阅 provider: 启用 ${sub_enabled} / 总计 ${sub_total}"
-  echo "订阅缓存: 就绪 ${sub_ready} / 总计 ${sub_total}"
+  print_count_summary_lines status
   echo "WebUI: ${controller_url}"
   print_controller_static_lines
   echo "控制面密钥: 已隐藏；如需查看执行: mihomo show-secret"
