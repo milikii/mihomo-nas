@@ -1115,6 +1115,18 @@ listener_has_port() {
   grep -qE "[:.]${port}[[:space:]]" <<<"$listeners"
 }
 
+healthcheck_listener_checks() {
+  local listeners="$1"
+  local failed=0
+
+  listener_has_port "$listeners" "$MIXED_PORT" || { echo "port: mixed ${MIXED_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$TPROXY_PORT" || { echo "port: tproxy ${TPROXY_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$DNS_PORT" || { echo "port: dns ${DNS_PORT} not listening"; failed=1; }
+  listener_has_port "$listeners" "$CONTROLLER_PORT" || { echo "port: controller ${CONTROLLER_PORT} not listening"; failed=1; }
+
+  return "$failed"
+}
+
 healthcheck() {
   require_root
   load_router_env
@@ -1123,10 +1135,7 @@ healthcheck() {
   listeners="$(listener_snapshot)"
   service_is_active || { echo "service: inactive"; failed=1; }
   [[ -f "$COUNTRY_MMDB" ]] || { echo "geo: missing Country.mmdb"; failed=1; }
-  listener_has_port "$listeners" "$MIXED_PORT" || { echo "port: mixed ${MIXED_PORT} not listening"; failed=1; }
-  listener_has_port "$listeners" "$TPROXY_PORT" || { echo "port: tproxy ${TPROXY_PORT} not listening"; failed=1; }
-  listener_has_port "$listeners" "$DNS_PORT" || { echo "port: dns ${DNS_PORT} not listening"; failed=1; }
-  listener_has_port "$listeners" "$CONTROLLER_PORT" || { echo "port: controller ${CONTROLLER_PORT} not listening"; failed=1; }
+  healthcheck_listener_checks "$listeners" || failed=1
   local_controller_probe || {
     echo "webui: unavailable"
     failed=1

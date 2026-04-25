@@ -506,6 +506,26 @@ test_healthcheck_ignores_ss_pipefail_false_negative() {
   ! grep -q 'not listening' <<<"$output"
 }
 
+test_healthcheck_reports_missing_controller_listener() {
+  setup_case
+  touch "${TMPDIR_CASE}/Country.mmdb"
+  cat > "${TMPDIR_CASE}/bin/ss" <<'EOSS'
+#!/usr/bin/env bash
+cat <<OUT
+tcp LISTEN 0 4096 *:7890 *:* users:(("mihomo-core",pid=12345,fd=10))
+tcp LISTEN 0 4096 *:7893 *:* users:(("mihomo-core",pid=12345,fd=7))
+tcp LISTEN 0 4096 *:1053 *:* users:(("mihomo-core",pid=12345,fd=11))
+OUT
+EOSS
+  chmod +x "${TMPDIR_CASE}/bin/ss"
+  run_manager render-config >/dev/null
+  if run_manager healthcheck >/tmp/mh-healthcheck-missing-controller.out 2>&1; then
+    echo "healthcheck should fail when controller listener is missing" >&2
+    exit 1
+  fi
+  grep -q 'port: controller 19090 not listening' /tmp/mh-healthcheck-missing-controller.out
+}
+
 test_menu_survives_failed_healthcheck() {
   setup_case
   run_manager render-config >/dev/null
