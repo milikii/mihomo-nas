@@ -312,6 +312,9 @@ test_runtime_audit_outputs() {
   run_manager render-config >/dev/null
   output="$(run_manager runtime-audit)"
   grep -q '服务状态: active' <<<"$output"
+  grep -q '当前模式: rule' <<<"$output"
+  grep -q '当前模式来源: 本地配置回退' <<<"$output"
+  grep -q '本地配置模式: rule' <<<"$output"
   grep -q '当前模板: nas-single-lan-v4 (单 LAN IPv4 旁路由)' <<<"$output"
   grep -q '过去 24 小时 warning 数: 1' <<<"$output"
   grep -q '下次 Alpha 自动更新: Tue 2026-04-21 00:00:00 CST' <<<"$output"
@@ -328,6 +331,19 @@ test_runtime_audit_outputs() {
   grep -q 'localhost 显式代理探测: ok' <<<"$output"
   grep -q '局域网透明代理命中包数: 66' <<<"$output"
   grep -q 'DNS 劫持命中包数: 18' <<<"$output"
+}
+
+test_runtime_audit_reads_mode_from_controller() {
+  setup_case
+  run_manager render-config >/dev/null
+  cat > "${TMPDIR_CASE}/controller-configs.json" <<'EOF'
+{"mode":"global"}
+EOF
+  output="$(run_manager runtime-audit)"
+  grep -q '当前模式: global' <<<"$output"
+  grep -q '当前模式来源: Mihomo REST API' <<<"$output"
+  grep -q '本地配置模式: rule' <<<"$output"
+  grep -Fq 'http://127.0.0.1:19090/configs' "${TMPDIR_CASE}/curl.log"
 }
 
 test_status_reads_mode_from_controller() {

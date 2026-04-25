@@ -212,6 +212,7 @@
 当前进展：
 
 - `mihomo status` 的“当前模式”已优先读取 Mihomo REST API `/configs`
+- `mihomo runtime-audit` 的“当前模式”已优先读取 Mihomo REST API `/configs`
 - 控制面不可达时已回退到本地 `config.yaml`，避免状态页因控制面短暂失败而退化不可用
 
 任务：

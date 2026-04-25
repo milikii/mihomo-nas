@@ -2,8 +2,8 @@
 
 ## 当前主线
 
-- 当前主线已进入阶段 4，已完成第一刀：`mihomo status` 的当前模式改为 REST 运行态优先、控制面不可达时回退本地配置。
-- 本轮已补齐项目要求的权威文档基线：`STATUS.md`、`NEXT_STEP.md`、`DECISIONS.md`、`ARCHITECTURE.md`。
+- 当前主线已进入阶段 4，已完成第二刀：`mihomo runtime-audit` 的当前模式也改为 REST 运行态优先、控制面不可达时回退本地配置。
+- 项目权威文档基线已补齐并生效：`STATUS.md`、`NEXT_STEP.md`、`DECISIONS.md`、`ARCHITECTURE.md`。
 
 ## 当前真相
 
@@ -29,12 +29,13 @@
   - `external-controller-tls` 已明确暂缓，不进入当前阶段实现
 - 阶段 4：已开始
   - `mihomo status` 的“当前模式”已优先读取 Mihomo REST API `/configs`
+  - `mihomo runtime-audit` 的“当前模式”已优先读取 Mihomo REST API `/configs`
   - 控制面不可达时会回退到本地 `config.yaml`
-  - `runtime-audit` 仍主要依赖本地配置、systemd 和系统探测信息
+  - 除当前模式外，`runtime-audit` 其余内容仍主要依赖本地配置、systemd 和系统探测信息
 
 ## 质量状态
 
-- 最近稳定提交：`0be19f6 feat: expose controller cors fields`
+- 默认分支最近闭环均已通过回归并提交
 - 当前回归入口：`tests/smoke.sh`、`tests/service_mock.sh`
 - 本轮验证结果：
   - `2026-04-25` 执行 `bash tests/smoke.sh`，通过
@@ -42,6 +43,6 @@
 
 ## 当前风险与限制
 
-- `runtime-audit`、策略组选择和控制面摘要还没有从 Mihomo REST API 读取
+- 策略组选择和控制面摘要还没有从 Mihomo REST API 读取
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由
