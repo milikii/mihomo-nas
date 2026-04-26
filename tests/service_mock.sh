@@ -203,6 +203,10 @@ OUT
   exit 0
 fi
 
+if [[ "$target" == *"subscription-fail.example"* ]]; then
+  exit 22
+fi
+
 if [[ "$target" == *"/configs" ]]; then
   if [[ -n "${CONTROLLER_CONFIGS_JSON_FILE:-}" && -f "${CONTROLLER_CONFIGS_JSON_FILE}" ]]; then
     if [[ -n "$out" ]]; then
@@ -1111,6 +1115,39 @@ PY
   fi
 }
 
+test_update_subscriptions_warns_when_no_enabled_subscriptions() {
+  setup_case
+  run_manager add-subscription demo https://subscription.example/list.txt 0 >/dev/null
+  output="$(run_manager update-subscriptions 2>&1)"
+  grep -q '没有启用中的订阅' <<<"$output"
+  [[ ! -e "${TMPDIR_CASE}/curl.log" ]]
+}
+
+test_update_subscriptions_marks_error_on_curl_failure() {
+  setup_case
+  run_manager add-subscription demo https://subscription-fail.example/list.txt 1 >/dev/null
+  if run_manager update-subscriptions >/tmp/mh-update-subscriptions.log 2>&1; then
+    echo "update-subscriptions should fail when curl fails" >&2
+    exit 1
+  fi
+  grep -q '订阅更新失败: demo' /tmp/mh-update-subscriptions.log
+  sub_id="$(python3 "${ROOT}/scripts/statectl.py" list-subscriptions "${TMPDIR_CASE}/state/subscriptions.json" | awk -F'\t' 'NR==1{print $2}')"
+  python3 - "${TMPDIR_CASE}/state/subscriptions.json" "${sub_id}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+sub_id = sys.argv[2]
+item = next(item for item in data["subscriptions"] if item["id"] == sub_id)
+assert item["cache"]["last_error"] == "curl failed for https://subscription-fail.example/list.txt", item
+assert item["cache"]["last_attempt_at"], item
+assert item["cache"]["last_success_at"] == "", item
+assert item["enumeration"]["last_count"] == 0, item
+PY
+  [[ ! -e "${TMPDIR_CASE}/proxy_providers/subscriptions/${sub_id}.txt" ]]
+}
+
 test_rollback_config_restores_template() {
   setup_case
   run_manager render-config >/dev/null
@@ -1151,6 +1188,8 @@ main() {
   test_setup_disables_service_when_no_enabled_nodes
   test_setup_starts_service_when_enabled_nodes_present
   test_update_subscriptions_refreshes_provider_cache
+  test_update_subscriptions_warns_when_no_enabled_subscriptions
+  test_update_subscriptions_marks_error_on_curl_failure
   test_rollback_config_restores_template
   echo "service-mock: ok"
 }
