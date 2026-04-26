@@ -866,6 +866,38 @@ def build_vless_provider_item(name: str, info: dict) -> dict:
     return item
 
 
+def build_trojan_provider_item(name: str, info: dict) -> dict:
+    item = {
+        "name": name,
+        "type": "trojan",
+        "server": info["server"],
+        "port": info["port"],
+        "password": info["password"],
+        "udp": True,
+        "tls": info.get("security", "tls") in {"tls", "reality"},
+    }
+    apply_common_tls_fields(item, info)
+    apply_network_opts(item, info)
+    return item
+
+
+def build_ss_provider_item(name: str, info: dict) -> dict:
+    item = {
+        "name": name,
+        "type": "ss",
+        "server": info["server"],
+        "port": info["port"],
+        "cipher": info["cipher"],
+        "password": info["password"],
+        "udp": True,
+    }
+    if info.get("plugin"):
+        item["plugin"] = info["plugin"]
+    if info.get("plugin_opts"):
+        item["plugin-opts"] = info["plugin_opts"]
+    return item
+
+
 def provider_item_from_node(node: dict) -> dict:
     info = parse_uri_info(node["uri"])
     scheme = info["scheme"]
@@ -873,33 +905,9 @@ def provider_item_from_node(node: dict) -> dict:
     if scheme == "vless":
         return build_vless_provider_item(name, info)
     if scheme == "trojan":
-        item = {
-            "name": name,
-            "type": "trojan",
-            "server": info["server"],
-            "port": info["port"],
-            "password": info["password"],
-            "udp": True,
-            "tls": info.get("security", "tls") in {"tls", "reality"},
-        }
-        apply_common_tls_fields(item, info)
-        apply_network_opts(item, info)
-        return item
+        return build_trojan_provider_item(name, info)
     if scheme == "ss":
-        item = {
-            "name": name,
-            "type": "ss",
-            "server": info["server"],
-            "port": info["port"],
-            "cipher": info["cipher"],
-            "password": info["password"],
-            "udp": True,
-        }
-        if info.get("plugin"):
-            item["plugin"] = info["plugin"]
-        if info.get("plugin_opts"):
-            item["plugin-opts"] = info["plugin_opts"]
-        return item
+        return build_ss_provider_item(name, info)
     if scheme == "vmess":
         item = {
             "name": name,
