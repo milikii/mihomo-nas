@@ -13,12 +13,13 @@
 - `mihomo` 的 CLI 入口分发已完成当前最小收口。
 - `mihomo` 的交互菜单编排已完成当前最小收口。
 - `scripts/statectl.py` 的协议解析链已完成当前最小收口。
-- 阶段 5 下一闭环转向 `scripts/statectl.py` 的 provider 渲染热点。
+- `scripts/statectl.py` 的 provider 渲染链已完成当前最小收口。
+- 阶段 5 下一闭环转向 `scripts/statectl.py` 的 provider 传输层选项热点。
 
 ## 下一最小闭环
 
-- 在 `scripts/statectl.py` 收口 `provider_item_from_node` 协议渲染块
-- 优先围绕 vless/trojan/ss/vmess 分支、TLS/network 选项组合，以及 xhttp download-settings 收尾收口职责块
+- 在 `scripts/statectl.py` 收口 provider 传输层选项 shaping 块
+- 优先围绕 `apply_network_opts`、`apply_common_tls_fields`、`xhttp_download_settings_from_mapping` 的协议选项组合和尾段收口职责块
 - 保持现有 provider YAML 字段、协议支持范围和渲染输出不变
 - 优先复用现有 `smoke` 的 `test_protocol_renderers` / `render-config` 回归，必要时只补最小 focused tests
 - 文档同步切到阶段 5 当前真相
@@ -38,11 +39,12 @@
 - 不回退已完成的 CLI 入口分发收口
 - 不回退已完成的交互菜单编排收口
 - 不回退已完成的协议解析链收口
+- 不回退已完成的 provider 渲染链收口
 - 不做跨文件大规模拆分
 
 ## 退出条件
 
-- `provider_item_from_node` 的职责块边界更清晰，多协议渲染与选项组合复杂度下降
+- provider 传输层选项 helper 的职责块边界更清晰，TLS/network/xhttp 组合复杂度下降
 - provider YAML 字段、协议支持范围和渲染输出保持不变
 - 相关 smoke / service-mock 回归通过
 - 文档同步更新当前阶段结论

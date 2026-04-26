@@ -105,6 +105,15 @@
     - `uri_info` 已退回为“取 scheme + parse + 成功/失败归一化”的编排入口
     - `scan_uri_rows` 已退回为“遍历可扫描 URI + 组装 scan row”的编排入口
   - `smoke` 已补到 `scan-uris` 的 unsupported reason、支持协议 metadata 和非 URI 行过滤分支
+  - `scripts/statectl.py` 的 provider 渲染链已完成当前最小收口：
+    - vless 渲染段已独立
+    - xhttp download-settings 收尾段已独立
+    - trojan 渲染段已独立
+    - ss 渲染段已独立
+    - vmess 渲染段已独立
+    - 协议 renderer 分发段已独立
+    - `provider_item_from_node` 已退回为“parse URI + 选择 renderer + 调用 renderer”的编排入口
+  - `smoke` 已补到 provider 渲染的 reality/ws/plugin/xhttp download-settings 输出分支
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -118,6 +127,6 @@
 
 ## 当前风险与限制
 
-- `scripts/statectl.py` 仍保留 `provider_item_from_node` 的多协议渲染与 TLS/network 选项组合耦合，当前下一优先级已转向 provider 渲染链
+- `scripts/statectl.py` 仍保留 `apply_network_opts`、`apply_common_tls_fields` 与 `xhttp_download_settings_from_mapping` 的传输层选项组合耦合，当前下一优先级已转向 provider 传输层选项链
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由
