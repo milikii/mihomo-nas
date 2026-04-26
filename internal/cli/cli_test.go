@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"minimalist/internal/app"
+	"minimalist/internal/config"
 	"minimalist/internal/runtime"
 	"minimalist/internal/system"
 )
@@ -447,6 +448,30 @@ func TestRunHelpPrintsUsage(t *testing.T) {
 	}
 }
 
+func TestRunShortHelpPrintsUsage(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		if err := Run([]string{"-h"}); err != nil {
+			t.Fatalf("run short help: %v", err)
+		}
+	})
+	if !strings.Contains(output, "minimalist commands:") {
+		t.Fatalf("expected short help output, got:\n%s", output)
+	}
+}
+
+func TestRunHelpAliasPrintsUsage(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		if err := Run([]string{"help"}); err != nil {
+			t.Fatalf("run help alias: %v", err)
+		}
+	})
+	if !strings.Contains(output, "minimalist commands:") {
+		t.Fatalf("expected help alias output, got:\n%s", output)
+	}
+}
+
 func TestRunUnknownCommandReturnsError(t *testing.T) {
 	setCLIPathsEnv(t)
 	err := Run([]string{"unknown-subcommand"})
@@ -605,6 +630,26 @@ func TestRunDispatchesSubscriptionsUpdate(t *testing.T) {
 	})
 	if strings.Contains(output, "error") {
 		t.Fatalf("unexpected subscriptions update output:\n%s", output)
+	}
+}
+
+func TestRunDispatchesShowSecret(t *testing.T) {
+	setCLIPathsEnv(t)
+	cfg, err := config.Ensure(runtime.DefaultPaths().ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	cfg.Controller.Secret = "run-secret"
+	if err := config.Save(runtime.DefaultPaths().ConfigPath(), cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	output := captureStdout(t, func() {
+		if err := Run([]string{"show-secret"}); err != nil {
+			t.Fatalf("run show-secret: %v", err)
+		}
+	})
+	if !strings.Contains(output, "run-secret") {
+		t.Fatalf("unexpected show-secret output:\n%s", output)
 	}
 }
 

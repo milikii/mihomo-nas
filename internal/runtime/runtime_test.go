@@ -44,6 +44,22 @@ func TestBuildRuntimeConfigUsesConfiguredSecret(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigOmitsControllerCORSWhenDisabled(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	if strings.Contains(text, "external-controller-cors:") {
+		t.Fatalf("did not expect controller cors section by default:\n%s", text)
+	}
+}
+
 func TestBuildRuntimeConfigIncludesExternalUIAndNameserverPolicy(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),
@@ -228,6 +244,28 @@ func TestBuildRuntimeConfigIncludesDNSBehaviorFlags(t *testing.T) {
 		"  enhanced-mode: fake-ip\n",
 		"  fake-ip-range: 198.18.0.1/16\n",
 		"  fake-ip-filter-mode: blacklist\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigIncludesDNSEnableAndFallback(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"  enable: true\n",
+		"  fallback: []\n",
+		"  direct-nameserver-follow-policy: true\n",
 	} {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
@@ -445,6 +483,73 @@ func TestBuildRuntimeConfigIncludesManualProviderWhenNodesEnabled(t *testing.T) 
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
 		}
+	}
+}
+
+func TestBuildServiceUnitIncludesLifecycleCommands(t *testing.T) {
+	paths := Paths{
+		RuntimeDir:  filepath.Join(t.TempDir(), "runtime"),
+		BinPath:     filepath.Join(t.TempDir(), "bin", "minimalist"),
+		ServiceUnit: filepath.Join(t.TempDir(), "systemd", "minimalist.service"),
+	}
+	cfg := config.Default()
+	unit := BuildServiceUnit(paths, cfg)
+	for _, needle := range []string{
+		"ExecStartPre=+" + paths.BinPath + " apply-rules\n",
+		"ExecStart=" + cfg.Install.CoreBin + " -d " + paths.RuntimeDir + "\n",
+		"ExecReload=+" + paths.BinPath + " apply-rules\n",
+		"ExecStopPost=+" + paths.BinPath + " clear-rules\n",
+	} {
+		if !strings.Contains(unit, needle) {
+			t.Fatalf("missing %q in service unit:\n%s", needle, unit)
+		}
+	}
+}
+
+func TestBuildServiceUnitIncludesCapabilityAndPathHints(t *testing.T) {
+	paths := Paths{
+		RuntimeDir:  filepath.Join(t.TempDir(), "runtime"),
+		BinPath:     filepath.Join(t.TempDir(), "bin", "minimalist"),
+		ServiceUnit: filepath.Join(t.TempDir(), "systemd", "minimalist.service"),
+	}
+	cfg := config.Default()
+	unit := BuildServiceUnit(paths, cfg)
+	for _, needle := range []string{
+		"AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW\n",
+		"CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW\n",
+		"ReadWritePaths=" + paths.RuntimeDir + "\n",
+		"ConditionPathExists=" + paths.RuntimeConfig() + "\n",
+	} {
+		if !strings.Contains(unit, needle) {
+			t.Fatalf("missing %q in service unit:\n%s", needle, unit)
+		}
+	}
+}
+
+func TestBuildSysctlDefaultsToIPv4Forwarding(t *testing.T) {
+	cfg := config.Default()
+	text := BuildSysctl(cfg)
+	for _, needle := range []string{
+		"net.ipv4.ip_forward = 1\n",
+		"net.ipv4.conf.all.route_localnet = 1\n",
+		"net.ipv4.conf.default.rp_filter = 2\n",
+		"net.ipv4.conf.all.rp_filter = 2\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in sysctl output:\n%s", needle, text)
+		}
+	}
+	if strings.Contains(text, "net.ipv6.conf.all.forwarding = 1\n") {
+		t.Fatalf("did not expect ipv6 forwarding by default:\n%s", text)
+	}
+}
+
+func TestBuildSysctlIncludesIPv6ForwardingWhenEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Network.EnableIPv6 = true
+	text := BuildSysctl(cfg)
+	if !strings.Contains(text, "net.ipv6.conf.all.forwarding = 1\n") {
+		t.Fatalf("expected ipv6 forwarding in sysctl output:\n%s", text)
 	}
 }
 
