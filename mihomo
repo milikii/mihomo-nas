@@ -1241,59 +1241,68 @@ run_menu_action() {
   fi
 }
 
+show_interactive_menu_prompt() {
+  clear 2>/dev/null || true
+  show_status
+  echo
+  echo "1) 状态总览"
+  echo "2) 一键部署/修复"
+  echo "3) 节点与订阅"
+  echo "4) 网络入口与模板"
+  echo "5) 访问控制 ACL"
+  echo "6) 服务与升级"
+  echo "7) 健康检查与审计"
+  echo "8) 回滚与诊断"
+  echo "9) 高级维护"
+  echo "0) 退出"
+  echo
+}
+
+dispatch_interactive_menu_action() {
+  case "$1" in
+    1) run_menu_action show_status; press_enter ;;
+    2)
+      echo "1) 初始化部署"
+      echo "2) 修复部署"
+      read -rp "选择 [1/2]: " sub_action
+      case "$sub_action" in
+        1) run_menu_action full_setup ;;
+        2) run_menu_action repair_command ;;
+        *) warn "无效选择" ;;
+      esac
+      press_enter
+      ;;
+    3) run_menu_action nodes_menu; press_enter ;;
+    4) run_menu_action network_menu; press_enter ;;
+    5) run_menu_action acl_menu; press_enter ;;
+    6) run_menu_action service_menu; press_enter ;;
+    7)
+      echo "1) 健康检查"
+      echo "2) 运行审计"
+      echo "3) 安装审计"
+      read -rp "选择 [1-3]: " sub_action
+      case "$sub_action" in
+        1) run_menu_action healthcheck ;;
+        2) run_menu_action runtime_audit ;;
+        3) run_menu_action audit_installation ;;
+        *) warn "无效选择" ;;
+      esac
+      press_enter
+      ;;
+    8) run_menu_action diagnostics_menu; press_enter ;;
+    9) run_menu_action maintenance_menu; press_enter ;;
+    0) return 1 ;;
+    *) warn "无效选择"; press_enter ;;
+  esac
+}
+
 interactive_menu() {
   require_root
+  local action
   while true; do
-    clear 2>/dev/null || true
-    show_status
-    echo
-    echo "1) 状态总览"
-    echo "2) 一键部署/修复"
-    echo "3) 节点与订阅"
-    echo "4) 网络入口与模板"
-    echo "5) 访问控制 ACL"
-    echo "6) 服务与升级"
-    echo "7) 健康检查与审计"
-    echo "8) 回滚与诊断"
-    echo "9) 高级维护"
-    echo "0) 退出"
-    echo
+    show_interactive_menu_prompt
     read -rp "请选择 [0-9]: " action
-    case "$action" in
-      1) run_menu_action show_status; press_enter ;;
-      2)
-        echo "1) 初始化部署"
-        echo "2) 修复部署"
-        read -rp "选择 [1/2]: " sub_action
-        case "$sub_action" in
-          1) run_menu_action full_setup ;;
-          2) run_menu_action repair_command ;;
-          *) warn "无效选择" ;;
-        esac
-        press_enter
-        ;;
-      3) run_menu_action nodes_menu; press_enter ;;
-      4) run_menu_action network_menu; press_enter ;;
-      5) run_menu_action acl_menu; press_enter ;;
-      6) run_menu_action service_menu; press_enter ;;
-      7)
-        echo "1) 健康检查"
-        echo "2) 运行审计"
-        echo "3) 安装审计"
-        read -rp "选择 [1-3]: " sub_action
-        case "$sub_action" in
-          1) run_menu_action healthcheck ;;
-          2) run_menu_action runtime_audit ;;
-          3) run_menu_action audit_installation ;;
-          *) warn "无效选择" ;;
-        esac
-        press_enter
-        ;;
-      8) run_menu_action diagnostics_menu; press_enter ;;
-      9) run_menu_action maintenance_menu; press_enter ;;
-      0) break ;;
-      *) warn "无效选择"; press_enter ;;
-    esac
+    dispatch_interactive_menu_action "$action" || break
   done
 }
 
