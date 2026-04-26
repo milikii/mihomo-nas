@@ -53,12 +53,15 @@
 
 - 阶段 5 进入“代码结构收口”
 - 推进粒度已切换为职责块收口，不再默认继续单行 helper 抽取
-- 当前已完成三类块级收口：
+- 当前已完成四类块级收口：
   - 运行态与审计展示块：`status`、`runtime-audit`、`healthcheck`、`diagnose`、`audit_installation`
   - 安装与同步块：`install_webui`、`install_project`、`install_project_sync`、`disable_project_sync`、`finalize_project_install`
   - manager sync unit 渲染块：通用 render/write、sections、timer static settings、service body
-- 下一闭环优先转向 `lib/render.sh` 的 `render_config`
-  - 分离访问/控制面基础段
-  - 分离 DNS 与基础配置段
-  - 分离 provider / rules 装配段
+  - `render_config` 渲染块：访问/控制面基础段、DNS/基础配置段、显式代理认证段、provider/group 组装段、rules 尾段
+- `render_config` 当前已退回为编排入口，负责状态准备、调用职责块和配置文件权限收尾
+- 下一闭环优先转向 `mihomo` 的运行前准备与服务启停编排
+  - 优先 `prepare_runtime_assets`
+  - 优先 `start_service_command`
+  - 优先 `restart_service_command`
+  - 优先 `enable_and_start_service_command`
 - 不在该阶段顺手扩更多控制面能力，也不继续围绕 manager sync unit 做单行 helper 级拆分

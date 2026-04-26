@@ -518,6 +518,25 @@ EOF
   [[ -n "$groups_line" && -n "$rules_line" && "$groups_line" -lt "$rules_line" ]]
 }
 
+test_render_config_keeps_rules_tail_last() {
+  setup_case
+  run_manager render-config >/dev/null
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  python3 "${STATECTL}" add-rule "${TMPDIR_CASE}/state/acl.json" port 443 manual-node >/dev/null
+  run_manager render-config >/dev/null
+
+  rules_line="$(grep -n '^rules:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  acl_rule_line="$(grep -n '^  - DST-PORT,443,manual-node$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  process_rule_line="$(grep -n '^  - PROCESS-NAME,mihomo,DIRECT$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  geoip_rule_line="$(grep -n '^  - GEOIP,CN,DIRECT$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  match_rule_line="$(grep -n '^  - MATCH,PROXY$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+
+  [[ -n "$rules_line" && -n "$acl_rule_line" && "$rules_line" -lt "$acl_rule_line" ]]
+  [[ -n "$acl_rule_line" && -n "$process_rule_line" && "$acl_rule_line" -lt "$process_rule_line" ]]
+  [[ -n "$process_rule_line" && -n "$geoip_rule_line" && "$process_rule_line" -lt "$geoip_rule_line" ]]
+  [[ -n "$geoip_rule_line" && -n "$match_rule_line" && "$geoip_rule_line" -lt "$match_rule_line" ]]
+}
+
 test_default_rule_preset_is_rendered() {
   setup_case
   run_manager set-rule-preset default >/dev/null
@@ -1143,6 +1162,7 @@ main() {
   test_render_config_keeps_dns_block_before_authentication
   test_render_config_keeps_authentication_before_proxy_providers
   test_render_config_keeps_provider_block_before_rules
+  test_render_config_keeps_rules_tail_last
   test_default_rule_preset_is_rendered
   test_apply_default_template_command
   test_rules_repo_command

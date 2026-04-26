@@ -327,6 +327,35 @@ proxy-groups:
 EOF
 }
 
+render_rules_section() {
+  local config_file="$1"
+  local custom_rule
+
+  cat >>"$config_file" <<'EOF'
+
+rules:
+EOF
+
+  while IFS= read -r custom_rule; do
+    [[ -n "$custom_rule" ]] || continue
+    printf '  - %s\n' "$custom_rule" >>"$config_file"
+  done < <(render_rules_block "$RENDERED_RULES_FILE")
+  while IFS= read -r custom_rule; do
+    [[ -n "$custom_rule" ]] || continue
+    printf '  - %s\n' "$custom_rule" >>"$config_file"
+  done < <(render_rules_block "$ACL_RENDERED_RULES_FILE")
+  while IFS= read -r custom_rule; do
+    [[ -n "$custom_rule" ]] || continue
+    printf '  - %s\n' "$custom_rule" >>"$config_file"
+  done < <(render_rules_block "$RULESET_PRESET_RENDERED_FILE")
+
+  cat >>"$config_file" <<'EOF'
+  - PROCESS-NAME,mihomo,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,PROXY
+EOF
+}
+
 render_config() {
   require_root
   ensure_layout
@@ -384,31 +413,7 @@ render_config() {
   render_dns_base_block "$CONFIG_FILE" "$enable_ipv6"
   render_authentication_block "$CONFIG_FILE"
   render_provider_groups_block "$CONFIG_FILE" "$active_provider_count" "$manual_enabled_count" active_subscription_ids active_provider_names
-
-  cat >>"$CONFIG_FILE" <<'EOF'
-
-rules:
-EOF
-
-  local custom_rule
-  while IFS= read -r custom_rule; do
-    [[ -n "$custom_rule" ]] || continue
-    printf '  - %s\n' "$custom_rule" >>"$CONFIG_FILE"
-  done < <(render_rules_block "$RENDERED_RULES_FILE")
-  while IFS= read -r custom_rule; do
-    [[ -n "$custom_rule" ]] || continue
-    printf '  - %s\n' "$custom_rule" >>"$CONFIG_FILE"
-  done < <(render_rules_block "$ACL_RENDERED_RULES_FILE")
-  while IFS= read -r custom_rule; do
-    [[ -n "$custom_rule" ]] || continue
-    printf '  - %s\n' "$custom_rule" >>"$CONFIG_FILE"
-  done < <(render_rules_block "$RULESET_PRESET_RENDERED_FILE")
-
-  cat >>"$CONFIG_FILE" <<'EOF'
-  - PROCESS-NAME,mihomo,DIRECT
-  - GEOIP,CN,DIRECT
-  - MATCH,PROXY
-EOF
+  render_rules_section "$CONFIG_FILE"
 
   chown "${MIHOMO_USER}:${MIHOMO_USER}" "$CONFIG_FILE"
   chmod 640 "$CONFIG_FILE"

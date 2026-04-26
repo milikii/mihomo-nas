@@ -42,6 +42,14 @@
   - 运行态与审计展示块已完成一轮共用逻辑收口，覆盖 `status`、`runtime-audit`、`healthcheck`、`diagnose`、`audit_installation`
   - 安装与同步块已完成一轮共用逻辑收口，覆盖 `install_webui`、`install_project`、`install_project_sync`、`disable_project_sync`、`finalize_project_install`
   - manager sync unit 渲染链已完成当前最小收口，通用 render/write、sections、timer static settings、service body 已完成抽离
+  - `lib/render.sh` 的 `render_config` 已完成当前块级收口：
+    - 访问/控制面基础段已独立
+    - DNS 与基础配置段已独立
+    - 显式代理认证段已独立
+    - provider / proxy-group 组装段已独立
+    - rules 尾段已独立
+  - `render_config` 当前已收敛为“准备上下文 + 调用职责块 + 权限收尾”的编排函数
+  - `render_config` 的关键输出顺序已补 focused tests，覆盖 access / dns / auth / provider / rules 五段相对位置
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -55,7 +63,7 @@
 
 ## 当前风险与限制
 
-- `lib/render.sh` 的 `render_config` 仍是阶段 5 当前最大的块级热点，下一闭环默认转向这里
+- `mihomo` 中的运行前准备与服务启停编排（`prepare_runtime_assets`、`start_service_command`、`restart_service_command`、`enable_and_start_service_command`）已成为阶段 5 下一块热点
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

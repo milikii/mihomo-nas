@@ -57,6 +57,13 @@
 - 只有当某个 helper 抽取能直接消除更大块重复逻辑时，才允许继续新增 helper
 - 目标是降低真实复杂度，而不是继续堆积形式上的更细拆分
 
+## 2026-04-26 render_config 收口完成后转向服务编排链
+
+- `lib/render.sh` 的 `render_config` 当前已按职责块拆出访问/控制面、DNS 基础配置、显式代理认证、provider/group 组装、rules 尾段
+- 该函数保留为编排入口，但当前主复杂度已从大段配置拼装下降为“上下文准备 + 块调用 + 权限收尾”
+- 阶段 5 的下一优先级转向 `mihomo` 主脚本中的运行前准备与服务启停编排，优先 `prepare_runtime_assets`、`start_service_command`、`restart_service_command`、`enable_and_start_service_command`
+- 原因不是功能扩展，而是这些命令共享同一套高风险前置准备链，且已有 `service_mock` 回归基础，适合继续按职责块收口
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档

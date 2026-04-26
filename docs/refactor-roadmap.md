@@ -238,17 +238,18 @@
 - 已完成一轮运行态与审计展示块收口，覆盖 `status`、`runtime-audit`、`healthcheck`、`diagnose`、`audit_installation`
 - 已完成一轮安装与同步块收口，覆盖 `install_webui`、`install_project`、`install_project_sync`、`disable_project_sync`、`finalize_project_install`
 - 已完成 manager sync unit 渲染链的当前最小收口，通用 render/write、sections、timer static settings、service body 已抽离
+- 已完成 `lib/render.sh` 的 `render_config` 当前块级收口，访问/控制面、DNS 基础配置、显式代理认证、provider/group、rules 尾段均已独立
 - `install_webui` 的解压失败告警已恢复为可见输出
 - 当前仍保持与重构前一致的输出文本与退化行为
 
 下一优先级：
 
-1. 先收口 `lib/render.sh` 的 `render_config`
-   - 分离访问/控制面基础段
-   - 分离 DNS 与基础配置段
-   - 分离 provider / rules 装配段
-   - 保持 `config.yaml` 文本顺序与退化行为不变
-2. 再收口 `mihomo` 主脚本中的长编排函数
+1. 先收口 `mihomo` 主脚本中的运行前准备与服务启停编排
+   - 优先 `prepare_runtime_assets`
+   - 优先 `start_service_command`
+   - 优先 `restart_service_command`
+   - 优先 `enable_and_start_service_command`
+2. 再收口 `mihomo` 其他长编排函数
    - 优先 `main`
    - 优先 `router_wizard`
    - 优先 `import_links`
@@ -265,7 +266,6 @@
 
 任务：
 
-- 收口 `render_config` 的块级边界
 - 收口 `mihomo` 的长编排函数边界
 - 为 `statectl.py` 退化成更小状态工具准备边界
 
