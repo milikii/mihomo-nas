@@ -167,6 +167,23 @@ choose_acl_rule_kind() {
   esac
 }
 
+collect_import_link_uris() {
+  local input_fd="$1"
+  local output_file="$2"
+  local line
+  local normalized_line
+  local lowered_line
+
+  info "请粘贴节点链接，每行一个。输入 end 结束，也可以按 Ctrl-D 结束。"
+  while IFS= read -r -u "$input_fd" line; do
+    normalized_line="${line%$'\r'}"
+    lowered_line="${normalized_line,,}"
+    [[ -z "$normalized_line" ]] && continue
+    [[ "$lowered_line" == "end" || "$lowered_line" == "done" ]] && break
+    printf '%s\n' "$normalized_line" >>"$output_file"
+  done
+}
+
 import_links() {
   require_root
   require_statectl
@@ -174,9 +191,6 @@ import_links() {
 
   local tmp
   local scan_tmp
-  local line
-  local normalized_line
-  local lowered_line
   local uri
   local default_name
   local server
@@ -200,14 +214,7 @@ import_links() {
   exec {input_fd}<"$input_path"
   tmp="$(mktemp)"
   scan_tmp="$(mktemp)"
-  info "请粘贴节点链接，每行一个。输入 end 结束，也可以按 Ctrl-D 结束。"
-  while IFS= read -r -u "$input_fd" line; do
-    normalized_line="${line%$'\r'}"
-    lowered_line="${normalized_line,,}"
-    [[ -z "$normalized_line" ]] && continue
-    [[ "$lowered_line" == "end" || "$lowered_line" == "done" ]] && break
-    printf '%s\n' "$normalized_line" >>"$tmp"
-  done
+  collect_import_link_uris "$input_fd" "$tmp"
 
   python3 "$STATECTL" scan-uris "$tmp" >"$scan_tmp"
   snapshot_before_change "import-links"
