@@ -489,6 +489,67 @@ test_disable_alpha_update_disables_timer() {
   assert_log_contains 'disable --now mihomo-alpha-update.timer'
 }
 
+test_update_alpha_command_persists_channel_and_snapshots_previous_settings() {
+  setup_case
+  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  run_manager render-config >/dev/null
+  printf 'CORE_CHANNEL="stable"\n' >> "${TMPDIR_CASE}/settings.env"
+
+  local core_bin="${TMPDIR_CASE}/mihomo-core"
+  cat > "${core_bin}" <<'EOCORE'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "-v" ]]; then
+  echo "Old Mihomo Mock"
+  exit 0
+fi
+if [[ "${1:-}" == "-t" ]]; then
+  exit 0
+fi
+exit 0
+EOCORE
+  chmod +x "${core_bin}"
+
+  output="$(run_manager_with_mihomo_bin "${core_bin}" update-alpha --quiet)"
+  grep -q '^CORE_CHANNEL="alpha"$' "${TMPDIR_CASE}/settings.env"
+  grep -q '^CORE_CHANNEL="stable"$' "${TMPDIR_CASE}/state/snapshots/latest/settings.env"
+  grep -Fq 'restart mihomo' "${TMPDIR_CASE}/systemctl.log"
+  grep -Fq 'api.github.com/repos/MetaCubeX/mihomo/releases' "${TMPDIR_CASE}/curl.log"
+  if grep -q '已安装 Mihomo Mock v1.0.0' <<<"$output"; then
+    echo "update-alpha --quiet should suppress install success output" >&2
+    exit 1
+  fi
+  grep -q '已重启 mihomo' <<<"$output"
+}
+
+test_update_stable_command_persists_channel_and_reports_install() {
+  setup_case
+  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  run_manager render-config >/dev/null
+  printf 'CORE_CHANNEL="alpha"\n' >> "${TMPDIR_CASE}/settings.env"
+
+  local core_bin="${TMPDIR_CASE}/mihomo-core"
+  cat > "${core_bin}" <<'EOCORE'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "-v" ]]; then
+  echo "Old Mihomo Mock"
+  exit 0
+fi
+if [[ "${1:-}" == "-t" ]]; then
+  exit 0
+fi
+exit 0
+EOCORE
+  chmod +x "${core_bin}"
+
+  output="$(run_manager_with_mihomo_bin "${core_bin}" update-stable)"
+  grep -q '^CORE_CHANNEL="stable"$' "${TMPDIR_CASE}/settings.env"
+  grep -q '^CORE_CHANNEL="alpha"$' "${TMPDIR_CASE}/state/snapshots/latest/settings.env"
+  grep -Fq 'api.github.com/repos/MetaCubeX/mihomo/releases/latest' "${TMPDIR_CASE}/curl.log"
+  grep -Fq 'restart mihomo' "${TMPDIR_CASE}/systemctl.log"
+  grep -q '已安装 Mihomo Mock v1.0.0' <<<"$output"
+  grep -q '已重启 mihomo' <<<"$output"
+}
+
 test_runtime_audit_outputs() {
   setup_case
   touch "${TMPDIR_CASE}/Country.mmdb"
@@ -1166,6 +1227,8 @@ main() {
   test_start_installs_missing_core_before_systemctl_start
   test_configure_restart_enables_timer
   test_disable_alpha_update_disables_timer
+  test_update_alpha_command_persists_channel_and_snapshots_previous_settings
+  test_update_stable_command_persists_channel_and_reports_install
   test_runtime_audit_outputs
   test_healthcheck_uses_localhost_proxy_probe
   test_healthcheck_ignores_ss_pipefail_false_negative

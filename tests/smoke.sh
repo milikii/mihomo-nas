@@ -1299,6 +1299,24 @@ test_usage_mentions_new_commands() {
   assert_contains "$output" '兼容命令:'
 }
 
+test_main_without_args_prints_usage_when_not_tty() {
+  setup_case
+  output="$(run_manager)"
+  assert_contains "$output" 'mihomo v0.6.0'
+  assert_contains "$output" '核心命令:'
+  assert_contains "$output" '维护与内部命令:'
+  assert_contains "$output" '兼容命令:'
+}
+
+test_main_rejects_unknown_command() {
+  setup_case
+  if run_manager not-a-real-command >/tmp/mh-main-unknown-command.out 2>&1; then
+    echo "main should fail on unknown command" >&2
+    exit 1
+  fi
+  grep -q '未知命令: not-a-real-command' /tmp/mh-main-unknown-command.out
+}
+
 test_menu_mentions_new_buckets() {
   grep -q 'echo "3) 节点与订阅"' "${ROOT}/mihomo"
   grep -q 'echo "4) 网络入口与模板"' "${ROOT}/mihomo"
@@ -1366,6 +1384,8 @@ main() {
   test_manager_sync_timer_static_settings_render_expected_lines
   test_manager_sync_timer_install_block_renders_expected_lines
   test_usage_mentions_new_commands
+  test_main_without_args_prints_usage_when_not_tty
+  test_main_rejects_unknown_command
   test_menu_mentions_new_buckets
   echo "smoke: ok"
 }
