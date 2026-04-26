@@ -241,16 +241,16 @@
 - 已完成 `lib/render.sh` 的 `render_config` 当前块级收口，访问/控制面、DNS 基础配置、显式代理认证、provider/group、rules 尾段均已独立
 - 已完成 `mihomo` 运行前准备与服务启停编排的当前最小收口，runtime support files、runtime geo assets、runtime core guard、prepared start/restart/enable-start 已独立
 - 已完成 `mihomo` 部署与修复编排的当前最小收口，setup/repair context、repair WebUI、setup maintenance、setup service finalize 已独立
+- 已完成 `mihomo` 订阅刷新编排的当前最小收口，single subscription refresh、success/failure recording、update-subscriptions orchestration 已独立
 - `install_webui` 的解压失败告警已恢复为可见输出
 - 当前仍保持与重构前一致的输出文本与退化行为
 
 下一优先级：
 
-1. 先收口 `mihomo` 主脚本中的可验证非交互长编排
-   - 优先 `update_subscriptions_command`
+1. 先收口 `mihomo` 主脚本中更易验证的交互长编排
+   - 优先 `import_links`
 2. 再收口 `mihomo` 其他长编排函数
    - 优先 `router_wizard`
-   - 优先 `import_links`
    - 优先 `main`
 3. 最后为 `scripts/statectl.py` 退化做准备
    - 限制新增协议解析逻辑

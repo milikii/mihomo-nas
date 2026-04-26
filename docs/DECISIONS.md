@@ -78,6 +78,14 @@
 - 原因是 `router_wizard`、`import_links` 主要依赖交互输入，当前更保守、可验证的下一步是先收口非交互的 provider 缓存刷新链
 - 待订阅刷新链收口后，再评估 `router_wizard`、`import_links` 与 `main` 的后续收口顺序
 
+## 2026-04-26 订阅刷新收口后优先转向 import_links
+
+- `update_subscriptions_command` 当前已收口为“遍历启用订阅 + 单订阅刷新 + 结果统计 + 状态收尾”的编排入口
+- `service_mock` 已补到订阅刷新成功、无启用订阅和 curl 失败记账分支，当前可验证非交互链已暂时收口
+- 下一优先级确定为 `import_links`，暂不先做 `router_wizard`
+- 原因是 `import_links` 已具备 `/dev/stdin` fallback，并且复用 `scan-uris` 与 `append-node` 既有能力，更容易先补 focused tests 再做职责块收口
+- `router_wizard` 继续排在其后，待 `import_links` 收口后再处理网络参数采集与 env 写入编排
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档

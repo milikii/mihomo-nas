@@ -62,6 +62,11 @@
     - `setup` 的定时维护配置段已独立
     - `setup` 的最终服务状态决策段已独立
   - 服务侧 focused tests 已补到 `repair` 的 WebUI 跳过重装/失败退化，以及 `setup` 的定时器落盘、有节点启动、无节点停用分支
+  - `mihomo` 的订阅刷新编排已完成当前最小收口：
+    - 单订阅 provider 缓存刷新段已独立
+    - 成功/失败记账与提示输出段已独立
+    - `update-subscriptions` 已退回为“遍历启用订阅 + 结果统计 + 状态收尾”的编排入口
+  - 服务侧 focused tests 已补到 `update-subscriptions` 的成功刷新、无启用订阅和 curl 失败记账分支
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -75,7 +80,7 @@
 
 ## 当前风险与限制
 
-- `mihomo` 中的非交互长编排仍有剩余热点，当前下一优先级已转向 `update_subscriptions_command`
+- `mihomo` 中的交互式长编排仍有剩余热点，当前下一优先级已转向 `import_links`
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由
