@@ -1372,6 +1372,15 @@ run_default_main_entry() {
   fi
 }
 
+run_core_update_command() {
+  local channel="$1"
+  local quiet="${2:-}"
+  snapshot_before_change "update-${channel}"
+  install_binary "$channel" "$quiet"
+  upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "$channel"
+  restart_service_if_active
+}
+
 main() {
   case "${1:-}" in
     "") run_default_main_entry ;;
@@ -1409,18 +1418,8 @@ main() {
     router-wizard) router_wizard ;;
     set-ports) snapshot_before_change "set-ports"; configure_ports ;;
     install-geosite|update-geosite) install_geosite_dat ;;
-    update-alpha)
-      snapshot_before_change "update-alpha"
-      install_binary alpha "${2:-}"
-      upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "alpha"
-      restart_service_if_active
-      ;;
-    update-stable)
-      snapshot_before_change "update-stable"
-      install_binary stable "${2:-}"
-      upsert_env_var "$SETTINGS_ENV" "CORE_CHANNEL" "stable"
-      restart_service_if_active
-      ;;
+    update-alpha) run_core_update_command alpha "${2:-}" ;;
+    update-stable) run_core_update_command stable "${2:-}" ;;
     rollback-core) rollback_core ;;
     install-webui) install_webui "${2:-}" "${3:-}" ;;
     start) start_service_command ;;
