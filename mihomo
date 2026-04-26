@@ -210,13 +210,21 @@ append_import_link_node() {
   python3 "$STATECTL" append-node "$NODES_STATE_FILE" "$uri" "$custom_name" "$enabled_value" >/dev/null
 }
 
-import_links() {
-  require_root
-  require_statectl
-  ensure_layout
+warn_skipped_import_link() {
+  local scheme="$1"
+  local default_name="$2"
+  local uri="$3"
+  local reason="$4"
 
-  local tmp
-  local scan_tmp
+  warn "跳过不支持的 ${scheme:-unknown} 节点: ${default_name:-$uri}"
+  [[ -n "$reason" ]] && warn "原因: ${reason}"
+}
+
+process_import_link_scan_results() {
+  local input_fd="$1"
+  local scan_file="$2"
+  local -n imported_ref="$3"
+  local -n skipped_ref="$4"
   local uri
   local default_name
   local server
@@ -226,6 +234,26 @@ import_links() {
   local supported
   local scheme
   local reason
+
+  while IFS=$'\t' read -r uri default_name server port network security supported scheme reason; do
+    [[ -n "$uri" ]] || continue
+    if [[ "$supported" != "1" ]]; then
+      warn_skipped_import_link "$scheme" "$default_name" "$uri" "$reason"
+      skipped_ref=$((skipped_ref + 1))
+      continue
+    fi
+    append_import_link_node "$input_fd" "$uri" "$default_name" "$server" "$port" "$network" "$security" "$scheme"
+    imported_ref=$((imported_ref + 1))
+  done <"$scan_file"
+}
+
+import_links() {
+  require_root
+  require_statectl
+  ensure_layout
+
+  local tmp
+  local scan_tmp
   local imported=0
   local skipped=0
   local input_path="/dev/stdin"
@@ -241,18 +269,7 @@ import_links() {
 
   python3 "$STATECTL" scan-uris "$tmp" >"$scan_tmp"
   snapshot_before_change "import-links"
-
-  while IFS=$'\t' read -r uri default_name server port network security supported scheme reason; do
-    [[ -n "$uri" ]] || continue
-    if [[ "$supported" != "1" ]]; then
-      warn "跳过不支持的 ${scheme:-unknown} 节点: ${default_name:-$uri}"
-      [[ -n "$reason" ]] && warn "原因: ${reason}"
-      skipped=$((skipped + 1))
-      continue
-    fi
-    append_import_link_node "$input_fd" "$uri" "$default_name" "$server" "$port" "$network" "$security" "$scheme"
-    imported=$((imported + 1))
-  done <"$scan_tmp"
+  process_import_link_scan_results "$input_fd" "$scan_tmp" imported skipped
 
   rm -f "$tmp" "$scan_tmp"
   exec {input_fd}<&-
