@@ -364,6 +364,27 @@ EOSYS
   grep -Fq 'start mihomo' "${TMPDIR_CASE}/systemctl.log"
 }
 
+test_restart_prepares_runtime_assets_before_systemctl_restart() {
+  setup_case
+  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  cat > "${TMPDIR_CASE}/bin/systemctl" <<'EOSYS'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${SYSTEMCTL_LOG:?}"
+if [[ "$1" == "restart" && "$2" == "mihomo" ]]; then
+  [[ -f "${CONFIG_FILE:?}" ]] || exit 61
+  [[ -f "${SYSTEMD_UNIT:?}" ]] || exit 62
+  [[ -f "${ROUTER_SYSCTL:?}" ]] || exit 63
+  [[ -f "${MIHOMO_DIR:?}/Country.mmdb" ]] || exit 64
+  [[ -f "${MIHOMO_DIR:?}/GeoSite.dat" ]] || exit 65
+fi
+exit 0
+EOSYS
+  chmod +x "${TMPDIR_CASE}/bin/systemctl"
+
+  run_manager restart >/dev/null
+  grep -Fq 'restart mihomo' "${TMPDIR_CASE}/systemctl.log"
+}
+
 test_configure_restart_enables_timer() {
   setup_case
   run_manager configure-restart 24 >/dev/null
@@ -958,6 +979,7 @@ main() {
   test_start_without_nodes_fails_before_systemctl_start
   test_start_prepares_runtime_support_files_before_systemctl_start
   test_start_prepares_geo_assets_before_systemctl_start
+  test_restart_prepares_runtime_assets_before_systemctl_restart
   test_configure_restart_enables_timer
   test_disable_alpha_update_disables_timer
   test_runtime_audit_outputs

@@ -775,16 +775,21 @@ prepare_runtime_assets() {
   config_test
 }
 
-start_service_command() {
+run_prepared_mihomo_systemctl_command() {
+  local success_message="$1"
+  shift
+
   prepare_runtime_assets
-  systemctl_cmd start mihomo
-  ok "mihomo 已启动"
+  systemctl_cmd "$@" mihomo
+  ok "$success_message"
+}
+
+start_service_command() {
+  run_prepared_mihomo_systemctl_command "mihomo 已启动" start
 }
 
 restart_service_command() {
-  prepare_runtime_assets
-  systemctl_cmd restart mihomo
-  ok "mihomo 已重启"
+  run_prepared_mihomo_systemctl_command "mihomo 已重启" restart
 }
 
 enable_service_command() {
