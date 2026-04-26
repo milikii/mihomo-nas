@@ -632,6 +632,18 @@ func TestRunDispatchesRulesRepoEntries(t *testing.T) {
 	}
 }
 
+func TestRunDispatchesRulesRepoFindThroughRun(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		if err := Run([]string{"rules-repo", "find", "google"}); err != nil {
+			t.Fatalf("run rules-repo find: %v", err)
+		}
+	})
+	if !strings.Contains(output, "keyword=google") || !strings.Contains(output, "matched=") {
+		t.Fatalf("unexpected rules-repo find output:\n%s", output)
+	}
+}
+
 func TestRunDispatchesRulesList(t *testing.T) {
 	setCLIPathsEnv(t)
 	a := app.New()
@@ -686,6 +698,55 @@ func TestRunDispatchesSubscriptionsUpdate(t *testing.T) {
 	})
 	if strings.Contains(output, "error") {
 		t.Fatalf("unexpected subscriptions update output:\n%s", output)
+	}
+}
+
+func TestRunDispatchesMenuThroughRun(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		oldStdin := os.Stdin
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("pipe stdin: %v", err)
+		}
+		_, _ = w.WriteString("0\n")
+		_ = w.Close()
+		os.Stdin = r
+		defer func() { os.Stdin = oldStdin }()
+		if err := Run([]string{"menu"}); err != nil {
+			t.Fatalf("run menu: %v", err)
+		}
+	})
+	if !strings.Contains(output, "1) 状态") || !strings.Contains(output, "0) 退出") {
+		t.Fatalf("unexpected menu output:\n%s", output)
+	}
+}
+
+func TestRunDispatchesSetupThroughRun(t *testing.T) {
+	setCLIPathsEnv(t)
+	err := Run([]string{"setup"})
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run setup: %v", err)
+	}
+}
+
+func TestRunDispatchesClearRulesThroughRun(t *testing.T) {
+	setCLIPathsEnv(t)
+	err := Run([]string{"clear-rules"})
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run clear-rules: %v", err)
 	}
 }
 

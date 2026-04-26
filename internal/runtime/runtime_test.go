@@ -259,6 +259,34 @@ func TestBuildRuntimeConfigUsesConfiguredSecret(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigIncludesFullFakeIPFilterList(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		`    - "*.lan"`,
+		`    - "*.local"`,
+		`    - "+.arpa"`,
+		`    - "+.stun.*.*"`,
+		`    - "localhost.ptlogin2.qq.com"`,
+		`    - "+.msftconnecttest.com"`,
+		`    - "+.msftncsi.com"`,
+		`    - "captive.apple.com"`,
+		`    - "connectivitycheck.gstatic.com"`,
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
 func TestBuildRuntimeConfigOmitsControllerCORSWhenDisabled(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),
@@ -323,6 +351,24 @@ func TestBuildRuntimeConfigIncludesDNSDefaults(t *testing.T) {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
 		}
+	}
+}
+
+func TestBuildRuntimeConfigKeepsNameserverPolicyAndFallbackOrdering(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	nameserverIdx := strings.Index(text, "  nameserver:\n")
+	fallbackIdx := strings.Index(text, "  fallback: []\n")
+	if !(nameserverIdx >= 0 && fallbackIdx > nameserverIdx) {
+		t.Fatalf("expected nameserver before fallback:\n%s", text)
 	}
 }
 
@@ -529,6 +575,30 @@ func TestBuildRuntimeConfigIncludesSubscriptionProvidersWhenEnabled(t *testing.T
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
 		}
+	}
+}
+
+func TestBuildRuntimeConfigOmitsSubscriptionProviderWhenCacheMissing(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{
+		ID:        "sub-1",
+		Name:      "sub-1",
+		URL:       "https://subscription.example.com/sub.txt",
+		Enabled:   true,
+		CreatedAt: state.NowISO(),
+	}}
+	text, err := buildRuntimeConfig(paths, cfg, st, nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	if strings.Contains(text, "subscription-sub") {
+		t.Fatalf("did not expect subscription provider without cache:\n%s", text)
 	}
 }
 
@@ -1052,6 +1122,31 @@ func TestBuildRuntimeConfigIncludesAutoGroupSettings(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigKeepsProxyGroupHealthCheckURL(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Nodes = []state.Node{{
+		ID:         "1",
+		Name:       "manual-1",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443?security=tls#manual-1",
+		ImportedAt: state.NowISO(),
+		Source:     state.Source{Kind: "manual"},
+	}}
+	text, err := buildRuntimeConfig(paths, cfg, st, nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	if !strings.Contains(text, "url: \"https://cp.cloudflare.com/generate_204\"\n") {
+		t.Fatalf("expected proxy-group health-check url:\n%s", text)
+	}
+}
+
 func TestBuildRuntimeConfigKeepsProxyGroupOrder(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),
@@ -1183,6 +1278,25 @@ func TestBuildServiceUnitIncludesBootDependenciesAndInstallTarget(t *testing.T) 
 		"Wants=network-online.target\n",
 		"WantedBy=multi-user.target\n",
 		"Type=simple\n",
+		"LimitNOFILE=1048576\n",
+	} {
+		if !strings.Contains(unit, needle) {
+			t.Fatalf("missing %q in service unit:\n%s", needle, unit)
+		}
+	}
+}
+
+func TestBuildServiceUnitUsesRestartPolicyAndNOFILELimit(t *testing.T) {
+	paths := Paths{
+		RuntimeDir:  filepath.Join(t.TempDir(), "runtime"),
+		BinPath:     filepath.Join(t.TempDir(), "bin", "minimalist"),
+		ServiceUnit: filepath.Join(t.TempDir(), "systemd", "minimalist.service"),
+	}
+	cfg := config.Default()
+	unit := BuildServiceUnit(paths, cfg)
+	for _, needle := range []string{
+		"Restart=on-failure\n",
+		"RestartSec=5\n",
 		"LimitNOFILE=1048576\n",
 	} {
 		if !strings.Contains(unit, needle) {
