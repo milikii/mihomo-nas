@@ -96,6 +96,15 @@
     - 菜单动作回车返回与无效选择收尾已独立
     - `interactive_menu` 已退回为“展示菜单 + 读取 action + 调用分发 helper + 处理退出”的编排入口
   - `service_mock` 已补到 `interactive_menu` 的健康检查失败后回到菜单、顶层无效选择和部署子菜单无效选择分支
+  - `scripts/statectl.py` 的协议解析链已完成当前最小收口：
+    - URI scheme 提取段已独立
+    - 协议 parser 路由段已独立
+    - 成功/失败 scan 元数据归一化段已独立
+    - 可扫描 URI 过滤与单条 scan row 组装段已独立
+    - `parse_uri_info` 已退回为“准备 scheme + 选择 parser + 调用 parser”的编排入口
+    - `uri_info` 已退回为“取 scheme + parse + 成功/失败归一化”的编排入口
+    - `scan_uri_rows` 已退回为“遍历可扫描 URI + 组装 scan row”的编排入口
+  - `smoke` 已补到 `scan-uris` 的 unsupported reason、支持协议 metadata 和非 URI 行过滤分支
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -109,6 +118,6 @@
 
 ## 当前风险与限制
 
-- `scripts/statectl.py` 仍保留协议解析、scan 结果归一化与 provider 渲染之间的过渡期耦合，当前下一优先级已转向协议解析链
+- `scripts/statectl.py` 仍保留 `provider_item_from_node` 的多协议渲染与 TLS/network 选项组合耦合，当前下一优先级已转向 provider 渲染链
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

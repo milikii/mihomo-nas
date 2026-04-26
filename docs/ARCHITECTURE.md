@@ -72,6 +72,8 @@
   - CLI 入口分发块：default entry fallback、shared core update dispatch、workflow command dispatch、maintenance command dispatch
 - 当前已完成第十一类块级收口：
   - 交互菜单编排块：menu prompt、top-level dispatch、setup submenu、audit submenu、return flow
+- 当前已完成第十二类块级收口：
+  - 协议解析链：scheme extraction、parser dispatch、scan metadata normalization、scannable uri filtering、scan row assembly
 - `render_config` 当前已退回为编排入口，负责状态准备、调用职责块和配置文件权限收尾
 - `prepare_runtime_assets` 当前已退回为“根检查 + 节点检查 + 调用职责块 + config test”的编排入口
 - `full_setup` 当前已退回为“上下文准备 + 核心保障 + 运行时资产 + WebUI + 定时维护 + 服务状态收尾”的编排入口
@@ -81,8 +83,10 @@
 - `router_wizard` 当前已退回为“展示当前配置 + 收集输入 + snapshot + 写基础 env + 处理派生网段 + 写 bypass + 状态收尾”的编排入口
 - `main` 当前已退回为“处理默认入口 + 分发到 workflow/maintenance helper + 未知命令兜底”的编排入口
 - `interactive_menu` 当前已退回为“展示菜单 + 读取 action + 调用分发 helper + 处理退出”的编排入口
-- 下一闭环优先转向 `scripts/statectl.py` 的协议解析热点
-  - 优先 `parse_uri_info`
-  - 再看 `uri_info`
-  - 再看 `scan_uri_rows`
+- `parse_uri_info` 当前已退回为“准备 scheme + 选择 parser + 调用 parser”的编排入口
+- `uri_info` 当前已退回为“取 scheme + parse + 成功/失败归一化”的编排入口
+- `scan_uri_rows` 当前已退回为“遍历可扫描 URI + 组装 scan row”的编排入口
+- 下一闭环优先转向 `scripts/statectl.py` 的 provider 渲染热点
+  - 优先 `provider_item_from_node`
+  - 再看协议分支内部的 TLS/network 选项收尾
 - 不在该阶段顺手扩更多控制面能力，也不继续围绕 manager sync unit 做单行 helper 级拆分

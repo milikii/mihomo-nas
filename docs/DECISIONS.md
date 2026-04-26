@@ -118,6 +118,15 @@
 - 原因不是扩协议，而是该文件仍保留协议解析、scan 结果归一化和 provider 渲染之间的过渡期耦合
 - 当前已有 `smoke` 的 `scan-uris` / `import-links` / `render-config` 回归基础，先收口协议解析链比直接碰 provider 渲染更保守
 
+## 2026-04-26 协议解析链收口后转向 provider_item_from_node
+
+- `parse_uri_info` 当前已收口为“准备 scheme + 选择 parser + 调用 parser”的编排入口
+- `uri_info` 当前已收口为“取 scheme + parse + 成功/失败归一化”的编排入口
+- `scan_uri_rows` 当前已收口为“遍历可扫描 URI + 组装 scan row”的编排入口
+- 下一优先级确定为 `provider_item_from_node`，优先 vless/trojan/ss/vmess 渲染分支与 TLS/network 选项组合
+- 原因不是调整 provider 真相，而是该函数仍集中承担多协议 YAML 渲染和 xhttp/download-settings 收尾，是 `scripts/statectl.py` 剩余最显眼的协议热点
+- 当前已有 `smoke` 的协议渲染与 `render-config` 回归基础，先收口 provider 渲染链比继续下钻命名/去重 helper 更保守
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档
