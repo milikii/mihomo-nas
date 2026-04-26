@@ -1053,6 +1053,22 @@ test_repair_warns_when_webui_reinstall_fails() {
   grep -q '修复完成；核心部署已恢复到可测试状态' <<<"$output"
 }
 
+test_setup_applies_configured_maintenance_timers() {
+  setup_case
+  run_manager render-config >/dev/null
+  touch "${TMPDIR_CASE}/unzip-ok"
+  sed -i 's/^RESTART_INTERVAL_HOURS=\"0\"$/RESTART_INTERVAL_HOURS=\"24\"/' "${TMPDIR_CASE}/settings.env"
+  sed -i 's/^ALPHA_AUTO_UPDATE=\"0\"$/ALPHA_AUTO_UPDATE=\"1\"/' "${TMPDIR_CASE}/settings.env"
+  sed -i 's/^ALPHA_UPDATE_ONCALENDAR=\"daily\"$/ALPHA_UPDATE_ONCALENDAR=\"weekly\"/' "${TMPDIR_CASE}/settings.env"
+  output="$(run_manager setup)"
+  grep -Fq 'enable --now mihomo-restart.timer' "${TMPDIR_CASE}/systemctl.log"
+  grep -Fq 'enable --now mihomo-alpha-update.timer' "${TMPDIR_CASE}/systemctl.log"
+  grep -q '^OnUnitActiveSec=24h$' "${TMPDIR_CASE}/mihomo-restart.timer"
+  grep -q '^OnCalendar=weekly$' "${TMPDIR_CASE}/mihomo-alpha-update.timer"
+  grep -q '已启用定时重启: 每 24 小时' <<<"$output"
+  grep -q '已启用 Alpha 自动更新: weekly' <<<"$output"
+}
+
 test_update_subscriptions_refreshes_provider_cache() {
   setup_case
   run_manager add-subscription demo https://subscription.example/list.txt 1 >/dev/null
@@ -1114,6 +1130,7 @@ main() {
   test_repair_restores_missing_assets
   test_repair_skips_webui_install_when_ui_present
   test_repair_warns_when_webui_reinstall_fails
+  test_setup_applies_configured_maintenance_timers
   test_update_subscriptions_refreshes_provider_cache
   test_rollback_config_restores_template
   echo "service-mock: ok"

@@ -785,6 +785,11 @@ install_setup_webui() {
   fi
 }
 
+configure_setup_maintenance() {
+  configure_restart_timer "${RESTART_INTERVAL_HOURS:-0}"
+  configure_alpha_update "${ALPHA_AUTO_UPDATE:-0}" "${ALPHA_UPDATE_ONCALENDAR:-daily}"
+}
+
 prepare_runtime_assets() {
   require_root
   ensure_layout
@@ -1068,8 +1073,7 @@ full_setup() {
   write_runtime_support_files
   ensure_runtime_geo_assets
   install_setup_webui
-  configure_restart_timer "${RESTART_INTERVAL_HOURS:-0}"
-  configure_alpha_update "${ALPHA_AUTO_UPDATE:-0}" "${ALPHA_UPDATE_ONCALENDAR:-daily}"
+  configure_setup_maintenance
   config_test
   if [[ "$(node_enabled_count)" -gt 0 ]]; then
     systemctl_cmd enable --now mihomo
