@@ -185,6 +185,47 @@ func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	}
 }
 
+func TestSetupWithProvidersEnablesService(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "iptables" {
+				for _, arg := range args {
+					if arg == "-C" || arg == "-S" {
+						return errors.New("missing")
+					}
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#setup-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	if err := app.Setup(); err != nil {
+		t.Fatalf("setup with providers: %v", err)
+	}
+	if !hasRecordedCall(calls, "systemctl", "enable", "--now", "minimalist.service") {
+		t.Fatalf("expected setup to enable service, calls=%#v", calls)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	if !strings.Contains(output, "部署完成，服务已启用") {
+		t.Fatalf("unexpected setup output:\n%s", output)
+	}
+}
+
 func TestRenderConfigWritesRuntimeArtifacts(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
