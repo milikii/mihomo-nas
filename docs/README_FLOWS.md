@@ -29,6 +29,7 @@
 - 即使当前没有手动节点或订阅 provider，`render-config` 仍会生成仅含 `DIRECT` 的 `PROXY` 组
 - 开启显式代理认证或控制面 CORS 时，对应段落直接写入运行时 `config.yaml`
 - DNS 相关默认静态段落当前固定由 `render-config` 生成，包括 `default-nameserver`、`direct-nameserver`、`fake-ip-filter` 与 `nameserver-policy`
+- `profile`、`fallback-filter`、`proxy-server-nameserver` 当前也由 `render-config` 直接生成固定默认段落
 
 ## 节点与订阅
 

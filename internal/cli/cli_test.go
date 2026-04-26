@@ -150,6 +150,14 @@ func TestRunRulesRepoUsageAndIndexErrors(t *testing.T) {
 	}
 }
 
+func TestRunRulesRepoUnknownSubcommand(t *testing.T) {
+	a, _ := newCLIApp(t)
+	err := runRulesRepo(a, []string{"unknown"})
+	if err == nil || !strings.Contains(err.Error(), "unknown rules-repo command: unknown") {
+		t.Fatalf("expected unknown rules-repo command error, got %v", err)
+	}
+}
+
 func TestRunRulesRepoSummaryAndEntries(t *testing.T) {
 	a, stdout := newCLIApp(t)
 	if err := runRulesRepo(a, []string{"summary"}); err != nil {
@@ -253,6 +261,14 @@ func TestRunNodesUsageAndIndexErrors(t *testing.T) {
 	}
 }
 
+func TestRunNodesUnknownSubcommand(t *testing.T) {
+	a, _ := newCLIApp(t)
+	err := runNodes(a, []string{"unknown"})
+	if err == nil || !strings.Contains(err.Error(), "unknown nodes command: unknown") {
+		t.Fatalf("expected unknown nodes command error, got %v", err)
+	}
+}
+
 func TestRunSubscriptionsAddDisableAndRemove(t *testing.T) {
 	a, stdout := newCLIApp(t)
 	if err := runSubscriptions(a, []string{"add", "cli-sub", "https://subscription.example.com/cli.txt"}); err != nil {
@@ -303,6 +319,14 @@ func TestRunSubscriptionsUsageAndIndexErrors(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("args=%v want %q got %v", tc.args, tc.want, err)
 		}
+	}
+}
+
+func TestRunSubscriptionsUnknownSubcommand(t *testing.T) {
+	a, _ := newCLIApp(t)
+	err := runSubscriptions(a, []string{"unknown"})
+	if err == nil || !strings.Contains(err.Error(), "unknown subscriptions command: unknown") {
+		t.Fatalf("expected unknown subscriptions command error, got %v", err)
 	}
 }
 

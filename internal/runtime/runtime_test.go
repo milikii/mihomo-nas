@@ -75,3 +75,25 @@ func TestBuildRuntimeConfigIncludesDNSDefaults(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildRuntimeConfigIncludesProfileAndDNSPolicySections(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"profile:\n  store-selected: true\n  store-fake-ip: true\n",
+		"  fallback-filter:\n    geoip: false\n",
+		"  proxy-server-nameserver:\n    - 223.5.5.5\n    - 119.29.29.29\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
