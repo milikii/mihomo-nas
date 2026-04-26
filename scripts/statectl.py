@@ -973,14 +973,15 @@ def build_vmess_provider_item(name: str, info: dict) -> dict:
 
 
 def provider_item_renderer_for_scheme(scheme: str):
-    if scheme == "vless":
-        return build_vless_provider_item
-    if scheme == "trojan":
-        return build_trojan_provider_item
-    if scheme == "ss":
-        return build_ss_provider_item
-    if scheme == "vmess":
-        return build_vmess_provider_item
+    renderers = {
+        "vless": build_vless_provider_item,
+        "trojan": build_trojan_provider_item,
+        "ss": build_ss_provider_item,
+        "vmess": build_vmess_provider_item,
+    }
+    renderer = renderers.get(scheme)
+    if renderer:
+        return renderer
     fail(f"unsupported scheme: {scheme}")
 
 
