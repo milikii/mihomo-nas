@@ -494,6 +494,30 @@ EOF
   [[ -n "$provider_line" && -n "$groups_line" && "$provider_line" -lt "$groups_line" ]]
 }
 
+test_render_config_keeps_provider_block_before_rules() {
+  setup_case
+  run_manager add-subscription demo https://subscription.example/list.txt 1 >/dev/null
+  sub_id="$(python3 "${STATECTL}" list-subscriptions "${TMPDIR_CASE}/state/subscriptions.json" | awk -F'\t' 'NR==1{print $2}')"
+  mkdir -p "${TMPDIR_CASE}/proxy_providers/subscriptions"
+  cat > "${TMPDIR_CASE}/proxy_providers/subscriptions/${sub_id}.txt" <<'EOF'
+vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#sub-provider-node
+EOF
+  python3 "${STATECTL}" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  run_manager render-config >/dev/null
+
+  provider_line="$(grep -n '^proxy-providers:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  groups_line="$(grep -n '^proxy-groups:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  rules_line="$(grep -n '^rules:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+
+  grep -q '^  manual:$' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^    path: ./proxy_providers/manual.txt$' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^    path: ./proxy_providers/subscriptions/' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^      - manual$' "${TMPDIR_CASE}/config.yaml"
+  grep -q '^      - subscription-' "${TMPDIR_CASE}/config.yaml"
+  [[ -n "$provider_line" && -n "$groups_line" && "$provider_line" -lt "$groups_line" ]]
+  [[ -n "$groups_line" && -n "$rules_line" && "$groups_line" -lt "$rules_line" ]]
+}
+
 test_default_rule_preset_is_rendered() {
   setup_case
   run_manager set-rule-preset default >/dev/null
@@ -1118,6 +1142,7 @@ main() {
   test_render_config_keeps_access_block_order
   test_render_config_keeps_dns_block_before_authentication
   test_render_config_keeps_authentication_before_proxy_providers
+  test_render_config_keeps_provider_block_before_rules
   test_default_rule_preset_is_rendered
   test_apply_default_template_command
   test_rules_repo_command

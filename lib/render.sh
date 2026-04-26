@@ -243,6 +243,90 @@ EOF
   fi
 }
 
+render_provider_groups_block() {
+  local config_file="$1"
+  local active_provider_count="$2"
+  local manual_enabled_count="$3"
+  local active_subscription_ids_name="$4"
+  local active_provider_names_name="$5"
+  local provider_name
+  local provider_relpath
+  local sub_id
+  local -n active_subscription_ids_ref="$active_subscription_ids_name"
+  local -n active_provider_names_ref="$active_provider_names_name"
+
+  if [[ "$active_provider_count" -gt 0 ]]; then
+    cat >>"$config_file" <<'EOF'
+
+proxy-providers:
+EOF
+    if [[ "$manual_enabled_count" -gt 0 ]]; then
+      cat >>"$config_file" <<'EOF'
+  manual:
+    type: file
+    path: ./proxy_providers/manual.txt
+    health-check:
+      enable: true
+      url: "https://cp.cloudflare.com/generate_204"
+      interval: 300
+      timeout: 5000
+      lazy: true
+EOF
+    fi
+    for sub_id in "${active_subscription_ids_ref[@]}"; do
+      provider_name="$(subscription_provider_name "$sub_id")"
+      provider_relpath="$(subscription_provider_relpath "$sub_id")"
+      cat >>"$config_file" <<EOF
+  ${provider_name}:
+    type: file
+    path: ${provider_relpath}
+    health-check:
+      enable: true
+      url: "https://cp.cloudflare.com/generate_204"
+      interval: 300
+      timeout: 5000
+      lazy: true
+EOF
+    done
+    cat >>"$config_file" <<'EOF'
+
+proxy-groups:
+  - name: "PROXY"
+    type: select
+    proxies:
+      - DIRECT
+      - AUTO
+    use:
+EOF
+    for provider_name in "${active_provider_names_ref[@]}"; do
+      printf '      - %s\n' "$provider_name" >>"$config_file"
+    done
+    cat >>"$config_file" <<'EOF'
+
+  - name: "AUTO"
+    type: url-test
+    url: "https://cp.cloudflare.com/generate_204"
+    interval: 300
+    tolerance: 80
+    lazy: true
+    use:
+EOF
+    for provider_name in "${active_provider_names_ref[@]}"; do
+      printf '      - %s\n' "$provider_name" >>"$config_file"
+    done
+    return 0
+  fi
+
+  cat >>"$config_file" <<'EOF'
+
+proxy-groups:
+  - name: "PROXY"
+    type: select
+    proxies:
+      - DIRECT
+EOF
+}
+
 render_config() {
   require_root
   ensure_layout
@@ -271,8 +355,6 @@ render_config() {
   local sub_last_success
   local sub_imported_count
   local sub_last_error
-  local provider_name
-  local provider_relpath
   local -a lan_allowed_cidrs_arr=()
   local -a active_provider_names=()
   local -a active_subscription_ids=()
@@ -301,76 +383,7 @@ render_config() {
   render_access_controller_block "$CONFIG_FILE" lan_allowed_cidrs_arr "$config_mode" "$enable_ipv6" "$secret"
   render_dns_base_block "$CONFIG_FILE" "$enable_ipv6"
   render_authentication_block "$CONFIG_FILE"
-
-  if [[ "$active_provider_count" -gt 0 ]]; then
-    cat >>"$CONFIG_FILE" <<'EOF'
-
-proxy-providers:
-EOF
-    if [[ "$manual_enabled_count" -gt 0 ]]; then
-      cat >>"$CONFIG_FILE" <<'EOF'
-  manual:
-    type: file
-    path: ./proxy_providers/manual.txt
-    health-check:
-      enable: true
-      url: "https://cp.cloudflare.com/generate_204"
-      interval: 300
-      timeout: 5000
-      lazy: true
-EOF
-    fi
-    for sub_id in "${active_subscription_ids[@]}"; do
-      provider_name="$(subscription_provider_name "$sub_id")"
-      provider_relpath="$(subscription_provider_relpath "$sub_id")"
-      cat >>"$CONFIG_FILE" <<EOF
-  ${provider_name}:
-    type: file
-    path: ${provider_relpath}
-    health-check:
-      enable: true
-      url: "https://cp.cloudflare.com/generate_204"
-      interval: 300
-      timeout: 5000
-      lazy: true
-EOF
-    done
-    cat >>"$CONFIG_FILE" <<'EOF'
-
-proxy-groups:
-  - name: "PROXY"
-    type: select
-    proxies:
-      - DIRECT
-      - AUTO
-    use:
-EOF
-    for provider_name in "${active_provider_names[@]}"; do
-      printf '      - %s\n' "$provider_name" >>"$CONFIG_FILE"
-    done
-    cat >>"$CONFIG_FILE" <<'EOF'
-
-  - name: "AUTO"
-    type: url-test
-    url: "https://cp.cloudflare.com/generate_204"
-    interval: 300
-    tolerance: 80
-    lazy: true
-    use:
-EOF
-    for provider_name in "${active_provider_names[@]}"; do
-      printf '      - %s\n' "$provider_name" >>"$CONFIG_FILE"
-    done
-  else
-    cat >>"$CONFIG_FILE" <<'EOF'
-
-proxy-groups:
-  - name: "PROXY"
-    type: select
-    proxies:
-      - DIRECT
-EOF
-  fi
+  render_provider_groups_block "$CONFIG_FILE" "$active_provider_count" "$manual_enabled_count" active_subscription_ids active_provider_names
 
   cat >>"$CONFIG_FILE" <<'EOF'
 
