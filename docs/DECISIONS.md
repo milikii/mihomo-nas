@@ -71,6 +71,13 @@
 - 阶段 5 的下一优先级转向 `full_setup` 与 `repair_command`
 - 原因是它们仍然保留安装、修复、WebUI 退化、节点为空时启动决策等分支，是当前部署侧剩余的主要编排热点
 
+## 2026-04-26 setup/repair 收口后优先转向可验证的订阅刷新链
+
+- `full_setup` 与 `repair_command` 当前已收口为“公共上下文准备 + 运行时资产 + WebUI 分支 + 定时维护 + 服务状态收尾”的职责块编排
+- 下一优先级不直接转向交互式流程，而是先处理已有 `service_mock` 覆盖的 `update_subscriptions_command`
+- 原因是 `router_wizard`、`import_links` 主要依赖交互输入，当前更保守、可验证的下一步是先收口非交互的 provider 缓存刷新链
+- 待订阅刷新链收口后，再评估 `router_wizard`、`import_links` 与 `main` 的后续收口顺序
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档

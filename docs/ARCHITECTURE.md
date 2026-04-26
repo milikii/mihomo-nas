@@ -60,9 +60,12 @@
   - `render_config` 渲染块：访问/控制面基础段、DNS/基础配置段、显式代理认证段、provider/group 组装段、rules 尾段
 - 当前已完成第五类块级收口：
   - 运行前准备与服务启停块：runtime support files、runtime geo assets、runtime core guard、prepared start/restart/enable-start
+- 当前已完成第六类块级收口：
+  - 部署与修复编排块：deploy context、repair WebUI flow、setup maintenance、setup service finalize
 - `render_config` 当前已退回为编排入口，负责状态准备、调用职责块和配置文件权限收尾
 - `prepare_runtime_assets` 当前已退回为“根检查 + 节点检查 + 调用职责块 + config test”的编排入口
-- 下一闭环优先转向 `mihomo` 的部署与修复编排
-  - 优先 `full_setup`
-  - 优先 `repair_command`
+- `full_setup` 当前已退回为“上下文准备 + 核心保障 + 运行时资产 + WebUI + 定时维护 + 服务状态收尾”的编排入口
+- `repair_command` 当前已退回为“上下文准备 + 运行时资产 + WebUI 修复 + 配置测试”的编排入口
+- 下一闭环优先转向 `mihomo` 的订阅刷新编排
+  - 优先 `update_subscriptions_command`
 - 不在该阶段顺手扩更多控制面能力，也不继续围绕 manager sync unit 做单行 helper 级拆分

@@ -56,6 +56,12 @@
     - 缺核心时自动安装段已独立
     - `start` / `restart` / `enable-start` 已共用同一条 prepared systemctl 编排链
   - 服务侧 focused tests 已补到 `start` / `restart` / `enable-start` 的前置资产顺序，以及缺核心时自动安装路径
+  - `mihomo` 的部署与修复编排已完成当前最小收口：
+    - `setup` / `repair` 的公共上下文准备段已独立
+    - `repair` 的 WebUI 修复退化分支已独立
+    - `setup` 的定时维护配置段已独立
+    - `setup` 的最终服务状态决策段已独立
+  - 服务侧 focused tests 已补到 `repair` 的 WebUI 跳过重装/失败退化，以及 `setup` 的定时器落盘、有节点启动、无节点停用分支
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -69,7 +75,7 @@
 
 ## 当前风险与限制
 
-- `mihomo` 中的部署/修复编排（`full_setup`、`repair_command`）已成为阶段 5 下一块热点
+- `mihomo` 中的非交互长编排仍有剩余热点，当前下一优先级已转向 `update_subscriptions_command`
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由
