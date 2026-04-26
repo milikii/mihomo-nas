@@ -1028,6 +1028,31 @@ test_repair_restores_missing_assets() {
   [[ -f "${TMPDIR_CASE}/mihomo.service" ]]
 }
 
+test_repair_skips_webui_install_when_ui_present() {
+  setup_case
+  run_manager render-config >/dev/null
+  touch "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat"
+  mkdir -p "${TMPDIR_CASE}/ui/existing"
+  printf '<!doctype html>\n' > "${TMPDIR_CASE}/ui/existing/index.html"
+  run_manager repair >/dev/null
+  if [[ -f "${TMPDIR_CASE}/curl.log" ]]; then
+    ! grep -Fq 'gh-pages.zip' "${TMPDIR_CASE}/curl.log"
+  fi
+}
+
+test_repair_warns_when_webui_reinstall_fails() {
+  setup_case
+  run_manager render-config >/dev/null
+  rm -rf "${TMPDIR_CASE}/ui"
+  rm -f "${TMPDIR_CASE}/Country.mmdb" "${TMPDIR_CASE}/GeoSite.dat" "${TMPDIR_CASE}/mihomo.service"
+  output="$(run_manager repair 2>&1)"
+  [[ -f "${TMPDIR_CASE}/Country.mmdb" ]]
+  [[ -f "${TMPDIR_CASE}/GeoSite.dat" ]]
+  [[ -f "${TMPDIR_CASE}/mihomo.service" ]]
+  grep -q 'WebUI 修复失败；核心旁路由链已继续' <<<"$output"
+  grep -q '修复完成；核心部署已恢复到可测试状态' <<<"$output"
+}
+
 test_update_subscriptions_refreshes_provider_cache() {
   setup_case
   run_manager add-subscription demo https://subscription.example/list.txt 1 >/dev/null
@@ -1087,6 +1112,8 @@ main() {
   test_setup_bootstraps_empty_installation_even_when_webui_fails
   test_enable_start_after_cold_setup
   test_repair_restores_missing_assets
+  test_repair_skips_webui_install_when_ui_present
+  test_repair_warns_when_webui_reinstall_fails
   test_update_subscriptions_refreshes_provider_cache
   test_rollback_config_restores_template
   echo "service-mock: ok"

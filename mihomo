@@ -740,9 +740,7 @@ repair_command() {
   prepare_runtime_deploy_context
   write_runtime_support_files
   ensure_runtime_geo_assets
-  if [[ ! -d "$UI_DIR" || -z "$(find "$UI_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1)" ]]; then
-    install_webui || warn "WebUI 修复失败；核心旁路由链已继续"
-  fi
+  repair_webui_if_needed
   config_test
   ok "修复完成；核心部署已恢复到可测试状态"
 }
@@ -766,6 +764,25 @@ prepare_runtime_deploy_context() {
   ensure_layout
   ensure_permissions
   load_settings
+}
+
+webui_dir_populated() {
+  [[ -d "$UI_DIR" && -n "$(find "$UI_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1)" ]]
+}
+
+repair_webui_if_needed() {
+  if webui_dir_populated; then
+    return 0
+  fi
+  install_webui || warn "WebUI 修复失败；核心旁路由链已继续"
+}
+
+install_setup_webui() {
+  if install_webui; then
+    ok "WebUI 已就绪"
+  else
+    warn "WebUI 下载/解压失败；核心旁路由链已继续，后续可单独执行: mihomo install-webui"
+  fi
 }
 
 prepare_runtime_assets() {
@@ -1050,11 +1067,7 @@ full_setup() {
   ensure_runtime_core_binary_ready
   write_runtime_support_files
   ensure_runtime_geo_assets
-  if install_webui; then
-    ok "WebUI 已就绪"
-  else
-    warn "WebUI 下载/解压失败；核心旁路由链已继续，后续可单独执行: mihomo install-webui"
-  fi
+  install_setup_webui
   configure_restart_timer "${RESTART_INTERVAL_HOURS:-0}"
   configure_alpha_update "${ALPHA_AUTO_UPDATE:-0}" "${ALPHA_UPDATE_ONCALENDAR:-daily}"
   config_test
