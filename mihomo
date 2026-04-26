@@ -1364,15 +1364,17 @@ mihomo v${SCRIPT_VERSION}
 EOF
 }
 
+run_default_main_entry() {
+  if [[ -t 0 && -t 1 ]]; then
+    interactive_menu
+  else
+    usage
+  fi
+}
+
 main() {
   case "${1:-}" in
-    "")
-      if [[ -t 0 && -t 1 ]]; then
-        interactive_menu
-      else
-        usage
-      fi
-      ;;
+    "") run_default_main_entry ;;
     menu) interactive_menu ;;
     setup|bootstrap) full_setup ;;
     repair) repair_command ;;
