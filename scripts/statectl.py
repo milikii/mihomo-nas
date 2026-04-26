@@ -881,6 +881,15 @@ def apply_vless_xhttp_download_settings(xhttp_opts: dict[str, object], info: dic
         xhttp_opts["download-settings"] = rendered_download_settings
 
 
+def apply_vless_provider_data_fields(item: dict[str, object], info: dict) -> None:
+    if info.get("flow"):
+        item["flow"] = info["flow"]
+    if info.get("packet_encoding"):
+        item["packet-encoding"] = info["packet_encoding"]
+    if info.get("encryption"):
+        item["encryption"] = info["encryption"]
+
+
 def render_vless_xhttp_opts(info: dict) -> dict:
     xhttp_opts: dict[str, object] = {}
     apply_vless_xhttp_direct_fields(xhttp_opts, info)
@@ -897,12 +906,7 @@ def build_vless_provider_item(name: str, info: dict) -> dict:
         "uuid": info["uuid"],
         "udp": True,
     }
-    if info.get("flow"):
-        item["flow"] = info["flow"]
-    if info.get("packet_encoding"):
-        item["packet-encoding"] = info["packet_encoding"]
-    if info.get("encryption"):
-        item["encryption"] = info["encryption"]
+    apply_vless_provider_data_fields(item, info)
     if info.get("security") in {"tls", "reality"}:
         item["tls"] = True
     apply_common_tls_fields(item, info)
