@@ -46,6 +46,30 @@ func (clearRulesSafeRunner) Output(name string, args ...string) (string, string,
 	return "", "", nil
 }
 
+type recordedCommand struct {
+	name string
+	args []string
+}
+
+type recordingRunner struct {
+	calls *[]recordedCommand
+}
+
+func (r recordingRunner) Run(name string, args ...string) error {
+	*r.calls = append(*r.calls, recordedCommand{name: name, args: append([]string{}, args...)})
+	if name == "iptables" {
+		return os.ErrNotExist
+	}
+	if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+		return os.ErrNotExist
+	}
+	return nil
+}
+
+func (r recordingRunner) Output(name string, args ...string) (string, string, error) {
+	return "", "", nil
+}
+
 func newCLIApp(t *testing.T) (*app.App, *bytes.Buffer) {
 	t.Helper()
 	root := t.TempDir()
@@ -64,6 +88,32 @@ func newCLIApp(t *testing.T) (*app.App, *bytes.Buffer) {
 		Stdout: stdout,
 		Stderr: &bytes.Buffer{},
 	}, stdout
+}
+
+func hasRecordedRunnerCall(calls []recordedCommand, name string, want ...string) bool {
+	for _, call := range calls {
+		if call.name != name {
+			continue
+		}
+		matched := true
+		for _, part := range want {
+			found := false
+			for _, arg := range call.args {
+				if arg == part {
+					found = true
+					break
+				}
+			}
+			if !found {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func setCLIPathsEnv(t *testing.T) {
@@ -803,6 +853,106 @@ func TestRunWithAppDispatchesSetup(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "部署完成") {
 		t.Fatalf("unexpected setup output:\n%s", stdout.String())
+	}
+}
+
+func TestRunWithAppDispatchesRenderConfig(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#render-dispatch")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	if err := runWithApp([]string{"render-config"}, a, false); err != nil {
+		t.Fatalf("run render-config: %v", err)
+	}
+	if _, err := os.Stat(a.Paths.RuntimeConfig()); err != nil {
+		t.Fatalf("expected runtime config: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "已生成 "+a.Paths.RuntimeConfig()) {
+		t.Fatalf("unexpected render-config output:\n%s", stdout.String())
+	}
+}
+
+func TestRunWithAppDispatchesStart(t *testing.T) {
+	a, _ := newCLIApp(t)
+	var calls []recordedCommand
+	a.Runner = system.CommandRunner(recordingRunner{calls: &calls})
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#start-dispatch")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	err := runWithApp([]string{"start"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run start: %v", err)
+	}
+	if !hasRecordedRunnerCall(calls, "systemctl", "enable", "--now", "minimalist.service") {
+		t.Fatalf("expected systemctl enable --now call, got %#v", calls)
+	}
+}
+
+func TestRunWithAppDispatchesStop(t *testing.T) {
+	a, _ := newCLIApp(t)
+	var calls []recordedCommand
+	a.Runner = system.CommandRunner(recordingRunner{calls: &calls})
+	err := runWithApp([]string{"stop"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run stop: %v", err)
+	}
+	if !hasRecordedRunnerCall(calls, "systemctl", "stop", "minimalist.service") {
+		t.Fatalf("expected systemctl stop call, got %#v", calls)
+	}
+}
+
+func TestRunWithAppDispatchesRestart(t *testing.T) {
+	a, _ := newCLIApp(t)
+	var calls []recordedCommand
+	a.Runner = system.CommandRunner(recordingRunner{calls: &calls})
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#restart-dispatch")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	err := runWithApp([]string{"restart"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run restart: %v", err)
+	}
+	if !hasRecordedRunnerCall(calls, "systemctl", "restart", "minimalist.service") {
+		t.Fatalf("expected systemctl restart call, got %#v", calls)
+	}
+}
+
+func TestRunWithAppDispatchesRouterWizard(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	a.Stdin = strings.NewReader(strings.Repeat("\n", 14))
+	if err := runWithApp([]string{"router-wizard"}, a, false); err != nil {
+		t.Fatalf("run router-wizard: %v", err)
+	}
+	body, err := os.ReadFile(a.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if !strings.Contains(string(body), "template: nas-single-lan-v4") {
+		t.Fatalf("unexpected config after router-wizard:\n%s", string(body))
+	}
+	if !strings.Contains(stdout.String(), "旁路由参数已更新") {
+		t.Fatalf("unexpected router-wizard output:\n%s", stdout.String())
 	}
 }
 
