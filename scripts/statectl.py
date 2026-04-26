@@ -674,25 +674,33 @@ def unsupported_uri_info(raw: str, scheme: str, reason: str) -> dict:
     }
 
 
+def supported_uri_info(raw: str, scheme: str, info: dict) -> dict:
+    return {
+        "name": guess_name(raw),
+        "server": str(info.get("server", "")),
+        "port": str(info.get("port", "") or ""),
+        "network": str(info.get("network", "tcp") or "tcp"),
+        "security": str(info.get("security", scheme) or scheme),
+        "scheme": scheme,
+        "supported": "1",
+        "reason": "",
+    }
+
+
+def uri_error_reason(exc: BaseException, fallback: str) -> str:
+    return str(exc) or fallback
+
+
 def uri_info(uri: str) -> dict:
     raw = normalize_uri(uri)
-    scheme = raw.split("://", 1)[0].lower() if "://" in raw else ""
+    scheme = uri_scheme(raw) if "://" in raw else ""
     try:
         info = parse_uri_info(raw)
-        return {
-            "name": guess_name(raw),
-            "server": str(info.get("server", "")),
-            "port": str(info.get("port", "") or ""),
-            "network": str(info.get("network", "tcp") or "tcp"),
-            "security": str(info.get("security", scheme) or scheme),
-            "scheme": scheme,
-            "supported": "1",
-            "reason": "",
-        }
+        return supported_uri_info(raw, scheme, info)
     except SystemExit as exc:
-        return unsupported_uri_info(raw, scheme, str(exc) or f"unsupported scheme: {scheme}")
+        return unsupported_uri_info(raw, scheme, uri_error_reason(exc, f"unsupported scheme: {scheme}"))
     except Exception as exc:
-        return unsupported_uri_info(raw, scheme, str(exc) or f"invalid {scheme or 'unknown'} uri")
+        return unsupported_uri_info(raw, scheme, uri_error_reason(exc, f"invalid {scheme or 'unknown'} uri"))
 
 
 def reality_opts_from_mapping(mapping: dict | None) -> dict:
