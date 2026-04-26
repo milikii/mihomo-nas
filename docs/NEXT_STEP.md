@@ -14,12 +14,13 @@
 - `mihomo` 的交互菜单编排已完成当前最小收口。
 - `scripts/statectl.py` 的协议解析链已完成当前最小收口。
 - `scripts/statectl.py` 的 provider 渲染链已完成当前最小收口。
-- 阶段 5 下一闭环转向 `scripts/statectl.py` 的 provider 传输层选项热点。
+- 阶段 5 下一闭环转向 `scripts/statectl.py` 的 provider 组装尾段剩余编排。
 
 ## 下一最小闭环
 
-- 在 `scripts/statectl.py` 收口 provider 组装尾段
-- 优先围绕 `build_vless_provider_item` 与 `render_vless_xhttp_opts` 的剩余耦合
+- 在 `scripts/statectl.py` 收口 provider 组装尾段剩余编排
+- 优先围绕 `build_vless_provider_item` 的安全字段与 xhttp 字段编排
+- 保持 `render_vless_xhttp_opts` 的 direct fields / download-settings 拆分不变
 - 保持现有 provider YAML 字段、协议支持范围和渲染输出不变
 - 优先复用现有 `smoke` 的 `test_protocol_renderers` / `render-config` 回归，必要时只补最小 focused tests
 - 文档同步切到阶段 5 当前真相
@@ -44,7 +45,7 @@
 
 ## 退出条件
 
-- provider 传输层选项 helper 的职责块边界更清晰，TLS/network/xhttp 组合复杂度下降
+- provider 传输层选项 helper 的职责块边界更清晰，TLS/network/xhttp 组合复杂度下降，VLESS 组装入口也继续收口
 - provider YAML 字段、协议支持范围和渲染输出保持不变
 - 相关 smoke / service-mock 回归通过
 - 文档同步更新当前阶段结论
