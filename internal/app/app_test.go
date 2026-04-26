@@ -492,6 +492,119 @@ func TestShowSecretPrintsConfiguredSecret(t *testing.T) {
 	}
 }
 
+func TestInstallSelfWritesBinaryConfigStateAndRulesRepo(t *testing.T) {
+	app, _ := newTestApp(t)
+	err := app.InstallSelf()
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("install self: %v", err)
+	}
+	for _, path := range []string{
+		app.Paths.BinPath,
+		app.Paths.ConfigPath(),
+		app.Paths.StatePath(),
+		app.Paths.RulesRepoPath(),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected %s to exist: %v", path, err)
+		}
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "已安装 minimalist 到 "+app.Paths.BinPath) {
+		t.Fatalf("unexpected install-self output:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
+func TestStopRunsSystemctlStop(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			return nil
+		},
+	}
+	err := app.Stop()
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	if !hasRecordedCall(calls, "systemctl", "stop", "minimalist.service") {
+		t.Fatalf("expected systemctl stop call, got %#v", calls)
+	}
+}
+
+func TestRenderConfigRejectsInvalidPersistedRuleTarget(t *testing.T) {
+	app, _ := newTestApp(t)
+	st := state.Empty()
+	st.Rules = []state.Rule{{ID: "rule-1", Kind: "domain", Pattern: "example.com", Target: "AUTO"}}
+	if err := state.Save(app.Paths.StatePath(), st); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	err := app.RenderConfig()
+	if err == nil || !strings.Contains(err.Error(), "无效规则目标: AUTO") {
+		t.Fatalf("expected invalid target error, got %v", err)
+	}
+}
+
+func TestRenameNodeRewritesRuleAndACLTargets(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#rename-me\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.AddRule(false, "domain", "example.com", "rename-me"); err != nil {
+		t.Fatalf("add rule: %v", err)
+	}
+	if err := app.AddRule(true, "src-cidr", "192.168.2.10/32", "rename-me"); err != nil {
+		t.Fatalf("add acl: %v", err)
+	}
+	if err := app.RenameNode(1, "renamed-node"); err != nil {
+		t.Fatalf("rename node: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	for _, needle := range []string{
+		st.Nodes[0].Name,
+		st.Rules[0].Target,
+		st.ACL[0].Target,
+	} {
+		if needle != "renamed-node" {
+			t.Fatalf("expected renamed target, got state=%+v", st)
+		}
+	}
+}
+
+func TestRenameNodeRejectsSubscriptionNode(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, "trojan://password@example.org:443?security=tls#sub-node\n"), nil
+		}),
+	}
+	if err := app.AddSubscription("rename-sub", "https://subscription.example.com/rename.txt", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions: %v", err)
+	}
+	err := app.RenameNode(1, "should-fail")
+	if err == nil || !strings.Contains(err.Error(), "subscription node is provider-managed") {
+		t.Fatalf("expected provider-managed error, got %v", err)
+	}
+}
+
 func TestMenuShowsInvalidSelectionThenExit(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("x\n0\n")
