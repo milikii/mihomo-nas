@@ -80,6 +80,8 @@
   - provider 传输层选项块：common TLS 字段、network 分支、xhttp download-settings 尾段
 - 当前已继续收口第十五类块级收口：
   - VLESS provider 组装块：xhttp direct fields、xhttp download-settings、data fields、安全字段、xhttp 字段
+- 当前已继续收口第十六类块级收口：
+  - provider 公共组装块：base item、connection fields、ss plugin fields、renderer dispatch mapping
 - `render_config` 当前已退回为编排入口，负责状态准备、调用职责块和配置文件权限收尾
 - `prepare_runtime_assets` 当前已退回为“根检查 + 节点检查 + 调用职责块 + config test”的编排入口
 - `full_setup` 当前已退回为“上下文准备 + 核心保障 + 运行时资产 + WebUI + 定时维护 + 服务状态收尾”的编排入口
@@ -95,6 +97,10 @@
 - `provider_item_from_node` 当前已退回为“parse URI + 选择 renderer + 调用 renderer”的编排入口
 - `apply_common_tls_fields`、`apply_network_opts` 与 `xhttp_download_settings_from_mapping` 当前已拆成更小职责块
 - `build_vless_provider_item` 当前已继续退回为编排入口，承担 data fields、安全字段、network 与 xhttp 字段调用
+- `build_trojan_provider_item`、`build_ss_provider_item` 与 `build_vmess_provider_item` 当前已继续退回为“基础 item + 协议字段 + 公共字段”的编排入口
 - `render_vless_xhttp_opts` 当前已继续退回为 direct fields + download-settings 编排入口
-- 下一闭环优先转向 `scripts/statectl.py` 的 provider 组装剩余编排与其他残余热点
+- `provider_item_renderer_for_scheme` 当前已继续退回为显式 renderer mapping lookup
+- 下一闭环优先转向 `scripts/statectl.py` 中仍保留协议分支的轻量 helper
+- 优先 `guess_name`
+- 再看 `uri_base_key`
 - 不在该阶段顺手扩更多控制面能力，也不继续围绕 manager sync unit 做单行 helper 级拆分

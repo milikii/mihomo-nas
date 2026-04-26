@@ -136,6 +136,14 @@
 - 原因不是扩协议，而是 provider 输出链当前剩余的复杂度已主要集中在 VLESS 组装尾段
 - 当前已有 `smoke` 的 reality/ws/plugin/xhttp download-settings 渲染护栏，先收口这些尾段比继续拆 `render_provider` 更保守
 
+## 2026-04-26 provider builders 与 dispatch 收口后转向轻量协议 helper
+
+- `build_provider_base_item`、`apply_provider_connection_fields` 与 `apply_ss_provider_plugin_fields` 已完成当前最小收口
+- `provider_item_renderer_for_scheme` 已改为显式 renderer mapping
+- provider 侧剩余复杂度不再集中在 builder 与 dispatch
+- 下一优先级转向 `guess_name` 与 `uri_base_key` 一类仍保留协议分支的轻量 helper
+- 原因不是扩协议，而是这些 helper 仍承担命名与去重键归一化，是 `scripts/statectl.py` 剩余最轻量、最保守的结构尾段
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档
