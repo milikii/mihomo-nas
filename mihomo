@@ -184,6 +184,32 @@ collect_import_link_uris() {
   done
 }
 
+append_import_link_node() {
+  local input_fd="$1"
+  local uri="$2"
+  local default_name="$3"
+  local server="$4"
+  local port="$5"
+  local network="$6"
+  local security="$7"
+  local scheme="$8"
+  local custom_name
+  local enabled_answer
+  local enabled_value
+
+  echo
+  echo "节点: ${server}:${port}  ${network}/${security} (${scheme})"
+  read -r -u "$input_fd" -p "名称 [${default_name}]: " custom_name
+  custom_name="${custom_name:-$default_name}"
+  read -r -u "$input_fd" -p "立即启用? [Y/n]: " enabled_answer
+  if [[ "${enabled_answer,,}" == "n" ]]; then
+    enabled_value="0"
+  else
+    enabled_value="1"
+  fi
+  python3 "$STATECTL" append-node "$NODES_STATE_FILE" "$uri" "$custom_name" "$enabled_value" >/dev/null
+}
+
 import_links() {
   require_root
   require_statectl
@@ -200,9 +226,6 @@ import_links() {
   local supported
   local scheme
   local reason
-  local custom_name
-  local enabled_answer
-  local enabled_value
   local imported=0
   local skipped=0
   local input_path="/dev/stdin"
@@ -227,17 +250,7 @@ import_links() {
       skipped=$((skipped + 1))
       continue
     fi
-    echo
-    echo "节点: ${server}:${port}  ${network}/${security} (${scheme})"
-    read -r -u "$input_fd" -p "名称 [${default_name}]: " custom_name
-    custom_name="${custom_name:-$default_name}"
-    read -r -u "$input_fd" -p "立即启用? [Y/n]: " enabled_answer
-    if [[ "${enabled_answer,,}" == "n" ]]; then
-      enabled_value="0"
-    else
-      enabled_value="1"
-    fi
-    python3 "$STATECTL" append-node "$NODES_STATE_FILE" "$uri" "$custom_name" "$enabled_value" >/dev/null
+    append_import_link_node "$input_fd" "$uri" "$default_name" "$server" "$port" "$network" "$security" "$scheme"
     imported=$((imported + 1))
   done <"$scan_tmp"
 
