@@ -291,6 +291,67 @@ func TestClearRulesRunsExpectedCleanupCommands(t *testing.T) {
 	}
 }
 
+func TestApplyRulesProgramsExpectedRoutingCommands(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "systemctl" && len(args) >= 2 && args[0] == "is-active" {
+				return errors.New("inactive")
+			}
+			if name == "systemctl" && len(args) >= 2 && args[0] == "is-enabled" {
+				return errors.New("disabled")
+			}
+			if name == "docker" {
+				return errors.New("missing")
+			}
+			if name == "iptables" {
+				for _, arg := range args {
+					if arg == "-C" || arg == "-S" {
+						return errors.New("missing")
+					}
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#apply-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	if err := app.ApplyRules(); err != nil {
+		t.Fatalf("apply rules: %v", err)
+	}
+	for _, expect := range []struct {
+		name string
+		args []string
+	}{
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-N", "MIHOMO_PRE"}},
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-A", "MIHOMO_PRE_HANDLE", "-p", "tcp", "-j", "TPROXY"}},
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-A", "MIHOMO_OUT", "-p", "tcp", "-j", "MARK", "--set-mark", "9011"}},
+		{"iptables", []string{"-w", "5", "-t", "nat", "-A", "PREROUTING", "-j", "MIHOMO_DNS"}},
+		{"ip", []string{"-4", "route", "replace", "local", "0.0.0.0/0", "dev", "lo", "table", "233"}},
+		{"ip", []string{"-4", "rule", "add", "fwmark", "9011", "table", "233", "priority", "100"}},
+	} {
+		if !hasRecordedCall(calls, expect.name, expect.args...) {
+			t.Fatalf("missing apply call %s %#v in %#v", expect.name, expect.args, calls)
+		}
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "已应用路由规则") {
+		t.Fatalf("unexpected apply output:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestRenderConfigWritesRuntimeArtifacts(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
