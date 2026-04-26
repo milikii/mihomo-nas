@@ -47,3 +47,31 @@ func TestBuildRuntimeConfigIncludesExternalUIAndNameserverPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildRuntimeConfigIncludesDNSDefaults(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"default-nameserver:",
+		"    - 223.5.5.5",
+		"    - 119.29.29.29",
+		"direct-nameserver:",
+		"    - https://dns.alidns.com/dns-query",
+		"    - https://doh.pub/dns-query",
+		"  direct-nameserver-follow-policy: true",
+		`    - "*.lan"`,
+		`    - "connectivitycheck.gstatic.com"`,
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}

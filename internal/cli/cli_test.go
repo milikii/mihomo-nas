@@ -129,6 +129,27 @@ func TestRunRulesRepoRequiresSubcommand(t *testing.T) {
 	}
 }
 
+func TestRunRulesRepoUsageAndIndexErrors(t *testing.T) {
+	a, _ := newCLIApp(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"entries"}, "usage: minimalist rules-repo entries <ruleset> [keyword]"},
+		{[]string{"find"}, "usage: minimalist rules-repo find <keyword>"},
+		{[]string{"add", "pt"}, "usage: minimalist rules-repo add <ruleset> <value>"},
+		{[]string{"remove", "pt"}, "usage: minimalist rules-repo remove <ruleset> <value>"},
+		{[]string{"remove-index", "pt"}, "usage: minimalist rules-repo remove-index <ruleset> <index>"},
+		{[]string{"remove-index", "pt", "bad"}, `strconv.Atoi: parsing "bad"`},
+		{[]string{"remove-index", "pt", "9999"}, "entry index out of range"},
+	} {
+		err := runRulesRepo(a, tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("args=%v want %q got %v", tc.args, tc.want, err)
+		}
+	}
+}
+
 func TestRunRulesRepoSummaryAndEntries(t *testing.T) {
 	a, stdout := newCLIApp(t)
 	if err := runRulesRepo(a, []string{"summary"}); err != nil {
@@ -212,6 +233,26 @@ func TestRunNodesRenameToggleAndRemove(t *testing.T) {
 	}
 }
 
+func TestRunNodesUsageAndIndexErrors(t *testing.T) {
+	a, _ := newCLIApp(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{nil, "usage: minimalist nodes list|rename|enable|disable|remove ..."},
+		{[]string{"rename", "1"}, "usage: minimalist nodes rename <index> <new-name>"},
+		{[]string{"enable"}, "usage: minimalist nodes enable|disable <index>"},
+		{[]string{"disable", "bad"}, `strconv.Atoi: parsing "bad"`},
+		{[]string{"remove"}, "usage: minimalist nodes remove <index>"},
+		{[]string{"remove", "1"}, "node index out of range"},
+	} {
+		err := runNodes(a, tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("args=%v want %q got %v", tc.args, tc.want, err)
+		}
+	}
+}
+
 func TestRunSubscriptionsAddDisableAndRemove(t *testing.T) {
 	a, stdout := newCLIApp(t)
 	if err := runSubscriptions(a, []string{"add", "cli-sub", "https://subscription.example.com/cli.txt"}); err != nil {
@@ -242,6 +283,26 @@ func TestRunSubscriptionsAddDisableAndRemove(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "" {
 		t.Fatalf("expected empty subscription list, got:\n%s", stdout.String())
+	}
+}
+
+func TestRunSubscriptionsUsageAndIndexErrors(t *testing.T) {
+	a, _ := newCLIApp(t)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{nil, "usage: minimalist subscriptions list|add|enable|disable|remove|update ..."},
+		{[]string{"add", "demo"}, "usage: minimalist subscriptions add <name> <url>"},
+		{[]string{"enable"}, "usage: minimalist subscriptions enable|disable <index>"},
+		{[]string{"disable", "bad"}, `strconv.Atoi: parsing "bad"`},
+		{[]string{"remove"}, "usage: minimalist subscriptions remove <index>"},
+		{[]string{"remove", "1"}, "subscription index out of range"},
+	} {
+		err := runSubscriptions(a, tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("args=%v want %q got %v", tc.args, tc.want, err)
+		}
 	}
 }
 
@@ -281,6 +342,29 @@ func TestRunRulesAndACLAddListRemove(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "" {
 		t.Fatalf("expected empty rule/acl output, got:\n%s", stdout.String())
+	}
+}
+
+func TestRunRulesAndACLUsageAndIndexErrors(t *testing.T) {
+	a, _ := newCLIApp(t)
+	for _, tc := range []struct {
+		acl  bool
+		args []string
+		want string
+	}{
+		{false, nil, "usage: minimalist rules list|add|remove ..."},
+		{false, []string{"add", "domain", "example.com"}, "usage: minimalist rules add <kind> <pattern> <target>"},
+		{false, []string{"remove"}, "usage: minimalist rules remove <index>"},
+		{false, []string{"remove", "1"}, "rule index out of range"},
+		{true, nil, "usage: minimalist acl list|add|remove ..."},
+		{true, []string{"add", "src-cidr", "192.168.1.1/32"}, "usage: minimalist acl add <kind> <pattern> <target>"},
+		{true, []string{"remove"}, "usage: minimalist acl remove <index>"},
+		{true, []string{"remove", "1"}, "rule index out of range"},
+	} {
+		err := runRules(a, tc.acl, tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("acl=%t args=%v want %q got %v", tc.acl, tc.args, tc.want, err)
+		}
 	}
 }
 

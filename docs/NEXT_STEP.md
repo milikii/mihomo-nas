@@ -15,8 +15,8 @@
 
 ## 下一最小闭环
 
-- 为 `nodes` / `subscriptions` / `rules` / `acl` / `rules-repo` 的 usage error 和 index error 补 focused tests
-- 为 `render-config` 补更多 `default-nameserver` / `direct-nameserver` / fake-ip-filter 断言
+- 为 `nodes` / `subscriptions` / `rules-repo` 的 unknown subcommand 分支补 focused tests
+- 为 `render-config` 补更多 `proxy-server-nameserver` / `fallback-filter` / profile 段落断言
 - 继续把 README / flows 文档收口到 `minimalist` 当前命令真相
 
 ## 本轮不做
