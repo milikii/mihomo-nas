@@ -402,6 +402,15 @@ record_subscription_refresh_success() {
   ok "订阅 provider 缓存已更新: ${name} (可枚举 ${enumerated_count} 节点)"
 }
 
+record_subscription_refresh_failure() {
+  local sub_id="$1"
+  local name="$2"
+  local url="$3"
+
+  python3 "$STATECTL" mark-subscription-error "$SUBSCRIPTIONS_STATE_FILE" "$sub_id" "curl failed for ${url}" >/dev/null
+  warn "订阅更新失败: ${name}"
+}
+
 update_subscriptions_command() {
   require_root
   require_statectl
@@ -425,8 +434,7 @@ update_subscriptions_command() {
       record_subscription_refresh_success "$sub_id" "$name" "$tmp"
       updated=$((updated + 1))
     else
-      python3 "$STATECTL" mark-subscription-error "$SUBSCRIPTIONS_STATE_FILE" "$sub_id" "curl failed for ${url}" >/dev/null
-      warn "订阅更新失败: ${name}"
+      record_subscription_refresh_failure "$sub_id" "$name" "$url"
       failed=$((failed + 1))
     fi
     rm -f "$tmp"
