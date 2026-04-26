@@ -226,6 +226,71 @@ func TestSetupWithProvidersEnablesService(t *testing.T) {
 	}
 }
 
+func TestClearRulesRunsExpectedCleanupCommands(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	checkHits := map[string]int{}
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "iptables" {
+				key := strings.Join(args, " ")
+				if strings.Contains(key, "-C PREROUTING -j MIHOMO_PRE") {
+					if checkHits[key] == 0 {
+						checkHits[key]++
+						return nil
+					}
+					return errors.New("missing")
+				}
+				if strings.Contains(key, "-C OUTPUT -j MIHOMO_OUT") {
+					if checkHits[key] == 0 {
+						checkHits[key]++
+						return nil
+					}
+					return errors.New("missing")
+				}
+				if strings.Contains(key, "-C PREROUTING -j MIHOMO_DNS") {
+					if checkHits[key] == 0 {
+						checkHits[key]++
+						return nil
+					}
+					return errors.New("missing")
+				}
+				if strings.Contains(key, "-C OUTPUT -j MIHOMO_DNS_OUT") {
+					if checkHits[key] == 0 {
+						checkHits[key]++
+						return nil
+					}
+					return errors.New("missing")
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+	if err := app.ClearRules(); err != nil {
+		t.Fatalf("clear rules: %v", err)
+	}
+	for _, expect := range []struct {
+		name string
+		args []string
+	}{
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-D", "PREROUTING", "-j", "MIHOMO_PRE"}},
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-F", "MIHOMO_PRE"}},
+		{"iptables", []string{"-w", "5", "-t", "nat", "-X", "MIHOMO_DNS_OUT"}},
+		{"ip", []string{"-4", "route", "flush", "table", "233"}},
+	} {
+		if !hasRecordedCall(calls, expect.name, expect.args...) {
+			t.Fatalf("missing cleanup call %s %#v in %#v", expect.name, expect.args, calls)
+		}
+	}
+}
+
 func TestRenderConfigWritesRuntimeArtifacts(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
