@@ -587,20 +587,29 @@ def parse_vmess_uri(uri: str) -> dict:
     }
 
 
-def parse_uri_info(uri: str) -> dict:
-    raw = normalize_uri(uri)
+def uri_scheme(raw: str) -> str:
     if "://" not in raw:
         fail("invalid uri")
-    scheme = raw.split("://", 1)[0].lower()
+    return raw.split("://", 1)[0].lower()
+
+
+def uri_parser_for_scheme(scheme: str):
     if scheme == "vless":
-        return parse_vless_uri(raw)
+        return parse_vless_uri
     if scheme == "trojan":
-        return parse_trojan_uri(raw)
+        return parse_trojan_uri
     if scheme == "ss":
-        return parse_ss_uri(raw)
+        return parse_ss_uri
     if scheme == "vmess":
-        return parse_vmess_uri(raw)
+        return parse_vmess_uri
     fail(f"unsupported scheme: {scheme}")
+
+
+def parse_uri_info(uri: str) -> dict:
+    raw = normalize_uri(uri)
+    scheme = uri_scheme(raw)
+    parser = uri_parser_for_scheme(scheme)
+    return parser(raw)
 
 
 def vmess_base_key(uri: str) -> str:
