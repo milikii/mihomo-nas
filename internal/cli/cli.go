@@ -11,9 +11,12 @@ import (
 )
 
 func Run(args []string) error {
-	a := app.New()
+	return runWithApp(args, app.New(), isTTY())
+}
+
+func runWithApp(args []string, a *app.App, tty bool) error {
 	if len(args) == 0 {
-		if isTTY() {
+		if tty {
 			return a.Menu()
 		}
 		printUsage()

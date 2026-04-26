@@ -22,6 +22,22 @@ func (noopRunner) Output(name string, args ...string) (string, string, error) {
 	return "", "", nil
 }
 
+type clearRulesSafeRunner struct{}
+
+func (clearRulesSafeRunner) Run(name string, args ...string) error {
+	if name == "iptables" {
+		return os.ErrNotExist
+	}
+	if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+		return os.ErrNotExist
+	}
+	return nil
+}
+
+func (clearRulesSafeRunner) Output(name string, args ...string) (string, string, error) {
+	return "", "", nil
+}
+
 func newCLIApp(t *testing.T) (*app.App, *bytes.Buffer) {
 	t.Helper()
 	root := t.TempDir()
@@ -332,5 +348,56 @@ func TestRunDispatchesNodesList(t *testing.T) {
 	})
 	if !strings.Contains(output, "1\trun-node\t0\tmanual") {
 		t.Fatalf("unexpected nodes list output:\n%s", output)
+	}
+}
+
+func TestRunWithAppOnTTYWithoutArgsEntersMenu(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	a.Stdin = strings.NewReader("0\n")
+	if err := runWithApp(nil, a, true); err != nil {
+		t.Fatalf("run with tty menu: %v", err)
+	}
+	output := stdout.String()
+	for _, needle := range []string{"1) 状态", "0) 退出"} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in menu output:\n%s", needle, output)
+		}
+	}
+}
+
+func TestRunWithAppDispatchesSetup(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	err := runWithApp([]string{"setup"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run setup: %v", err)
+	}
+	for _, path := range []string{a.Paths.ServiceUnit, a.Paths.SysctlPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected generated file %s: %v", path, err)
+		}
+	}
+	if !strings.Contains(stdout.String(), "部署完成") {
+		t.Fatalf("unexpected setup output:\n%s", stdout.String())
+	}
+}
+
+func TestRunWithAppDispatchesClearRules(t *testing.T) {
+	a, _ := newCLIApp(t)
+	a.Runner = system.CommandRunner(clearRulesSafeRunner{})
+	err := runWithApp([]string{"clear-rules"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run clear-rules: %v", err)
 	}
 }

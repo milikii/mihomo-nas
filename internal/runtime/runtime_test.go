@@ -24,3 +24,26 @@ func TestBuildRuntimeConfigFallsBackToDefaultSecret(t *testing.T) {
 		t.Fatalf("expected fallback secret in runtime config:\n%s", text)
 	}
 }
+
+func TestBuildRuntimeConfigIncludesExternalUIAndNameserverPolicy(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"external-ui: " + paths.UIPath(),
+		"nameserver-policy:",
+		`"geosite:private,cn":`,
+		`"+.arpa":`,
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
