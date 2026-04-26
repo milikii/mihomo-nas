@@ -50,7 +50,7 @@
 
 - `minimalist menu` 是当前交互入口，内部仍分发到同一组 CLI 命令
 - 顶层 `minimalist --help` / `help` / 非 TTY 空参数当前都回落到同一份 usage 输出
-- 顶层 `minimalist setup` / `start` / `clear-rules` 等 root-only 命令当前仍直接分发到同一组 `internal/app` 实现
+- 顶层 `minimalist setup` / `render-config` / `start` / `stop` / `restart` / `clear-rules` 等命令当前仍直接分发到同一组 `internal/app` 实现
 - `minimalist router-wizard` 直接回写 `/etc/minimalist/config.yaml`
 - `minimalist rules-repo summary|entries|find` 用于查看当前内置规则仓库真相
 
@@ -58,3 +58,5 @@
 
 - `status` / `runtime-audit` / `healthcheck` 优先读取 Mihomo REST API
 - 控制面不可达时回退配置文件、systemd 和本机端口信息
+- `status` 当前会优先展示 runtime mode；控制面不可达时回退到 `config.yaml` 中的 mode
+- `runtime-audit` 在控制面不可达时不会伪造 runtime 摘要，只保留本地状态和日志告警计数

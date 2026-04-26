@@ -15,9 +15,9 @@
 
 ## 下一最小闭环
 
-- 继续为 `runtime` / `cli` focused tests 做最小去重和命名收口
-- 为 `status` / `healthcheck` / `runtime-audit` 顶层分发与输出补更多 focused assertions
-- 继续把 README / flows 文档收口到 `minimalist` 当前命令真相
+- 继续为 `app` / `cli` helper focused tests 做最小去重和命名收口
+- 为 rules / subscriptions / rules-repo 的 helper 层补更多 focused assertions
+- 继续把 README / flows 文档收口到 `minimalist` 当前命令与回退行为真相
 
 ## 本轮不做
 
