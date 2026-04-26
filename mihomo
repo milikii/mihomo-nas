@@ -761,15 +761,17 @@ ensure_runtime_geo_assets() {
   ensure_geosite_ready
 }
 
+ensure_runtime_core_binary_ready() {
+  [[ -x "$MIHOMO_BIN" ]] || install_binary "${CORE_CHANNEL:-alpha}"
+}
+
 prepare_runtime_assets() {
   require_root
   ensure_layout
   ensure_permissions
   load_settings
   ensure_enabled_nodes
-  if [[ ! -x "$MIHOMO_BIN" ]]; then
-    install_binary "${CORE_CHANNEL:-alpha}"
-  fi
+  ensure_runtime_core_binary_ready
   write_runtime_support_files
   ensure_runtime_geo_assets
   config_test
@@ -1044,9 +1046,7 @@ full_setup() {
   ensure_layout
   ensure_permissions
   load_settings
-  if [[ ! -x "$MIHOMO_BIN" ]]; then
-    install_binary "${CORE_CHANNEL:-alpha}"
-  fi
+  ensure_runtime_core_binary_ready
   write_runtime_support_files
   ensure_runtime_geo_assets
   if install_webui; then

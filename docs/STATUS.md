@@ -50,6 +50,12 @@
     - rules 尾段已独立
   - `render_config` 当前已收敛为“准备上下文 + 调用职责块 + 权限收尾”的编排函数
   - `render_config` 的关键输出顺序已补 focused tests，覆盖 access / dns / auth / provider / rules 五段相对位置
+  - `mihomo` 的运行前准备与服务启停编排已完成当前最小收口：
+    - 运行配置/服务/sysctl 写入段已独立
+    - geodata 自动修复段已独立
+    - 缺核心时自动安装段已独立
+    - `start` / `restart` / `enable-start` 已共用同一条 prepared systemctl 编排链
+  - 服务侧 focused tests 已补到 `start` / `restart` / `enable-start` 的前置资产顺序，以及缺核心时自动安装路径
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -63,7 +69,7 @@
 
 ## 当前风险与限制
 
-- `mihomo` 中的运行前准备与服务启停编排（`prepare_runtime_assets`、`start_service_command`、`restart_service_command`、`enable_and_start_service_command`）已成为阶段 5 下一块热点
+- `mihomo` 中的部署/修复编排（`full_setup`、`repair_command`）已成为阶段 5 下一块热点
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

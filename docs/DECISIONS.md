@@ -64,6 +64,13 @@
 - 阶段 5 的下一优先级转向 `mihomo` 主脚本中的运行前准备与服务启停编排，优先 `prepare_runtime_assets`、`start_service_command`、`restart_service_command`、`enable_and_start_service_command`
 - 原因不是功能扩展，而是这些命令共享同一套高风险前置准备链，且已有 `service_mock` 回归基础，适合继续按职责块收口
 
+## 2026-04-26 服务启停编排收口后转向 setup/repair
+
+- `prepare_runtime_assets` 当前已拆出运行配置/服务/sysctl 写入、geodata 自动修复、缺核心时自动安装三段职责块
+- `start_service_command`、`restart_service_command`、`enable_and_start_service_command` 已共用同一条 prepared systemctl 编排链
+- 阶段 5 的下一优先级转向 `full_setup` 与 `repair_command`
+- 原因是它们仍然保留安装、修复、WebUI 退化、节点为空时启动决策等分支，是当前部署侧剩余的主要编排热点
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档

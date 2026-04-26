@@ -155,6 +155,41 @@ if [[ "$target" == *"country.mmdb"* ]]; then
   exit 0
 fi
 
+if [[ "$target" == *"api.github.com/repos/MetaCubeX/mihomo/releases/latest"* ]]; then
+  cat <<'OUT'
+{"prerelease":false,"assets":[{"name":"mihomo-linux-amd64-compatible-mock.gz","browser_download_url":"https://downloads.example/mihomo-linux-amd64-compatible-mock.gz"}]}
+OUT
+  exit 0
+fi
+
+if [[ "$target" == *"api.github.com/repos/MetaCubeX/mihomo/releases"* ]]; then
+  cat <<'OUT'
+[{"prerelease":true,"assets":[{"name":"mihomo-linux-amd64-compatible-mock.gz","browser_download_url":"https://downloads.example/mihomo-linux-amd64-compatible-mock.gz"}]}]
+OUT
+  exit 0
+fi
+
+if [[ "$target" == *"mihomo-linux-amd64-compatible-mock.gz"* ]]; then
+  python3 - "$out" <<'PY'
+import gzip
+import sys
+
+payload = b"""#!/usr/bin/env bash
+if [[ "${1:-}" == "-v" ]]; then
+  echo "Mihomo Mock v1.0.0"
+  exit 0
+fi
+if [[ "${1:-}" == "-t" ]]; then
+  exit 0
+fi
+exit 0
+"""
+with gzip.open(sys.argv[1], "wb") as f:
+    f.write(payload)
+PY
+  exit 0
+fi
+
 if [[ "$target" == *"gh-pages.zip"* ]]; then
   printf '<!doctype html>\n' > "$out"
   exit 0
@@ -304,6 +339,15 @@ run_manager() {
   eval "$cmd" "$MANAGER" "$@"
 }
 
+run_manager_with_mihomo_bin() {
+  local mihomo_bin="$1"
+  shift
+  local cmd
+  cmd="$(env_prefix)"
+  # shellcheck disable=SC2086
+  eval "$cmd" MIHOMO_BIN="$mihomo_bin" "$MANAGER" "$@"
+}
+
 assert_log_contains() {
   local needle="$1"
   grep -Fq "$needle" "${TMPDIR_CASE}/systemctl.log"
@@ -404,6 +448,28 @@ EOSYS
 
   run_manager enable-start >/dev/null
   grep -Fq 'enable --now mihomo' "${TMPDIR_CASE}/systemctl.log"
+}
+
+test_start_installs_missing_core_before_systemctl_start() {
+  setup_case
+  python3 "${ROOT}/scripts/statectl.py" append-node "${TMPDIR_CASE}/state/nodes.json" 'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#manual-node' manual-node 1 >/dev/null
+  missing_core="${TMPDIR_CASE}/mihomo-core"
+  cat > "${TMPDIR_CASE}/bin/systemctl" <<'EOSYS'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${SYSTEMCTL_LOG:?}"
+if [[ "$1" == "start" && "$2" == "mihomo" ]]; then
+  [[ -x "${MIHOMO_BIN:?}" ]] || exit 81
+  [[ "$("${MIHOMO_BIN}" -v)" == "Mihomo Mock v1.0.0" ]] || exit 82
+fi
+exit 0
+EOSYS
+  chmod +x "${TMPDIR_CASE}/bin/systemctl"
+
+  run_manager_with_mihomo_bin "$missing_core" start >/dev/null
+  [[ -x "$missing_core" ]]
+  grep -Fq 'api.github.com/repos/MetaCubeX/mihomo/releases' "${TMPDIR_CASE}/curl.log"
+  grep -Fq 'mihomo-linux-amd64-compatible-mock.gz' "${TMPDIR_CASE}/curl.log"
+  grep -Fq 'start mihomo' "${TMPDIR_CASE}/systemctl.log"
 }
 
 test_configure_restart_enables_timer() {
@@ -1002,6 +1068,7 @@ main() {
   test_start_prepares_geo_assets_before_systemctl_start
   test_restart_prepares_runtime_assets_before_systemctl_restart
   test_enable_start_prepares_runtime_assets_before_enable_now
+  test_start_installs_missing_core_before_systemctl_start
   test_configure_restart_enables_timer
   test_disable_alpha_update_disables_timer
   test_runtime_audit_outputs

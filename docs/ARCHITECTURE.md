@@ -58,10 +58,11 @@
   - 安装与同步块：`install_webui`、`install_project`、`install_project_sync`、`disable_project_sync`、`finalize_project_install`
   - manager sync unit 渲染块：通用 render/write、sections、timer static settings、service body
   - `render_config` 渲染块：访问/控制面基础段、DNS/基础配置段、显式代理认证段、provider/group 组装段、rules 尾段
+- 当前已完成第五类块级收口：
+  - 运行前准备与服务启停块：runtime support files、runtime geo assets、runtime core guard、prepared start/restart/enable-start
 - `render_config` 当前已退回为编排入口，负责状态准备、调用职责块和配置文件权限收尾
-- 下一闭环优先转向 `mihomo` 的运行前准备与服务启停编排
-  - 优先 `prepare_runtime_assets`
-  - 优先 `start_service_command`
-  - 优先 `restart_service_command`
-  - 优先 `enable_and_start_service_command`
+- `prepare_runtime_assets` 当前已退回为“根检查 + 节点检查 + 调用职责块 + config test”的编排入口
+- 下一闭环优先转向 `mihomo` 的部署与修复编排
+  - 优先 `full_setup`
+  - 优先 `repair_command`
 - 不在该阶段顺手扩更多控制面能力，也不继续围绕 manager sync unit 做单行 helper 级拆分
