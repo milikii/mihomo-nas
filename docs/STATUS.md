@@ -88,6 +88,14 @@
     - 服务/维护/诊断命令分发段已独立
     - `main` 已退回为“处理默认入口 + 分发到 workflow/maintenance helper + 未知命令兜底”的编排入口
   - `smoke` / `service_mock` 已补到 `main` 的无参数非 TTY usage、未知命令、`update-alpha --quiet` 快照与 `update-stable` 输出分支
+  - `mihomo` 的交互菜单编排已完成当前最小收口：
+    - 一级菜单展示段已独立
+    - 一级菜单分发段已独立
+    - 部署/修复二级子菜单已独立
+    - 健康检查/审计二级子菜单已独立
+    - 菜单动作回车返回与无效选择收尾已独立
+    - `interactive_menu` 已退回为“展示菜单 + 读取 action + 调用分发 helper + 处理退出”的编排入口
+  - `service_mock` 已补到 `interactive_menu` 的健康检查失败后回到菜单、顶层无效选择和部署子菜单无效选择分支
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -101,7 +109,6 @@
 
 ## 当前风险与限制
 
-- `mihomo` 中仍有菜单与二级子菜单编排热点，当前下一优先级已转向 `interactive_menu`
+- `scripts/statectl.py` 仍保留协议解析、scan 结果归一化与 provider 渲染之间的过渡期耦合，当前下一优先级已转向协议解析链
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
-- `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

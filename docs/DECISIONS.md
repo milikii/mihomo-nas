@@ -110,6 +110,14 @@
 - 原因是 `interactive_menu` 仍保留一级菜单、二级子菜单、`press_enter` 收尾和失败回到菜单的集中编排，是 `mihomo` 主脚本剩余最显眼的交互热点
 - 当前已有 `service_mock` 的菜单回归基础，先继续收口菜单编排比提前转向 `scripts/statectl.py` 更保守
 
+## 2026-04-26 interactive_menu 收口后转向 scripts/statectl.py 协议解析链
+
+- `interactive_menu` 当前已收口为“展示菜单 + 读取 action + 调用分发 helper + 处理退出”的编排入口
+- `service_mock` 已补到菜单健康检查失败后回到菜单、顶层无效选择和部署子菜单无效选择分支
+- 下一优先级确定为 `scripts/statectl.py` 的协议解析链，优先 `parse_uri_info`、`uri_info` 与 `scan_uri_rows`
+- 原因不是扩协议，而是该文件仍保留协议解析、scan 结果归一化和 provider 渲染之间的过渡期耦合
+- 当前已有 `smoke` 的 `scan-uris` / `import-links` / `render-config` 回归基础，先收口协议解析链比直接碰 provider 渲染更保守
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档

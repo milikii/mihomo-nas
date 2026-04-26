@@ -11,14 +11,15 @@
 - `mihomo` 的交互导入编排已完成当前最小收口。
 - `mihomo` 的交互网络向导编排已完成当前最小收口。
 - `mihomo` 的 CLI 入口分发已完成当前最小收口。
-- 阶段 5 下一闭环转向 `mihomo` 主脚本中的剩余菜单编排热点。
+- `mihomo` 的交互菜单编排已完成当前最小收口。
+- 阶段 5 下一闭环转向 `scripts/statectl.py` 的协议解析热点。
 
 ## 下一最小闭环
 
-- 在 `mihomo` 收口 `interactive_menu` 编排块
-- 优先围绕一级菜单分发、二级子菜单、`press_enter` 收尾和无效选择分支收口职责块
-- 保持现有菜单文案、顺序、root 校验、失败后回到菜单的行为不变
-- 优先复用现有 `service_mock` 菜单回归，必要时只补最小 focused tests
+- 在 `scripts/statectl.py` 收口 URI 协议解析编排块
+- 优先围绕 `parse_uri_info` 的协议路由、`uri_info` 的成功/失败归一化，以及 `scan_uri_rows` 的遍历收尾收口职责块
+- 保持现有支持协议范围、错误提示和 scan 输出字段不变
+- 优先复用现有 `smoke` 的 `scan-uris` / `import-links` / `render-config` 回归，必要时只补最小 focused tests
 - 文档同步切到阶段 5 当前真相
 
 ## 本轮不做
@@ -34,11 +35,12 @@
 - 不回退已完成的交互导入编排收口
 - 不回退已完成的交互网络向导编排收口
 - 不回退已完成的 CLI 入口分发收口
+- 不回退已完成的交互菜单编排收口
 - 不做跨文件大规模拆分
 
 ## 退出条件
 
-- `interactive_menu` 的职责块边界更清晰，一级/二级菜单分支复杂度下降
-- 菜单文案、顺序、失败后留在菜单中的行为保持不变
+- `scripts/statectl.py` 的协议解析职责块边界更清晰，协议路由与 scan 收尾复杂度下降
+- 支持协议范围、错误提示和 scan 输出字段保持不变
 - 相关 smoke / service-mock 回归通过
 - 文档同步更新当前阶段结论
