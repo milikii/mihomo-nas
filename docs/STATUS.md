@@ -50,7 +50,7 @@
   - `internal/config` round-trip
   - `internal/provider` scan / render
   - `internal/rulesrepo` render / search
-  - `internal/app` import-links / render-config / subscriptions update
+  - `internal/app` import-links / render-config / subscriptions update / setup / clear-rules / apply-rules
   - `internal/system` command runner
 
 ## 质量状态
@@ -60,6 +60,6 @@
 
 ## 当前风险与限制
 
-- 当前 Go 测试已覆盖配置、provider、rules-repo、app 主路径和 system runner，但 `setup` / `apply-rules` 的系统编排仍缺更细粒度 mock
+- 当前 Go 测试已覆盖配置、provider、rules-repo、app 主路径和 system runner，但 `start` / `restart` / `healthcheck` / `runtime-audit` 仍缺更细粒度 mock
 - `docs/images/readme-overview.svg` 已移除，后续若需要项目总览图应按 `minimalist` 当前架构重画
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移
