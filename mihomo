@@ -742,8 +742,7 @@ repair_command() {
   load_settings
   load_router_env
   write_runtime_support_files
-  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
-  ensure_geosite_ready
+  ensure_runtime_geo_assets
   if [[ ! -d "$UI_DIR" || -z "$(find "$UI_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1)" ]]; then
     install_webui || warn "WebUI 修复失败；核心旁路由链已继续"
   fi
@@ -757,6 +756,11 @@ write_runtime_support_files() {
   write_sysctl
 }
 
+ensure_runtime_geo_assets() {
+  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
+  ensure_geosite_ready
+}
+
 prepare_runtime_assets() {
   require_root
   ensure_layout
@@ -767,8 +771,7 @@ prepare_runtime_assets() {
     install_binary "${CORE_CHANNEL:-alpha}"
   fi
   write_runtime_support_files
-  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
-  ensure_geosite_ready
+  ensure_runtime_geo_assets
   config_test
 }
 
@@ -1042,8 +1045,7 @@ full_setup() {
     install_binary "${CORE_CHANNEL:-alpha}"
   fi
   write_runtime_support_files
-  [[ -f "$COUNTRY_MMDB" ]] || install_country_mmdb
-  ensure_geosite_ready
+  ensure_runtime_geo_assets
   if install_webui; then
     ok "WebUI 已就绪"
   else
