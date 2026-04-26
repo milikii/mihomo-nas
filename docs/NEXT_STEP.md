@@ -15,8 +15,8 @@
 
 ## 下一最小闭环
 
-- 为顶层 `Run(args)` 到 `rules` / `acl` 分发补 focused tests
-- 为 `render-config` 补更多 `mixed-port` / `tproxy-port` / `mode` / `tcp-concurrent` / `find-process-mode` 静态段落断言
+- 为 `render-config` 补更多 `secret` / `external-controller` / `lan-allowed-ips` / `lan-disallowed-ips` focused assertions
+- 为 `runtime` / `cli` focused tests 做最小去重和命名收口
 - 继续把 README / flows 文档收口到 `minimalist` 当前命令真相
 
 ## 本轮不做

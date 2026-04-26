@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -209,6 +210,154 @@ func TestBuildRuntimeConfigIncludesDNSBehaviorFlags(t *testing.T) {
 		"  enhanced-mode: fake-ip\n",
 		"  fake-ip-range: 198.18.0.1/16\n",
 		"  fake-ip-filter-mode: blacklist\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigIncludesSubscriptionProvidersWhenEnabled(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{
+		ID:        "sub-1",
+		Name:      "sub-1",
+		URL:       "https://subscription.example.com/sub.txt",
+		Enabled:   true,
+		CreatedAt: state.NowISO(),
+	}}
+	st.Nodes = []state.Node{{
+		ID:         "1",
+		Name:       "sub-node",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443?security=tls#sub-node",
+		ImportedAt: state.NowISO(),
+		Source:     state.Source{Kind: "subscription", ID: "sub-1"},
+	}}
+	if err := os.MkdirAll(paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("sub-1"), []byte("trojan://password@example.org:443?security=tls#sub-node\n"), 0o640); err != nil {
+		t.Fatalf("write subscription cache: %v", err)
+	}
+	text, err := buildRuntimeConfig(paths, cfg, st, nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"proxy-providers:",
+		"  subscription-sub:\n    type: file\n    path: ./proxy_providers/subscriptions/sub-1.txt\n",
+		"    - subscription-sub\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigIncludesPortAndModeHeaders(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	cfg.Profile.Mode = "global"
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"mixed-port: 7890\n",
+		"tproxy-port: 7893\n",
+		"mode: global\n",
+		"external-controller: 127.0.0.1:19090\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigIncludesControllerCorsWhenEnabled(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	cfg.Controller.CORSAllowOrigins = []string{"https://panel.example"}
+	cfg.Controller.CORSAllowPrivateNetwork = true
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"external-controller-cors:",
+		"  allow-origins:\n    - \"https://panel.example\"\n",
+		"  allow-private-network: true\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigIncludesAuthSectionsWhenEnabled(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	cfg.Access.Authentication = []string{"user:pass"}
+	cfg.Access.SkipAuthPrefixes = []string{"192.168.2."}
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"authentication:",
+		"  - \"user:pass\"\n",
+		"skip-auth-prefixes:",
+		"  - 192.168.2.\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigIncludesManualProviderWhenNodesEnabled(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Nodes = []state.Node{{
+		ID:         "1",
+		Name:       "manual-1",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443?security=tls#manual-1",
+		ImportedAt: state.NowISO(),
+		Source:     state.Source{Kind: "manual"},
+	}}
+	text, err := buildRuntimeConfig(paths, cfg, st, nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"proxy-providers:",
+		"  manual:\n    type: file\n    path: ./proxy_providers/manual.txt\n",
+		"proxy-groups:\n  - name: \"PROXY\"\n    type: select\n    proxies:\n      - DIRECT\n      - AUTO\n    use:\n      - manual\n",
 	} {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
