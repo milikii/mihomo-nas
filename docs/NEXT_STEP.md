@@ -15,8 +15,8 @@
 
 ## 下一最小闭环
 
-- 为 `rules` / `acl` 的 unknown subcommand 分支补 focused tests
-- 为 `render-config` 补更多 `nameserver` / `geox-url` / `dns.listen` 静态段落断言
+- 为顶层 `Run(args)` 到 `rules` / `acl` 分发补 focused tests
+- 为 `render-config` 补更多 `allow-lan` / `bind-address` / `log-level` / `ipv6` 静态段落断言
 - 继续把 README / flows 文档收口到 `minimalist` 当前命令真相
 
 ## 本轮不做

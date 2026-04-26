@@ -392,6 +392,23 @@ func TestRunRulesAndACLUsageAndIndexErrors(t *testing.T) {
 	}
 }
 
+func TestRunRulesAndACLUnknownSubcommand(t *testing.T) {
+	a, _ := newCLIApp(t)
+	for _, tc := range []struct {
+		acl  bool
+		args []string
+		want string
+	}{
+		{false, []string{"unknown"}, "unknown rules command: unknown"},
+		{true, []string{"unknown"}, "unknown acl command: unknown"},
+	} {
+		err := runRules(a, tc.acl, tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("acl=%t args=%v want %q got %v", tc.acl, tc.args, tc.want, err)
+		}
+	}
+}
+
 func TestRunWithoutArgsOnNonTTYPrintsUsage(t *testing.T) {
 	setCLIPathsEnv(t)
 	withStdinFile(t, "", func() {
