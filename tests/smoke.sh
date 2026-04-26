@@ -190,6 +190,53 @@ test_scan_marks_invalid_vless_port() {
   assert_contains "$output" $'\t0\tvless\tPort could not be cast to integer value'
 }
 
+test_import_links_imports_supported_nodes_from_stdin() {
+  setup_case
+  output="$(
+    printf '%s\n' \
+      'vless://uuid@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=abcd&type=tcp#import-node' \
+      'hy2://password@example.com:443#unsupported' \
+      'end' \
+      '' \
+      'n' | run_manager import-links 2>&1
+  )"
+  assert_contains "$output" '请粘贴节点链接'
+  assert_contains "$output" '已处理 1 条节点'
+  assert_contains "$output" '有 1 条链接因协议不受支持而被跳过'
+  python3 - "${TMPDIR_CASE}/state/nodes.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+nodes = data["nodes"]
+assert len(nodes) == 1, nodes
+assert nodes[0]["name"] == "import-node", nodes
+assert nodes[0]["enabled"] is False, nodes
+assert nodes[0]["source"]["kind"] == "manual", nodes
+PY
+}
+
+test_import_links_fails_when_no_supported_nodes() {
+  setup_case
+  if printf '%s\n' \
+    'hy2://password@example.com:443#unsupported' \
+    'end' | run_manager import-links >/tmp/mh-import-links-invalid.log 2>&1; then
+    echo "import-links should fail without supported nodes" >&2
+    exit 1
+  fi
+  grep -q '跳过不支持的 hy2 节点' /tmp/mh-import-links-invalid.log
+  grep -q '没有读取到有效节点' /tmp/mh-import-links-invalid.log
+  python3 - "${TMPDIR_CASE}/state/nodes.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+assert data["nodes"] == [], data
+PY
+}
+
 test_subscription_state_commands() {
   setup_case
   run_manager add-subscription "test-sub" "https://example.com/sub.txt" 1 >/dev/null
@@ -1152,6 +1199,8 @@ main() {
   test_scan_marks_invalid_vmess_payload
   test_scan_marks_invalid_ss_payload
   test_scan_marks_invalid_vless_port
+  test_import_links_imports_supported_nodes_from_stdin
+  test_import_links_fails_when_no_supported_nodes
   test_subscription_state_commands
   test_subscription_state_uses_cache_and_enumeration_subobjects
   test_config_loader_treats_values_as_literals

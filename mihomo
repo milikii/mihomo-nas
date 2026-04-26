@@ -191,13 +191,17 @@ import_links() {
   local enabled_value
   local imported=0
   local skipped=0
-  local input_tty="/dev/tty"
+  local input_path="/dev/stdin"
+  local input_fd
 
-  [[ -r "$input_tty" ]] || input_tty="/dev/stdin"
+  if [[ -t 0 && -r /dev/tty ]]; then
+    input_path="/dev/tty"
+  fi
+  exec {input_fd}<"$input_path"
   tmp="$(mktemp)"
   scan_tmp="$(mktemp)"
   info "请粘贴节点链接，每行一个。输入 end 结束，也可以按 Ctrl-D 结束。"
-  while IFS= read -r line <"$input_tty"; do
+  while IFS= read -r -u "$input_fd" line; do
     normalized_line="${line%$'\r'}"
     lowered_line="${normalized_line,,}"
     [[ -z "$normalized_line" ]] && continue
@@ -218,9 +222,9 @@ import_links() {
     fi
     echo
     echo "节点: ${server}:${port}  ${network}/${security} (${scheme})"
-    read -r -p "名称 [${default_name}]: " custom_name <"$input_tty"
+    read -r -u "$input_fd" -p "名称 [${default_name}]: " custom_name
     custom_name="${custom_name:-$default_name}"
-    read -r -p "立即启用? [Y/n]: " enabled_answer <"$input_tty"
+    read -r -u "$input_fd" -p "立即启用? [Y/n]: " enabled_answer
     if [[ "${enabled_answer,,}" == "n" ]]; then
       enabled_value="0"
     else
@@ -231,6 +235,7 @@ import_links() {
   done <"$scan_tmp"
 
   rm -f "$tmp" "$scan_tmp"
+  exec {input_fd}<&-
   [[ "$imported" -gt 0 ]] || die "没有读取到有效节点"
   post_state_change
   ok "已处理 ${imported} 条节点"
