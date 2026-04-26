@@ -890,6 +890,22 @@ def apply_vless_provider_data_fields(item: dict[str, object], info: dict) -> Non
         item["encryption"] = info["encryption"]
 
 
+def apply_vless_provider_security_fields(item: dict[str, object], info: dict) -> None:
+    if info.get("security") in {"tls", "reality"}:
+        item["tls"] = True
+    apply_common_tls_fields(item, info)
+    if info.get("security") == "reality" and info.get("reality_opts"):
+        item["reality-opts"] = info["reality_opts"]
+
+
+def apply_vless_provider_xhttp_fields(item: dict[str, object], info: dict) -> None:
+    if item.get("network") != "xhttp":
+        return
+    xhttp_opts = render_vless_xhttp_opts(info)
+    if xhttp_opts:
+        item["xhttp-opts"] = xhttp_opts
+
+
 def render_vless_xhttp_opts(info: dict) -> dict:
     xhttp_opts: dict[str, object] = {}
     apply_vless_xhttp_direct_fields(xhttp_opts, info)
@@ -907,16 +923,9 @@ def build_vless_provider_item(name: str, info: dict) -> dict:
         "udp": True,
     }
     apply_vless_provider_data_fields(item, info)
-    if info.get("security") in {"tls", "reality"}:
-        item["tls"] = True
-    apply_common_tls_fields(item, info)
-    if info.get("security") == "reality" and info.get("reality_opts"):
-        item["reality-opts"] = info["reality_opts"]
+    apply_vless_provider_security_fields(item, info)
     apply_network_opts(item, info)
-    if item.get("network") == "xhttp":
-        xhttp_opts = render_vless_xhttp_opts(info)
-        if xhttp_opts:
-            item["xhttp-opts"] = xhttp_opts
+    apply_vless_provider_xhttp_fields(item, info)
     return item
 
 
