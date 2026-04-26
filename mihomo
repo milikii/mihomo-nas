@@ -1241,6 +1241,16 @@ run_menu_action() {
   fi
 }
 
+run_interactive_menu_command() {
+  run_menu_action "$@"
+  press_enter
+}
+
+warn_invalid_interactive_menu_selection() {
+  warn "无效选择"
+  press_enter
+}
+
 show_interactive_menu_prompt() {
   clear 2>/dev/null || true
   show_status
@@ -1268,7 +1278,6 @@ run_interactive_setup_submenu() {
     2) run_menu_action repair_command ;;
     *) warn "无效选择" ;;
   esac
-  press_enter
 }
 
 run_interactive_audit_submenu() {
@@ -1283,22 +1292,21 @@ run_interactive_audit_submenu() {
     3) run_menu_action audit_installation ;;
     *) warn "无效选择" ;;
   esac
-  press_enter
 }
 
 dispatch_interactive_menu_action() {
   case "$1" in
-    1) run_menu_action show_status; press_enter ;;
-    2) run_interactive_setup_submenu ;;
-    3) run_menu_action nodes_menu; press_enter ;;
-    4) run_menu_action network_menu; press_enter ;;
-    5) run_menu_action acl_menu; press_enter ;;
-    6) run_menu_action service_menu; press_enter ;;
-    7) run_interactive_audit_submenu ;;
-    8) run_menu_action diagnostics_menu; press_enter ;;
-    9) run_menu_action maintenance_menu; press_enter ;;
+    1) run_interactive_menu_command show_status ;;
+    2) run_interactive_setup_submenu; press_enter ;;
+    3) run_interactive_menu_command nodes_menu ;;
+    4) run_interactive_menu_command network_menu ;;
+    5) run_interactive_menu_command acl_menu ;;
+    6) run_interactive_menu_command service_menu ;;
+    7) run_interactive_audit_submenu; press_enter ;;
+    8) run_interactive_menu_command diagnostics_menu ;;
+    9) run_interactive_menu_command maintenance_menu ;;
     0) return 1 ;;
-    *) warn "无效选择"; press_enter ;;
+    *) warn_invalid_interactive_menu_selection ;;
   esac
 }
 
