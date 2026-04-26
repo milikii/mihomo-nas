@@ -38,6 +38,7 @@
 ## 辅助入口
 
 - `minimalist menu` 是当前交互入口，内部仍分发到同一组 CLI 命令
+- 顶层 `minimalist --help` / `help` / 非 TTY 空参数当前都回落到同一份 usage 输出
 - `minimalist router-wizard` 直接回写 `/etc/minimalist/config.yaml`
 - `minimalist rules-repo summary|entries|find` 用于查看当前内置规则仓库真相
 

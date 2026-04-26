@@ -15,8 +15,8 @@
 
 ## 下一最小闭环
 
-- 为顶层 `Run(args)` 分发、usage error、`--help` 输出补 focused tests
-- 为 `render-config` 补更多控制面 bind / secret fallback / LAN 禁止网段断言
+- 为 `menu` 的 TTY 入口与顶层 `Run(args)` 到 root-only 命令的 focused tests 补最小覆盖
+- 为 `render-config` 补更多 `skip-auth-prefixes` / `external-ui` / nameserver-policy 断言
 - 继续把 README / flows 文档收口到 `minimalist` 当前命令真相
 
 ## 本轮不做

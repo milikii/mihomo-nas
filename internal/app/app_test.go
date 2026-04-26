@@ -650,6 +650,37 @@ func TestRenderConfigSupportsExplicitProxyOnlyConfig(t *testing.T) {
 	}
 }
 
+func TestRenderConfigIncludesBindAddressAndLANDisallowed(t *testing.T) {
+	app, _ := newTestApp(t)
+	cfg, err := config.Ensure(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	cfg.Controller.BindAddress = "0.0.0.0"
+	cfg.Access.LANDisallowedCIDRs = []string{"10.10.10.0/24", "172.16.0.0/16"}
+	if err := config.Save(app.Paths.ConfigPath(), cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	if err := app.RenderConfig(); err != nil {
+		t.Fatalf("render config: %v", err)
+	}
+	configBody, err := os.ReadFile(app.Paths.RuntimeConfig())
+	if err != nil {
+		t.Fatalf("read runtime config: %v", err)
+	}
+	configText := string(configBody)
+	for _, needle := range []string{
+		"external-controller: 0.0.0.0:19090",
+		"lan-disallowed-ips:",
+		"  - 10.10.10.0/24",
+		"  - 172.16.0.0/16",
+	} {
+		if !strings.Contains(configText, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, configText)
+		}
+	}
+}
+
 func TestClearRulesRunsExpectedCleanupCommands(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall

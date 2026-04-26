@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -38,6 +40,61 @@ func newCLIApp(t *testing.T) (*app.App, *bytes.Buffer) {
 		Stdout: stdout,
 		Stderr: &bytes.Buffer{},
 	}, stdout
+}
+
+func setCLIPathsEnv(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv("MINIMALIST_CONFIG_DIR", filepath.Join(root, "etc"))
+	t.Setenv("MINIMALIST_DATA_DIR", filepath.Join(root, "var"))
+	t.Setenv("MINIMALIST_RUNTIME_DIR", filepath.Join(root, "runtime"))
+	t.Setenv("MINIMALIST_INSTALL_DIR", filepath.Join(root, "install"))
+	t.Setenv("MINIMALIST_BIN_PATH", filepath.Join(root, "bin", "minimalist"))
+	t.Setenv("MINIMALIST_SERVICE_UNIT", filepath.Join(root, "systemd", "minimalist.service"))
+	t.Setenv("MINIMALIST_SYSCTL_PATH", filepath.Join(root, "sysctl", "99-minimalist-router.conf"))
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe stdout: %v", err)
+	}
+	os.Stdout = writer
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+	fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	return string(body)
+}
+
+func withStdinFile(t *testing.T, content string, fn func()) {
+	t.Helper()
+	file, err := os.CreateTemp(t.TempDir(), "stdin-*")
+	if err != nil {
+		t.Fatalf("create stdin file: %v", err)
+	}
+	if _, err := file.WriteString(content); err != nil {
+		t.Fatalf("write stdin file: %v", err)
+	}
+	if _, err := file.Seek(0, 0); err != nil {
+		t.Fatalf("seek stdin file: %v", err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = file
+	defer func() {
+		os.Stdin = oldStdin
+		_ = file.Close()
+	}()
+	fn()
 }
 
 func mustImportNode(t *testing.T, a *app.App, uri string) {
@@ -208,5 +265,72 @@ func TestRunRulesAndACLAddListRemove(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "" {
 		t.Fatalf("expected empty rule/acl output, got:\n%s", stdout.String())
+	}
+}
+
+func TestRunWithoutArgsOnNonTTYPrintsUsage(t *testing.T) {
+	setCLIPathsEnv(t)
+	withStdinFile(t, "", func() {
+		output := captureStdout(t, func() {
+			if err := Run(nil); err != nil {
+				t.Fatalf("run without args: %v", err)
+			}
+		})
+		if !strings.Contains(output, "minimalist commands:") {
+			t.Fatalf("expected usage output, got:\n%s", output)
+		}
+	})
+}
+
+func TestRunHelpPrintsUsage(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		if err := Run([]string{"--help"}); err != nil {
+			t.Fatalf("run help: %v", err)
+		}
+	})
+	for _, needle := range []string{
+		"minimalist commands:",
+		"minimalist rules-repo summary|entries|find|add|remove|remove-index",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in help output:\n%s", needle, output)
+		}
+	}
+}
+
+func TestRunUnknownCommandReturnsError(t *testing.T) {
+	setCLIPathsEnv(t)
+	err := Run([]string{"unknown-subcommand"})
+	if err == nil || !strings.Contains(err.Error(), "unknown command: unknown-subcommand") {
+		t.Fatalf("expected unknown command error, got %v", err)
+	}
+}
+
+func TestRunDispatchesRulesRepoSummary(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		if err := Run([]string{"rules-repo", "summary"}); err != nil {
+			t.Fatalf("run rules-repo summary: %v", err)
+		}
+	})
+	for _, needle := range []string{"规则仓库:", "- pt:", "总规则数:"} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in summary output:\n%s", needle, output)
+		}
+	}
+}
+
+func TestRunDispatchesNodesList(t *testing.T) {
+	setCLIPathsEnv(t)
+	a := app.New()
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#run-node")
+	output := captureStdout(t, func() {
+		if err := Run([]string{"nodes", "list"}); err != nil {
+			t.Fatalf("run nodes list: %v", err)
+		}
+	})
+	if !strings.Contains(output, "1\trun-node\t0\tmanual") {
+		t.Fatalf("unexpected nodes list output:\n%s", output)
 	}
 }
