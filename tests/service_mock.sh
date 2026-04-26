@@ -922,6 +922,22 @@ test_menu_survives_failed_healthcheck() {
   [[ "$(grep -c 'Mihomo 管理器 v0.6.0' <<<"$output")" -ge 2 ]]
 }
 
+test_menu_survives_invalid_top_level_selection() {
+  setup_case
+  run_manager render-config >/dev/null
+  output="$(printf 'x\n0\n' | run_manager menu 2>&1)"
+  grep -q '无效选择' <<<"$output"
+  [[ "$(grep -c 'Mihomo 管理器 v0.6.0' <<<"$output")" -ge 2 ]]
+}
+
+test_menu_survives_invalid_setup_submenu_selection() {
+  setup_case
+  run_manager render-config >/dev/null
+  output="$(printf '2\n9\n0\n' | run_manager menu 2>&1)"
+  grep -q '无效选择' <<<"$output"
+  [[ "$(grep -c 'Mihomo 管理器 v0.6.0' <<<"$output")" -ge 2 ]]
+}
+
 test_install_self_sync_writes_units_and_status() {
   setup_case
   output="$(run_manager install-self-sync 5)"
@@ -1233,6 +1249,8 @@ main() {
   test_healthcheck_uses_localhost_proxy_probe
   test_healthcheck_ignores_ss_pipefail_false_negative
   test_menu_survives_failed_healthcheck
+  test_menu_survives_invalid_top_level_selection
+  test_menu_survives_invalid_setup_submenu_selection
   test_install_self_sync_writes_units_and_status
   test_install_self_sync_rejects_invalid_interval
   test_disable_self_sync_removes_units
