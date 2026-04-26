@@ -906,6 +906,11 @@ def apply_vless_provider_xhttp_fields(item: dict[str, object], info: dict) -> No
         item["xhttp-opts"] = xhttp_opts
 
 
+def apply_provider_connection_fields(item: dict[str, object], info: dict) -> None:
+    apply_common_tls_fields(item, info)
+    apply_network_opts(item, info)
+
+
 def build_provider_base_item(name: str, type_name: str, info: dict) -> dict:
     return {
         "name": name,
@@ -914,6 +919,13 @@ def build_provider_base_item(name: str, type_name: str, info: dict) -> dict:
         "port": info["port"],
         "udp": True,
     }
+
+
+def apply_ss_provider_plugin_fields(item: dict[str, object], info: dict) -> None:
+    if info.get("plugin"):
+        item["plugin"] = info["plugin"]
+    if info.get("plugin_opts"):
+        item["plugin-opts"] = info["plugin_opts"]
 
 
 def render_vless_xhttp_opts(info: dict) -> dict:
@@ -928,7 +940,7 @@ def build_vless_provider_item(name: str, info: dict) -> dict:
     item["uuid"] = info["uuid"]
     apply_vless_provider_data_fields(item, info)
     apply_vless_provider_security_fields(item, info)
-    apply_network_opts(item, info)
+    apply_provider_connection_fields(item, info)
     apply_vless_provider_xhttp_fields(item, info)
     return item
 
@@ -937,8 +949,7 @@ def build_trojan_provider_item(name: str, info: dict) -> dict:
     item = build_provider_base_item(name, "trojan", info)
     item["password"] = info["password"]
     item["tls"] = info.get("security", "tls") in {"tls", "reality"}
-    apply_common_tls_fields(item, info)
-    apply_network_opts(item, info)
+    apply_provider_connection_fields(item, info)
     return item
 
 
@@ -946,10 +957,7 @@ def build_ss_provider_item(name: str, info: dict) -> dict:
     item = build_provider_base_item(name, "ss", info)
     item["cipher"] = info["cipher"]
     item["password"] = info["password"]
-    if info.get("plugin"):
-        item["plugin"] = info["plugin"]
-    if info.get("plugin_opts"):
-        item["plugin-opts"] = info["plugin_opts"]
+    apply_ss_provider_plugin_fields(item, info)
     return item
 
 
@@ -960,8 +968,7 @@ def build_vmess_provider_item(name: str, info: dict) -> dict:
     item["cipher"] = info["cipher"]
     if info.get("tls"):
         item["tls"] = True
-    apply_common_tls_fields(item, info)
-    apply_network_opts(item, info)
+    apply_provider_connection_fields(item, info)
     return item
 
 
