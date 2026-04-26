@@ -13,6 +13,11 @@ type Runner struct {
 	Timeout time.Duration
 }
 
+type CommandRunner interface {
+	Run(name string, args ...string) error
+	Output(name string, args ...string) (string, string, error)
+}
+
 func NewRunner() Runner {
 	return Runner{Timeout: 30 * time.Second}
 }

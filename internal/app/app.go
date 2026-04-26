@@ -25,7 +25,7 @@ import (
 
 type App struct {
 	Paths  runtime.Paths
-	Runner system.Runner
+	Runner system.CommandRunner
 	Stdout io.Writer
 	Stderr io.Writer
 	Stdin  io.Reader
