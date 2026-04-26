@@ -800,9 +800,7 @@ enable_service_command() {
 }
 
 enable_and_start_service_command() {
-  prepare_runtime_assets
-  systemctl_cmd enable --now mihomo
-  ok "mihomo 已启动并设为开机自启"
+  run_prepared_mihomo_systemctl_command "mihomo 已启动并设为开机自启" enable --now
 }
 
 stop_service_command() {
