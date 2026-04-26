@@ -102,6 +102,14 @@
 - 原因是 `main` 仍保留 CLI 参数分发、interactive fallback 和 alpha/stable update 的内联 snapshot 分支，是 `mihomo` 主脚本剩余最集中的入口编排热点
 - `router_wizard` 收口后，继续优先处理单文件内剩余热点，比提前切到 `scripts/statectl.py` 更保守、更易验证
 
+## 2026-04-26 main 收口后优先转向 interactive_menu
+
+- `main` 当前已收口为“处理默认入口 + 分发到 workflow/maintenance helper + 未知命令兜底”的编排入口
+- `smoke` / `service_mock` 已补到 `main` 的无参数非 TTY usage、未知命令、`update-alpha --quiet` 快照与 `update-stable` 输出分支
+- 下一优先级确定为 `interactive_menu`
+- 原因是 `interactive_menu` 仍保留一级菜单、二级子菜单、`press_enter` 收尾和失败回到菜单的集中编排，是 `mihomo` 主脚本剩余最显眼的交互热点
+- 当前已有 `service_mock` 的菜单回归基础，先继续收口菜单编排比提前转向 `scripts/statectl.py` 更保守
+
 ## 2026-04-26 codex 会话产物不进入版本控制
 
 - 会话落盘统一为 `codex.md`，只保留最近三轮会话，不作为仓库真相文档

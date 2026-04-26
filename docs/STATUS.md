@@ -81,6 +81,13 @@
     - `LAN_CIDRS` 自动识别与 bypass 写盘段已独立
     - `router_wizard` 已退回为“展示当前配置 + 收集输入 + snapshot + 写基础 env + 处理派生网段 + 写 bypass + 状态收尾”的编排入口
   - `smoke` 已补到 `router-wizard` 的 stdin 成功更新、入口网段识别失败保留现值和非法宿主机接管值失败分支
+  - `mihomo` 的 CLI 入口分发已完成当前最小收口：
+    - 默认入口 fallback 段已独立
+    - `update-alpha` / `update-stable` 共用分支已独立
+    - 工作流命令分发段已独立
+    - 服务/维护/诊断命令分发段已独立
+    - `main` 已退回为“处理默认入口 + 分发到 workflow/maintenance helper + 未知命令兜底”的编排入口
+  - `smoke` / `service_mock` 已补到 `main` 的无参数非 TTY usage、未知命令、`update-alpha --quiet` 快照与 `update-stable` 输出分支
   - `install_webui` 的解压失败告警输出已恢复，与重构前真相一致
   - 当前行为与输出文本保持与重构前真相一致
 
@@ -94,7 +101,7 @@
 
 ## 当前风险与限制
 
-- `mihomo` 中仍有 CLI 分发与菜单入口热点，当前下一优先级已转向 `main`
+- `mihomo` 中仍有菜单与二级子菜单编排热点，当前下一优先级已转向 `interactive_menu`
 - manager sync unit 周边已出现低收益单行 helper 粒度，后续默认不再沿该方向继续细拆
 - `scripts/statectl.py` 仍保留过渡期协议解析逻辑，尚未退化为更小的状态工具
 - `nas-single-lan-dualstack` 仅兼容保留，不代表项目已支持真双栈旁路由

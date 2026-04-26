@@ -244,13 +244,14 @@
 - 已完成 `mihomo` 订阅刷新编排的当前最小收口，single subscription refresh、success/failure recording、update-subscriptions orchestration 已独立
 - 已完成 `mihomo` 交互导入编排的当前最小收口，input source selection、URI collection、manual node append、scan result processing 已独立
 - 已完成 `mihomo` 交互网络向导编排的当前最小收口，current config intro、core input collection、core env writes、detected lan cidrs、bypass env flow 已独立
+- 已完成 `mihomo` CLI 入口分发的当前最小收口，default entry fallback、shared core update dispatch、workflow command dispatch、maintenance command dispatch 已独立
 - `install_webui` 的解压失败告警已恢复为可见输出
 - 当前仍保持与重构前一致的输出文本与退化行为
 
 下一优先级：
 
 1. 先收口 `mihomo` 主脚本中更易验证的交互长编排
-   - 优先 `main`
+   - 优先 `interactive_menu`
 2. 再收口 `mihomo` 其他长编排函数
    - 优先 menus / diagnostics side dispatch
 3. 最后为 `scripts/statectl.py` 退化做准备
