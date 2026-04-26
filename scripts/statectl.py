@@ -936,27 +936,32 @@ def render_rules(path: Path, rules: list[dict]) -> None:
     path.write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
 
 
-def scan_uri_rows(text: str) -> list[dict]:
-    rows = []
+def scannable_subscription_uris(text: str) -> list[str]:
+    uris = []
     for line in decode_subscription_lines(text):
         uri = normalize_uri(line)
-        if "://" not in uri:
-            continue
-        info = uri_info(uri)
-        rows.append(
-            {
-                "uri": uri,
-                "name": info["name"],
-                "server": info["server"],
-                "port": info["port"],
-                "network": info["network"],
-                "security": info["security"],
-                "supported": info["supported"],
-                "scheme": info["scheme"],
-                "reason": info["reason"],
-            }
-        )
-    return rows
+        if "://" in uri:
+            uris.append(uri)
+    return uris
+
+
+def scan_uri_row(uri: str) -> dict:
+    info = uri_info(uri)
+    return {
+        "uri": uri,
+        "name": info["name"],
+        "server": info["server"],
+        "port": info["port"],
+        "network": info["network"],
+        "security": info["security"],
+        "supported": info["supported"],
+        "scheme": info["scheme"],
+        "reason": info["reason"],
+    }
+
+
+def scan_uri_rows(text: str) -> list[dict]:
+    return [scan_uri_row(uri) for uri in scannable_subscription_uris(text)]
 
 
 def make_node(name: str, uri: str, enabled: bool, source_kind: str = "manual", source_id: str = "") -> dict:
