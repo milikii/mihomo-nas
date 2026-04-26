@@ -13,6 +13,11 @@ import (
 	"minimalist/internal/runtime"
 )
 
+type commandCall struct {
+	name string
+	args []string
+}
+
 type fakeRunner struct {
 	runFn    func(name string, args ...string) error
 	outputFn func(name string, args ...string) (string, string, error)
@@ -79,6 +84,32 @@ func newTestApp(t *testing.T) (*App, string) {
 	return app, root
 }
 
+func hasRecordedCall(calls []commandCall, name string, want ...string) bool {
+	for _, call := range calls {
+		if call.name != name {
+			continue
+		}
+		matched := true
+		for _, part := range want {
+			found := false
+			for _, arg := range call.args {
+				if arg == part {
+					found = true
+					break
+				}
+			}
+			if !found {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
 func TestImportLinksPersistsManualNode(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
@@ -94,6 +125,63 @@ func TestImportLinksPersistsManualNode(t *testing.T) {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in state:\n%s", needle, text)
 		}
+	}
+}
+
+func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "systemctl" && len(args) >= 2 && args[0] == "is-active" {
+				return errors.New("inactive")
+			}
+			if name == "systemctl" && len(args) >= 2 && args[0] == "is-enabled" {
+				return errors.New("disabled")
+			}
+			if name == "iptables" {
+				for _, arg := range args {
+					if arg == "-C" || arg == "-S" {
+						return errors.New("missing")
+					}
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+	if err := app.Setup(); err != nil {
+		t.Fatalf("setup without providers: %v", err)
+	}
+	if hasRecordedCall(calls, "systemctl", "enable", "--now", "minimalist.service") {
+		t.Fatalf("service should not be enabled without providers")
+	}
+	if !hasRecordedCall(calls, "systemctl", "daemon-reload") {
+		t.Fatalf("expected daemon-reload call")
+	}
+	serviceBody, err := os.ReadFile(app.Paths.ServiceUnit)
+	if err != nil {
+		t.Fatalf("read service unit: %v", err)
+	}
+	if !strings.Contains(string(serviceBody), "ExecStartPre=+") || !strings.Contains(string(serviceBody), "minimalist apply-rules") {
+		t.Fatalf("unexpected service unit:\n%s", string(serviceBody))
+	}
+	sysctlBody, err := os.ReadFile(app.Paths.SysctlPath)
+	if err != nil {
+		t.Fatalf("read sysctl: %v", err)
+	}
+	if !strings.Contains(string(sysctlBody), "net.ipv4.ip_forward = 1") {
+		t.Fatalf("unexpected sysctl content:\n%s", string(sysctlBody))
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	if !strings.Contains(output, "部署完成，请先 import-links 或 update-subscriptions 后再启动服务") {
+		t.Fatalf("unexpected setup output:\n%s", output)
 	}
 }
 
