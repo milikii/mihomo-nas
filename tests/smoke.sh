@@ -410,6 +410,48 @@ EOF
   [[ -n "$profile_line" && -n "$dns_line" && "$profile_line" -lt "$dns_line" ]]
 }
 
+test_render_config_keeps_dns_block_before_authentication() {
+  setup_case
+  cat > "${TMPDIR_CASE}/router.env" <<'EOF'
+TEMPLATE_NAME="nas-single-lan-v4"
+ENABLE_IPV6="0"
+LAN_INTERFACES="bridge1"
+LAN_CIDRS="192.168.2.0/24"
+LAN_DISALLOWED_CIDRS=""
+PROXY_INGRESS_INTERFACES="bridge1"
+DNS_HIJACK_ENABLED="1"
+DNS_HIJACK_INTERFACES="bridge1"
+PROXY_AUTH_CREDENTIALS="alice:secret"
+SKIP_AUTH_PREFIXES="127.0.0.1/32"
+PROXY_HOST_OUTPUT="0"
+BYPASS_CONTAINER_NAMES=""
+BYPASS_SRC_CIDRS=""
+BYPASS_DST_CIDRS=""
+BYPASS_UIDS=""
+MIXED_PORT="7890"
+TPROXY_PORT="7893"
+DNS_PORT="1053"
+CONTROLLER_PORT="19090"
+CONTROLLER_BIND_ADDRESS="127.0.0.1"
+ROUTE_MARK="0x2333"
+ROUTE_MASK="0xffffffff"
+ROUTE_TABLE="233"
+ROUTE_PRIORITY="100"
+EOF
+  run_manager render-config >/dev/null
+
+  profile_line="$(grep -n '^profile:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  dns_line="$(grep -n '^dns:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  proxies_line="$(grep -n '^proxies: \[\]$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  auth_line="$(grep -n '^authentication:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+  skip_auth_line="$(grep -n '^skip-auth-prefixes:$' "${TMPDIR_CASE}/config.yaml" | cut -d: -f1)"
+
+  [[ -n "$profile_line" && -n "$dns_line" && "$profile_line" -lt "$dns_line" ]]
+  [[ -n "$dns_line" && -n "$proxies_line" && "$dns_line" -lt "$proxies_line" ]]
+  [[ -n "$proxies_line" && -n "$auth_line" && "$proxies_line" -lt "$auth_line" ]]
+  [[ -n "$auth_line" && -n "$skip_auth_line" && "$auth_line" -lt "$skip_auth_line" ]]
+}
+
 test_default_rule_preset_is_rendered() {
   setup_case
   run_manager set-rule-preset default >/dev/null
@@ -1032,6 +1074,7 @@ main() {
   test_render_config_renders_external_ui_fields
   test_render_config_renders_controller_cors_fields
   test_render_config_keeps_access_block_order
+  test_render_config_keeps_dns_block_before_authentication
   test_default_rule_preset_is_rendered
   test_apply_default_template_command
   test_rules_repo_command

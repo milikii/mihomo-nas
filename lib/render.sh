@@ -157,6 +157,67 @@ EOF
   fi
 }
 
+render_dns_base_block() {
+  local config_file="$1"
+  local enable_ipv6="$2"
+
+  cat >>"$config_file" <<EOF
+profile:
+  store-selected: true
+  store-fake-ip: true
+dns:
+  enable: true
+  listen: 0.0.0.0:${DNS_PORT}
+  ipv6: $([[ "$enable_ipv6" == "1" ]] && echo true || echo false)
+  use-hosts: true
+  use-system-hosts: true
+  cache-algorithm: arc
+  respect-rules: false
+  prefer-h3: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter-mode: blacklist
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "+.arpa"
+    - "+.stun.*.*"
+    - "localhost.ptlogin2.qq.com"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+    - "captive.apple.com"
+    - "connectivitycheck.gstatic.com"
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver-policy:
+    "geosite:private,cn":
+      - 223.5.5.5
+      - 119.29.29.29
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+    "+.arpa":
+      - 223.5.5.5
+      - 119.29.29.29
+      - https://dns.alidns.com/dns-query
+      - https://doh.pub/dns-query
+  nameserver:
+    - https://cloudflare-dns.com/dns-query#RULES
+    - https://dns.google/dns-query#RULES
+  fallback: []
+  fallback-filter:
+    geoip: false
+  direct-nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  direct-nameserver-follow-policy: true
+  proxy-server-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+proxies: []
+EOF
+}
+
 render_config() {
   require_root
   ensure_layout
@@ -215,61 +276,7 @@ render_config() {
   done < <(subscription_list_tsv || true)
 
   render_access_controller_block "$CONFIG_FILE" lan_allowed_cidrs_arr "$config_mode" "$enable_ipv6" "$secret"
-  cat >>"$CONFIG_FILE" <<EOF
-profile:
-  store-selected: true
-  store-fake-ip: true
-dns:
-  enable: true
-  listen: 0.0.0.0:${DNS_PORT}
-  ipv6: $([[ "$enable_ipv6" == "1" ]] && echo true || echo false)
-  use-hosts: true
-  use-system-hosts: true
-  cache-algorithm: arc
-  respect-rules: false
-  prefer-h3: false
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
-  fake-ip-filter-mode: blacklist
-  fake-ip-filter:
-    - "*.lan"
-    - "*.local"
-    - "+.arpa"
-    - "+.stun.*.*"
-    - "localhost.ptlogin2.qq.com"
-    - "+.msftconnecttest.com"
-    - "+.msftncsi.com"
-    - "captive.apple.com"
-    - "connectivitycheck.gstatic.com"
-  default-nameserver:
-    - 223.5.5.5
-    - 119.29.29.29
-  nameserver-policy:
-    "geosite:private,cn":
-      - 223.5.5.5
-      - 119.29.29.29
-      - https://dns.alidns.com/dns-query
-      - https://doh.pub/dns-query
-    "+.arpa":
-      - 223.5.5.5
-      - 119.29.29.29
-      - https://dns.alidns.com/dns-query
-      - https://doh.pub/dns-query
-  nameserver:
-    - https://cloudflare-dns.com/dns-query#RULES
-    - https://dns.google/dns-query#RULES
-  fallback: []
-  fallback-filter:
-    geoip: false
-  direct-nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://doh.pub/dns-query
-  direct-nameserver-follow-policy: true
-  proxy-server-nameserver:
-    - 223.5.5.5
-    - 119.29.29.29
-proxies: []
-EOF
+  render_dns_base_block "$CONFIG_FILE" "$enable_ipv6"
 
   if [[ ${#PROXY_AUTH_CREDENTIALS_ARR[@]} -gt 0 ]]; then
     cat >>"$CONFIG_FILE" <<'EOF'
