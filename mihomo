@@ -702,6 +702,48 @@ set_mode() {
   ok "当前模式已切换为 ${mode}"
 }
 
+print_router_wizard_intro() {
+  echo
+  info "当前模板: ${TEMPLATE_NAME} ($(template_summary "${TEMPLATE_NAME}"))"
+  info "当前可见 IPv4 接口:"
+  ip -o -4 addr show scope global 2>/dev/null | awk '{printf "  - %s  %s\n", $2, $4}' | sort -u || true
+  echo
+  info "当前模型: 宿主机默认直连，局域网入口透明接管，Docker 默认直连。"
+  info "只有局域网设备把网关和 DNS 指向 NAS 后，才会走旁路由。"
+  echo
+}
+
+collect_router_wizard_core_inputs() {
+  local -n ingress_ref="$1"
+  local -n dns_ref="$2"
+  local -n host_output_ref="$3"
+  local -n lan_disallowed_ref="$4"
+  local -n proxy_auth_ref="$5"
+  local -n skip_auth_ref="$6"
+  local -n cors_origins_ref="$7"
+  local -n cors_private_ref="$8"
+  local input
+
+  read -rp "局域网旁路由入口接口 [${PROXY_INGRESS_INTERFACES}]: " input
+  ingress_ref="${input:-$PROXY_INGRESS_INTERFACES}"
+  read -rp "DNS 劫持接口 [${DNS_HIJACK_INTERFACES}]: " input
+  dns_ref="${input:-$DNS_HIJACK_INTERFACES}"
+  read -rp "宿主机本机流量是否接管 1/0 [${PROXY_HOST_OUTPUT}]: " input
+  host_output_ref="${input:-$PROXY_HOST_OUTPUT}"
+  [[ "$host_output_ref" == "0" || "$host_output_ref" == "1" ]] || die "宿主机流量接管只能填 0 或 1"
+  read -rp "局域网禁止访问代理的网段，空格分隔 [${LAN_DISALLOWED_CIDRS}]: " input
+  lan_disallowed_ref="${input:-$LAN_DISALLOWED_CIDRS}"
+  read -rp "显式代理认证账号 user:pass，空格分隔 [${PROXY_AUTH_CREDENTIALS}]: " input
+  proxy_auth_ref="${input:-$PROXY_AUTH_CREDENTIALS}"
+  read -rp "显式代理免认证网段，空格分隔 [${SKIP_AUTH_PREFIXES}]: " input
+  skip_auth_ref="${input:-$SKIP_AUTH_PREFIXES}"
+  read -rp "控制面 CORS 允许来源，空格分隔 [${CONTROLLER_CORS_ALLOW_ORIGINS}]: " input
+  cors_origins_ref="${input:-$CONTROLLER_CORS_ALLOW_ORIGINS}"
+  read -rp "控制面 CORS 允许 Private-Network 1/0 [${CONTROLLER_CORS_ALLOW_PRIVATE_NETWORK}]: " input
+  cors_private_ref="${input:-$CONTROLLER_CORS_ALLOW_PRIVATE_NETWORK}"
+  [[ "$cors_private_ref" == "0" || "$cors_private_ref" == "1" ]] || die "控制面 CORS Private-Network 只能填 0 或 1"
+}
+
 router_wizard() {
   require_root
   load_router_env
@@ -716,33 +758,16 @@ router_wizard() {
   local next_controller_cors_origins
   local next_controller_cors_private
 
-  echo
-  info "当前模板: ${TEMPLATE_NAME} ($(template_summary "${TEMPLATE_NAME}"))"
-  info "当前可见 IPv4 接口:"
-  ip -o -4 addr show scope global 2>/dev/null | awk '{printf "  - %s  %s\n", $2, $4}' | sort -u || true
-  echo
-  info "当前模型: 宿主机默认直连，局域网入口透明接管，Docker 默认直连。"
-  info "只有局域网设备把网关和 DNS 指向 NAS 后，才会走旁路由。"
-  echo
-
-  read -rp "局域网旁路由入口接口 [${PROXY_INGRESS_INTERFACES}]: " input
-  next_ingress_ifaces="${input:-$PROXY_INGRESS_INTERFACES}"
-  read -rp "DNS 劫持接口 [${DNS_HIJACK_INTERFACES}]: " input
-  next_dns_ifaces="${input:-$DNS_HIJACK_INTERFACES}"
-  read -rp "宿主机本机流量是否接管 1/0 [${PROXY_HOST_OUTPUT}]: " input
-  next_host_output="${input:-$PROXY_HOST_OUTPUT}"
-  [[ "$next_host_output" == "0" || "$next_host_output" == "1" ]] || die "宿主机流量接管只能填 0 或 1"
-  read -rp "局域网禁止访问代理的网段，空格分隔 [${LAN_DISALLOWED_CIDRS}]: " input
-  next_lan_disallowed="${input:-$LAN_DISALLOWED_CIDRS}"
-  read -rp "显式代理认证账号 user:pass，空格分隔 [${PROXY_AUTH_CREDENTIALS}]: " input
-  next_proxy_auth="${input:-$PROXY_AUTH_CREDENTIALS}"
-  read -rp "显式代理免认证网段，空格分隔 [${SKIP_AUTH_PREFIXES}]: " input
-  next_skip_auth="${input:-$SKIP_AUTH_PREFIXES}"
-  read -rp "控制面 CORS 允许来源，空格分隔 [${CONTROLLER_CORS_ALLOW_ORIGINS}]: " input
-  next_controller_cors_origins="${input:-$CONTROLLER_CORS_ALLOW_ORIGINS}"
-  read -rp "控制面 CORS 允许 Private-Network 1/0 [${CONTROLLER_CORS_ALLOW_PRIVATE_NETWORK}]: " input
-  next_controller_cors_private="${input:-$CONTROLLER_CORS_ALLOW_PRIVATE_NETWORK}"
-  [[ "$next_controller_cors_private" == "0" || "$next_controller_cors_private" == "1" ]] || die "控制面 CORS Private-Network 只能填 0 或 1"
+  print_router_wizard_intro
+  collect_router_wizard_core_inputs \
+    next_ingress_ifaces \
+    next_dns_ifaces \
+    next_host_output \
+    next_lan_disallowed \
+    next_proxy_auth \
+    next_skip_auth \
+    next_controller_cors_origins \
+    next_controller_cors_private
 
   snapshot_before_change "router-wizard"
   upsert_env_var "$ROUTER_ENV" "LAN_INTERFACES" "$next_ingress_ifaces"
