@@ -11,6 +11,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var randRead = rand.Read
+
 type Config struct {
 	Version    int        `yaml:"version"`
 	Profile    Profile    `yaml:"profile"`
@@ -152,7 +154,7 @@ func Save(path string, cfg Config) error {
 
 func randomSecret() string {
 	buf := make([]byte, 12)
-	if _, err := rand.Read(buf); err != nil {
+	if _, err := randRead(buf); err != nil {
 		return "minimalist-secret"
 	}
 	return hex.EncodeToString(buf)

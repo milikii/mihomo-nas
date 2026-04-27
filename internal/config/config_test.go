@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,34 @@ func TestEnsureBackfillsMissingSecret(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "secret:") {
 		t.Fatalf("expected secret to be persisted:\n%s", string(raw))
+	}
+}
+
+func TestEnsureFallsBackToDefaultSecretWhenRandomSourceFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("version: 1\nprofile:\n  template: nas-single-lan-v4\n  mode: rule\n  rule_preset: default\ncontroller:\n  bind_address: 127.0.0.1\n"), 0o640); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	oldRandRead := randRead
+	randRead = func([]byte) (int, error) {
+		return 0, errors.New("rand unavailable")
+	}
+	defer func() { randRead = oldRandRead }()
+
+	cfg, err := Ensure(path)
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	if cfg.Controller.Secret != "minimalist-secret" {
+		t.Fatalf("expected fallback secret, got %q", cfg.Controller.Secret)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	if !strings.Contains(string(raw), "secret: minimalist-secret") {
+		t.Fatalf("expected fallback secret to be persisted:\n%s", string(raw))
 	}
 }
 

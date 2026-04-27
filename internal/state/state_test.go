@@ -45,6 +45,36 @@ func TestEnsureCreatesDefaultState(t *testing.T) {
 	}
 }
 
+func TestEnsureReturnsExistingStateWithoutOverwriting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	want := State{
+		Version: 2,
+		Nodes: []Node{{
+			ID:         "node-1",
+			Name:       "existing",
+			Enabled:    true,
+			URI:        "trojan://password@example.org:443#existing",
+			ImportedAt: "2026-04-27T00:00:00Z",
+			Source:     Source{Kind: "manual"},
+		}},
+		Rules: []Rule{{ID: "rule-1", Kind: "domain", Pattern: "example.com", Target: "DIRECT"}},
+	}
+	if err := Save(path, want); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	got, err := Ensure(path)
+	if err != nil {
+		t.Fatalf("ensure existing state: %v", err)
+	}
+	if got.Version != want.Version || len(got.Nodes) != 1 || len(got.Rules) != 1 {
+		t.Fatalf("unexpected ensured state: %#v", got)
+	}
+	if got.Nodes[0].Name != "existing" || got.Rules[0].Target != "DIRECT" {
+		t.Fatalf("expected existing state to be preserved, got %#v", got)
+	}
+}
+
 func TestSaveWritesTrailingNewline(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
