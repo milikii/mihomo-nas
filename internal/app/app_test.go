@@ -767,6 +767,9 @@ func TestRulesRepoWrappersSurfaceEnsureAllErrors(t *testing.T) {
 		{"add", app.RulesRepoAdd("pt", "codex.example.com")},
 		{"remove", app.RulesRepoRemove("pt", "codex.example.com")},
 		{"remove-index", app.RulesRepoRemoveIndex("pt", 1)},
+		{"summary", app.RulesRepoSummary()},
+		{"entries", app.RulesRepoEntries("pt", "")},
+		{"find", app.RulesRepoFind("codex")},
 	} {
 		if tc.err == nil {
 			t.Fatalf("expected ensureAll failure for %s", tc.name)
