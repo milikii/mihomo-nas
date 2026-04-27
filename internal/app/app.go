@@ -507,6 +507,19 @@ func (a *App) RemoveNode(index int) error {
 	if st.Nodes[index-1].Source.Kind == "subscription" {
 		return errors.New("subscription node is provider-managed")
 	}
+	node := st.Nodes[index-1]
+	if node.Name != "DIRECT" && node.Name != "PROXY" && node.Name != "REJECT" && node.Name != "AUTO" {
+		for _, rule := range st.Rules {
+			if rule.Target == node.Name {
+				return errors.New("node is referenced by rule")
+			}
+		}
+		for _, rule := range st.ACL {
+			if rule.Target == node.Name {
+				return errors.New("node is referenced by rule")
+			}
+		}
+	}
 	st.Nodes = append(st.Nodes[:index-1], st.Nodes[index:]...)
 	return state.Save(a.Paths.StatePath(), st)
 }

@@ -574,6 +574,39 @@ func TestListNodesAndRemoveNodePersistUpdatedState(t *testing.T) {
 	}
 }
 
+func TestRemoveNodeRejectsReferencedManualNode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		acl  bool
+		kind string
+	}{
+		{name: "rule", acl: false, kind: "domain"},
+		{name: "acl", acl: true, kind: "src-cidr"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, _ := newTestApp(t)
+			app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#referenced-node\n")
+			if err := app.ImportLinks(); err != nil {
+				t.Fatalf("import links: %v", err)
+			}
+			if err := app.AddRule(tc.acl, tc.kind, "example.com", "referenced-node"); err != nil {
+				t.Fatalf("add rule: %v", err)
+			}
+			err := app.RemoveNode(1)
+			if err == nil || !strings.Contains(err.Error(), "node is referenced by rule") {
+				t.Fatalf("expected referenced-node guard, got %v", err)
+			}
+			st, err := state.Load(app.Paths.StatePath())
+			if err != nil {
+				t.Fatalf("load state: %v", err)
+			}
+			if len(st.Nodes) != 1 || st.Nodes[0].Name != "referenced-node" {
+				t.Fatalf("expected referenced node to remain, got %+v", st.Nodes)
+			}
+		})
+	}
+}
+
 func TestListRulesAndRemoveRuleSupportACLAndMainRules(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#rule-node\n")
