@@ -6,7 +6,7 @@
 - 单元与 focused 测试已经覆盖核心配置、状态、provider、rules-repo、runtime 渲染、app 命令编排、CLI 分发与多组失败路径。
 - 这台 Debian NAS 已经是可用实机：`systemd`、`iptables`、`ip rule` 都是真实可达的。
 - 现网仍在跑旧的 `mihomo.service`，而不是 `minimalist.service`，所以当前不是直接对 Go 版 `minimalist` 做收尾验收，而是先把 live install 归属理清。
-- 本轮继续补上输入/状态一致性与维护窗口前边界：规则、节点重命名、订阅、rules-repo 条目会在落盘或匹配前 trim；`cutover-plan` 覆盖 legacy 与 minimalist 同时 live 的只读输出；显式代理模式下 `apply-rules` 会先清理旧规则且不要求手动节点；provider 覆盖 wrapped unpadded base64 订阅与明文 SS authority；config 覆盖 `Load` 缺省 secret 的只读行为。focused tests、全量 `go test ./...`、`go test -cover ./...` 和 build 已通过。
+- 本轮继续补上 app failure-path 与状态一致性边界：空订阅缓存不会让 `setup` 启服务；订阅节点不能成为手动规则目标；持久化的订阅节点目标会被 `render-config` 阻断；`status` ready 订阅计数只接受启用且非空缓存；`runtime-audit` 可在 `journalctl` 失败时保持本地摘要；订阅更新/删除失败不会破坏上次成功状态；`apply-rules` 覆盖 DNS redirect 和 OUTPUT jump 失败传播。focused tests、全量 `go test ./...`、`go test -cover ./...` 和 build 已通过。
 
 ## 下一最小闭环
 
@@ -14,7 +14,7 @@
   - legacy live 状态下 `cutover-plan` 输出 `prepare-minimalist-inputs`
   - `cutover-plan` 不创建 `/etc/minimalist`、`/var/lib/minimalist` 或 `/usr/local/bin/minimalist`
   - `cutover-plan` 不停旧服务、不启新服务、不清规则
-- 质量硬化已经把 `apply-rules` 的关键失败传播、route 编排幂等边界、rules-repo / provider 边界、config/state 缺省边界，以及输入/状态一致性边界补到可测；当前没有新的功能缺口，后续等待人工 cutover 决策。
+- 质量硬化已经把 `apply-rules` 的关键失败传播、route 编排幂等边界、rules-repo / provider 边界、config/state 缺省边界，以及输入/状态一致性边界补到可测；当前没有新的功能缺口，后续等待人工 cutover 决策。若继续施工，优先选择更小的 focused failure-path coverage，不扩展协议或切换能力。
 - 在确认迁移策略前，不对现网 `MIHOMO_*` 规则做清理或重写。
 - 若确认要切换到 Go 版，再做最小迁移闭环并重新跑 `setup` / `start` / `restart` / `apply-rules` / `clear-rules` 实机 smoke。
 - 保持 README / flows 描述 Go 版 `minimalist` 目标真相；STATUS / NEXT_STEP 只记录 live host 差异，不恢复旧 `mihomo` 作为项目目标。
