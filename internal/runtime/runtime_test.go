@@ -861,6 +861,36 @@ func TestBuildRuntimeConfigOmitsSubscriptionProviderWhenCacheEmpty(t *testing.T)
 	}
 }
 
+func TestBuildRuntimeConfigOmitsDisabledSubscriptionProviderWithCache(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{
+		ID:        "sub-1",
+		Name:      "sub-1",
+		URL:       "https://subscription.example.com/sub.txt",
+		Enabled:   false,
+		CreatedAt: state.NowISO(),
+	}}
+	if err := os.MkdirAll(paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("sub-1"), []byte("trojan://password@example.org:443#sub-node\n"), 0o640); err != nil {
+		t.Fatalf("write subscription cache: %v", err)
+	}
+	text, err := buildRuntimeConfig(paths, cfg, st, nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	if strings.Contains(text, "subscription-sub") {
+		t.Fatalf("did not expect disabled subscription provider:\n%s", text)
+	}
+}
+
 func TestBuildRuntimeConfigIncludesPortAndModeHeaders(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),
