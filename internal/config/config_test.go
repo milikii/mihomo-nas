@@ -56,6 +56,33 @@ func TestEnsureBackfillsMissingSecret(t *testing.T) {
 	}
 }
 
+func TestEnsurePreservesExistingSecretWithoutRewriting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	body := "version: 1\nprofile:\n  template: nas-single-lan-v4\n  mode: rule\n  rule_preset: default\ncontroller:\n  bind_address: 127.0.0.1\n  secret: keep-me\n"
+	if err := os.WriteFile(path, []byte(body), 0o640); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat config before ensure: %v", err)
+	}
+	cfg, err := Ensure(path)
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	if cfg.Controller.Secret != "keep-me" {
+		t.Fatalf("expected existing secret, got %q", cfg.Controller.Secret)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat config after ensure: %v", err)
+	}
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Fatalf("expected ensure not to rewrite config file")
+	}
+}
+
 func TestEnsureFallsBackToDefaultSecretWhenRandomSourceFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
