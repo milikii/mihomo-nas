@@ -1311,6 +1311,21 @@ func TestBuildRuntimeConfigSkipsCommentedAndBlankRules(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigReturnsRuleReadErrors(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	if err := os.MkdirAll(paths.CustomRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking custom rules path: %v", err)
+	}
+	_, err := buildRuntimeConfig(paths, config.Default(), state.Empty(), nil)
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected custom rules read error, got %v", err)
+	}
+}
+
 func TestBuildRuntimeConfigUsesRuntimeUIPath(t *testing.T) {
 	paths := Paths{
 		ConfigDir:   t.TempDir(),
