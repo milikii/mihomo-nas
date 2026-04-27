@@ -339,6 +339,57 @@ func TestImportLinksReportsUnsupportedOnlyAndMixedSkippedInputs(t *testing.T) {
 	}
 }
 
+func TestUpdateSubscriptionsRecordsHTTPAndTransportErrors(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.AddSubscription("http-fail", "https://subscription.example.com/http-fail.txt", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusBadGateway, "bad gateway"), nil
+		}),
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions http fail: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if st.Subscriptions[0].Cache.LastAttemptAt == "" || st.Subscriptions[0].Cache.LastError != "http 502" {
+		t.Fatalf("expected http error recorded, got %+v", st.Subscriptions[0].Cache)
+	}
+	if st.Subscriptions[0].Cache.LastSuccessAt != "" || st.Subscriptions[0].Enumeration.LastCount != 0 {
+		t.Fatalf("did not expect success fields after http failure, got %+v", st.Subscriptions[0])
+	}
+	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "http-fail: http 502") {
+		t.Fatalf("unexpected stderr after http failure:\n%s", app.Stderr.(*bytes.Buffer).String())
+	}
+
+	app, _ = newTestApp(t)
+	if err := app.AddSubscription("transport-fail", "https://subscription.example.com/transport-fail.txt", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, errors.New("dial tcp timeout")
+		}),
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions transport fail: %v", err)
+	}
+	st, err = state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("reload state: %v", err)
+	}
+	if !strings.Contains(st.Subscriptions[0].Cache.LastError, "dial tcp timeout") {
+		t.Fatalf("expected transport error recorded, got %+v", st.Subscriptions[0].Cache)
+	}
+	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "transport-fail: Get") || !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "dial tcp timeout") {
+		t.Fatalf("unexpected stderr after transport failure:\n%s", app.Stderr.(*bytes.Buffer).String())
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
