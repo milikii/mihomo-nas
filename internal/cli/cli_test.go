@@ -139,6 +139,24 @@ func hasRecordedRunnerCall(calls []recordedCommand, name string, want ...string)
 	return false
 }
 
+func assertOnlyCutoverPreflightRunnerCalls(t *testing.T, calls []recordedCommand) {
+	t.Helper()
+	for _, call := range calls {
+		if call.name != "systemctl" || len(call.args) != 3 {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+		if call.args[1] != "--quiet" {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+		if call.args[0] != "is-active" && call.args[0] != "is-enabled" {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+		if call.args[2] != "mihomo.service" && call.args[2] != "minimalist.service" {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+	}
+}
+
 func setCLIPathsEnv(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
@@ -1063,9 +1081,7 @@ func TestRunWithAppDispatchesSetupPropagatesManifestError(t *testing.T) {
 	if !expectRootOrSpecificError(t, err, "parse manifest") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesSetupPropagatesManualProviderFailure(t *testing.T) {
@@ -1079,9 +1095,7 @@ func TestRunWithAppDispatchesSetupPropagatesManualProviderFailure(t *testing.T) 
 	if !expectRootOrSpecificError(t, err, "is a directory") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesSetupPropagatesRuntimeConfigFailure(t *testing.T) {
@@ -1095,9 +1109,7 @@ func TestRunWithAppDispatchesSetupPropagatesRuntimeConfigFailure(t *testing.T) {
 	if !expectRootOrSpecificError(t, err, "is a directory") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesRenderConfig(t *testing.T) {
@@ -1165,9 +1177,7 @@ func TestRunWithAppDispatchesStartPropagatesManifestError(t *testing.T) {
 	if !expectRootOrSpecificError(t, err, "parse manifest") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesStartPropagatesManualProviderFailure(t *testing.T) {
@@ -1181,9 +1191,7 @@ func TestRunWithAppDispatchesStartPropagatesManualProviderFailure(t *testing.T) 
 	if !expectRootOrSpecificError(t, err, "is a directory") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesStartPropagatesRuntimeConfigFailure(t *testing.T) {
@@ -1197,9 +1205,7 @@ func TestRunWithAppDispatchesStartPropagatesRuntimeConfigFailure(t *testing.T) {
 	if !expectRootOrSpecificError(t, err, "is a directory") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesStop(t *testing.T) {
@@ -1258,9 +1264,7 @@ func TestRunWithAppDispatchesRestartPropagatesManifestError(t *testing.T) {
 	if !expectRootOrSpecificError(t, err, "parse manifest") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesRestartPropagatesCustomRulesFailure(t *testing.T) {
@@ -1274,9 +1278,7 @@ func TestRunWithAppDispatchesRestartPropagatesCustomRulesFailure(t *testing.T) {
 	if !expectRootOrSpecificError(t, err, "is a directory") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesRestartPropagatesRuntimeConfigFailure(t *testing.T) {
@@ -1290,9 +1292,7 @@ func TestRunWithAppDispatchesRestartPropagatesRuntimeConfigFailure(t *testing.T)
 	if !expectRootOrSpecificError(t, err, "is a directory") {
 		return
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls on render failure, got %#v", calls)
-	}
+	assertOnlyCutoverPreflightRunnerCalls(t, calls)
 }
 
 func TestRunWithAppDispatchesRouterWizard(t *testing.T) {

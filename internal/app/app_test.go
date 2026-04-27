@@ -464,6 +464,24 @@ func hasArgSequence(args []string, want ...string) bool {
 	return false
 }
 
+func assertOnlyCutoverPreflightCalls(t *testing.T, calls []commandCall) {
+	t.Helper()
+	for _, call := range calls {
+		if call.name != "systemctl" || len(call.args) != 3 {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+		if call.args[1] != "--quiet" {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+		if call.args[0] != "is-active" && call.args[0] != "is-enabled" {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+		if call.args[2] != "mihomo.service" && call.args[2] != "minimalist.service" {
+			t.Fatalf("expected only cutover preflight calls, got %#v", calls)
+		}
+	}
+}
+
 func TestImportLinksPersistsManualNode(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
@@ -1293,9 +1311,7 @@ func TestSetupPropagatesRenderFilesRulesRepoError(t *testing.T) {
 	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "parse manifest") {
 		t.Fatalf("expected render files failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls before render files succeeds, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestSetupSurfaceEnsureAllFailureWhenRuntimeLayoutBlocked(t *testing.T) {
@@ -1359,9 +1375,7 @@ func TestSetupFailsWhenManualProviderPathIsDirectory(t *testing.T) {
 	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected manual provider write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls when render files fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestSetupFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
@@ -1381,9 +1395,7 @@ func TestSetupFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
 	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected custom rules write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls when render files fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestSetupFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
@@ -1403,9 +1415,7 @@ func TestSetupFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
 	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected runtime config write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect runner calls when render files fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestReadImportInputReturnsAllLinesWhenNotTerminal(t *testing.T) {
@@ -1493,9 +1503,7 @@ func TestStartPropagatesRenderConfigFailureWithoutSystemctlCall(t *testing.T) {
 	if err := app.Start(); err == nil || !strings.Contains(err.Error(), "parse manifest") {
 		t.Fatalf("expected render-config failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestStartFailsWhenManualProviderPathIsDirectory(t *testing.T) {
@@ -1515,9 +1523,7 @@ func TestStartFailsWhenManualProviderPathIsDirectory(t *testing.T) {
 	if err := app.Start(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected manual provider write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestStartFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
@@ -1537,9 +1543,7 @@ func TestStartFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
 	if err := app.Start(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected runtime config write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestStartReturnsRootErrorWhenNotRoot(t *testing.T) {
@@ -1611,9 +1615,7 @@ func TestRestartPropagatesRenderConfigFailureWithoutSystemctlCall(t *testing.T) 
 	if err := app.Restart(); err == nil || !strings.Contains(err.Error(), "parse manifest") {
 		t.Fatalf("expected render-config failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestRestartFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
@@ -1633,9 +1635,7 @@ func TestRestartFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
 	if err := app.Restart(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected custom rules write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestRestartFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
@@ -1655,9 +1655,7 @@ func TestRestartFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
 	if err := app.Restart(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected runtime config write failure, got %v", err)
 	}
-	if len(calls) != 0 {
-		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
-	}
+	assertOnlyCutoverPreflightCalls(t, calls)
 }
 
 func TestRestartReturnsRootErrorWhenNotRoot(t *testing.T) {
@@ -1963,6 +1961,159 @@ func TestCutoverPreflightIsReadOnly(t *testing.T) {
 		if call.name == "systemctl" && len(call.args) > 0 && (call.args[0] == "stop" || call.args[0] == "restart" || call.args[0] == "enable") {
 			t.Fatalf("cutover preflight must stay read-only, got call %#v", call)
 		}
+	}
+}
+
+func TestCutoverReadyStates(t *testing.T) {
+	t.Run("normal-empty-env", func(t *testing.T) {
+		app, _ := newTestApp(t)
+		status := app.cutoverPreflightStatus()
+		if !status.Ready() {
+			t.Fatalf("expected empty env to be ready, got %#v", status)
+		}
+		if err := app.ensureCutoverReady(); err != nil {
+			t.Fatalf("ensureCutoverReady: %v", err)
+		}
+	})
+
+	t.Run("legacy-live-blocks", func(t *testing.T) {
+		app, root := newTestApp(t)
+		oldLegacy := legacyLiveInstall
+		legacyLiveInstall = struct {
+			BinPath   string
+			ConfigDir string
+		}{
+			BinPath:   filepath.Join(root, "usr", "local", "bin", "mihomo"),
+			ConfigDir: filepath.Join(root, "etc", "mihomo"),
+		}
+		defer func() { legacyLiveInstall = oldLegacy }()
+		if err := os.MkdirAll(filepath.Dir(legacyLiveInstall.BinPath), 0o755); err != nil {
+			t.Fatalf("mkdir legacy bin dir: %v", err)
+		}
+		if err := os.WriteFile(legacyLiveInstall.BinPath, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+			t.Fatalf("write legacy bin: %v", err)
+		}
+		if err := os.MkdirAll(legacyLiveInstall.ConfigDir, 0o750); err != nil {
+			t.Fatalf("mkdir legacy config dir: %v", err)
+		}
+		app.Runner = fakeRunner{
+			runFn: func(name string, args ...string) error {
+				if name == "systemctl" && len(args) >= 3 && args[0] == "is-active" && args[2] == "mihomo.service" {
+					return nil
+				}
+				return errors.New("inactive")
+			},
+		}
+		status := app.cutoverPreflightStatus()
+		if status.Ready() {
+			t.Fatalf("expected legacy live install to be blocked, got %#v", status)
+		}
+		if err := app.ensureCutoverReady(); err == nil || !strings.Contains(err.Error(), "cutover blocked") {
+			t.Fatalf("expected cutover blocked error, got %v", err)
+		}
+	})
+
+	t.Run("minimalist-ready-allows", func(t *testing.T) {
+		app, root := newTestApp(t)
+		oldLegacy := legacyLiveInstall
+		legacyLiveInstall = struct {
+			BinPath   string
+			ConfigDir string
+		}{
+			BinPath:   filepath.Join(root, "usr", "local", "bin", "mihomo"),
+			ConfigDir: filepath.Join(root, "etc", "mihomo"),
+		}
+		defer func() { legacyLiveInstall = oldLegacy }()
+		if err := os.MkdirAll(filepath.Dir(app.Paths.BinPath), 0o755); err != nil {
+			t.Fatalf("mkdir minimalist bin dir: %v", err)
+		}
+		if err := os.WriteFile(app.Paths.BinPath, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+			t.Fatalf("write minimalist bin: %v", err)
+		}
+		app.Runner = fakeRunner{
+			runFn: func(name string, args ...string) error {
+				if name == "systemctl" && len(args) >= 3 && args[0] == "is-active" && args[2] == "mihomo.service" {
+					return nil
+				}
+				return errors.New("inactive")
+			},
+		}
+		status := app.cutoverPreflightStatus()
+		if !status.Ready() {
+			t.Fatalf("expected minimalist-ready install to be allowed, got %#v", status)
+		}
+		if err := app.ensureCutoverReady(); err != nil {
+			t.Fatalf("ensureCutoverReady: %v", err)
+		}
+	})
+}
+
+func TestHighRiskCommandsBlockOnLegacyLiveInstall(t *testing.T) {
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	tests := []struct {
+		name   string
+		invoke func(*App) error
+	}{
+		{"setup", func(app *App) error { return app.Setup() }},
+		{"start", func(app *App) error { return app.Start() }},
+		{"restart", func(app *App) error { return app.Restart() }},
+		{"apply-rules", func(app *App) error { return app.ApplyRules() }},
+		{"clear-rules", func(app *App) error { return app.ClearRules() }},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app, root := newTestApp(t)
+			oldLegacy := legacyLiveInstall
+			legacyLiveInstall = struct {
+				BinPath   string
+				ConfigDir string
+			}{
+				BinPath:   filepath.Join(root, "usr", "local", "bin", "mihomo"),
+				ConfigDir: filepath.Join(root, "etc", "mihomo"),
+			}
+			defer func() { legacyLiveInstall = oldLegacy }()
+			if err := os.MkdirAll(filepath.Dir(legacyLiveInstall.BinPath), 0o755); err != nil {
+				t.Fatalf("mkdir legacy bin dir: %v", err)
+			}
+			if err := os.WriteFile(legacyLiveInstall.BinPath, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+				t.Fatalf("write legacy bin: %v", err)
+			}
+			if err := os.MkdirAll(legacyLiveInstall.ConfigDir, 0o750); err != nil {
+				t.Fatalf("mkdir legacy config dir: %v", err)
+			}
+			var calls []commandCall
+			app.Runner = fakeRunner{
+				runFn: func(name string, args ...string) error {
+					calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+					if name == "systemctl" && len(args) >= 3 && args[0] == "is-active" && args[2] == "mihomo.service" {
+						return nil
+					}
+					return errors.New("inactive")
+				},
+			}
+			err := tc.invoke(app)
+			if err == nil || !strings.Contains(err.Error(), "cutover blocked") {
+				t.Fatalf("expected cutover blocked error, got %v", err)
+			}
+			if _, statErr := os.Stat(app.Paths.ConfigPath()); !os.IsNotExist(statErr) {
+				t.Fatalf("%s must not create config, stat err=%v", tc.name, statErr)
+			}
+			for _, call := range calls {
+				if call.name == "iptables" || call.name == "ip" {
+					t.Fatalf("%s must not touch networking commands, got call %#v", tc.name, call)
+				}
+				if call.name == "systemctl" && len(call.args) > 0 && (call.args[0] == "enable" || call.args[0] == "restart" || call.args[0] == "stop") {
+					t.Fatalf("%s must not perform service mutations, got call %#v", tc.name, call)
+				}
+				if call.name == "sysctl" {
+					t.Fatalf("%s must not touch sysctl, got call %#v", tc.name, call)
+				}
+			}
+		})
 	}
 }
 

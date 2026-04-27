@@ -44,4 +44,5 @@
 - Go 版 `minimalist` 不能把旧 `/etc/mihomo` 直接视为自己的配置和状态真相
 - 切换到 Go 版前必须先完成非破坏性 preflight / cutover 检查
 - `cutover-preflight` 必须保持只读，不创建 `/etc/minimalist`、不启停 systemd unit、不操作 `iptables` / `ip rule`
+- `setup` / `start` / `restart` / `apply-rules` / `clear-rules` 在 legacy live 且 Go 版目标未落地时必须阻断
 - 在确认 cutover 方案前，不自动停旧服务、不自动清理现网 `MIHOMO_*` 规则、不自动迁移旧 `settings.env` / `router.env` / `state/*.json`

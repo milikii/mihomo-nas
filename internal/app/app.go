@@ -40,6 +40,29 @@ var legacyLiveInstall = struct {
 	ConfigDir: "/etc/mihomo",
 }
 
+type cutoverPreflightStatus struct {
+	LegacyServiceActive      bool
+	LegacyServiceEnabled     bool
+	LegacyBin                bool
+	LegacyConfigDir          bool
+	MinimalistServiceActive  bool
+	MinimalistServiceEnabled bool
+	MinimalistUnit           bool
+	MinimalistBin            bool
+}
+
+func (s cutoverPreflightStatus) legacyLive() bool {
+	return s.LegacyServiceActive || s.LegacyServiceEnabled
+}
+
+func (s cutoverPreflightStatus) minimalistReady() bool {
+	return s.MinimalistServiceActive || s.MinimalistServiceEnabled || s.MinimalistUnit || s.MinimalistBin
+}
+
+func (s cutoverPreflightStatus) Ready() bool {
+	return !s.legacyLive() || s.minimalistReady()
+}
+
 func New() *App {
 	return &App{
 		Paths:  runtime.DefaultPaths(),
@@ -84,6 +107,9 @@ func (a *App) InstallSelf() error {
 
 func (a *App) Setup() error {
 	if err := a.requireRoot(); err != nil {
+		return err
+	}
+	if err := a.ensureCutoverReady(); err != nil {
 		return err
 	}
 	cfg, st, err := a.ensureAll()
@@ -136,6 +162,9 @@ func (a *App) Start() error {
 	if err := a.requireRoot(); err != nil {
 		return err
 	}
+	if err := a.ensureCutoverReady(); err != nil {
+		return err
+	}
 	if err := a.RenderConfig(); err != nil {
 		return err
 	}
@@ -151,6 +180,9 @@ func (a *App) Stop() error {
 
 func (a *App) Restart() error {
 	if err := a.requireRoot(); err != nil {
+		return err
+	}
+	if err := a.ensureCutoverReady(); err != nil {
 		return err
 	}
 	if err := a.RenderConfig(); err != nil {
@@ -244,35 +276,46 @@ func (a *App) CutoverPreflight() error {
 }
 
 func (a *App) printCutoverPreflight() {
-	legacyActive := commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "mihomo.service"))
-	legacyEnabled := commandOK(a.Runner.Run("systemctl", "is-enabled", "--quiet", "mihomo.service"))
-	minimalistActive := commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "minimalist.service"))
-	minimalistEnabled := commandOK(a.Runner.Run("systemctl", "is-enabled", "--quiet", "minimalist.service"))
-	legacyBin := pathExists(legacyLiveInstall.BinPath)
-	legacyConfig := pathExists(legacyLiveInstall.ConfigDir)
-	minimalistUnit := pathExists(a.Paths.ServiceUnit)
-	minimalistBin := pathExists(a.Paths.BinPath)
+	status := a.cutoverPreflightStatus()
 	fmt.Fprintf(
 		a.Stdout,
 		"cutover-preflight: legacy_service_active=%t legacy_service_enabled=%t legacy_bin=%t legacy_config_dir=%t minimalist_service_active=%t minimalist_service_enabled=%t minimalist_unit=%t minimalist_bin=%t\n",
-		legacyActive,
-		legacyEnabled,
-		legacyBin,
-		legacyConfig,
-		minimalistActive,
-		minimalistEnabled,
-		minimalistUnit,
-		minimalistBin,
+		status.LegacyServiceActive,
+		status.LegacyServiceEnabled,
+		status.LegacyBin,
+		status.LegacyConfigDir,
+		status.MinimalistServiceActive,
+		status.MinimalistServiceEnabled,
+		status.MinimalistUnit,
+		status.MinimalistBin,
 	)
-	legacyLive := legacyActive || legacyEnabled
-	minimalistReady := minimalistActive || minimalistEnabled || minimalistUnit || minimalistBin
-	if legacyLive && !minimalistReady {
+	if status.legacyLive() && !status.minimalistReady() {
 		fmt.Fprintln(a.Stdout, "cutover-warning: legacy live install detected; do not run apply-rules or clear-rules before an explicit cutover plan")
 	}
-	if legacyActive || legacyEnabled || legacyBin || legacyConfig {
+	if status.LegacyServiceActive || status.LegacyServiceEnabled || status.LegacyBin || status.LegacyConfigDir {
 		fmt.Fprintln(a.Stdout, "cutover-note: legacy mihomo and minimalist use the same MIHOMO_* chains plus 0x2333/table 233 defaults")
 	}
-	fmt.Fprintf(a.Stdout, "cutover-ready=%t\n", !legacyLive || minimalistReady)
+	fmt.Fprintf(a.Stdout, "cutover-ready=%t\n", status.Ready())
+}
+
+func (a *App) ensureCutoverReady() error {
+	if !a.cutoverPreflightStatus().Ready() {
+		return errors.New("cutover blocked: legacy mihomo.service is active or enabled; run minimalist cutover-preflight before high-risk commands")
+	}
+	return nil
+}
+
+func (a *App) cutoverPreflightStatus() cutoverPreflightStatus {
+	return cutoverPreflightStatus{
+		LegacyServiceActive:      commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "mihomo.service")),
+		LegacyServiceEnabled:     commandOK(a.Runner.Run("systemctl", "is-enabled", "--quiet", "mihomo.service")),
+		MinimalistServiceActive:  commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "minimalist.service")),
+		MinimalistServiceEnabled: commandOK(a.Runner.Run("systemctl", "is-enabled", "--quiet", "minimalist.service")),
+		LegacyBin:                pathExists(legacyLiveInstall.BinPath),
+		LegacyConfigDir:          pathExists(legacyLiveInstall.ConfigDir),
+		MinimalistUnit:           pathExists(a.Paths.ServiceUnit),
+		MinimalistBin:            pathExists(a.Paths.BinPath),
+	}
 }
 
 func (a *App) ImportLinks() error {
@@ -712,6 +755,9 @@ func (a *App) ApplyRules() error {
 	if err := a.requireRoot(); err != nil {
 		return err
 	}
+	if err := a.ensureCutoverReady(); err != nil {
+		return err
+	}
 	cfg, st, err := a.ensureAll()
 	if err != nil {
 		return err
@@ -808,6 +854,9 @@ func (a *App) ApplyRules() error {
 
 func (a *App) ClearRules() error {
 	if err := a.requireRoot(); err != nil {
+		return err
+	}
+	if err := a.ensureCutoverReady(); err != nil {
 		return err
 	}
 	for _, item := range []struct {
