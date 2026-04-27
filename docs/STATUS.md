@@ -36,25 +36,22 @@
 ## 本机真实验证结论
 
 - 这台 Debian NAS 本身就是实机环境，`systemd` 可达，但当前 `systemd is-system-running` 结果是 `degraded`。
-- 当前真正运行的是旧的 `mihomo.service`，不是 `minimalist.service`。它已 `enabled` 且 `active`，`ExecStart=/usr/local/bin/mihomo-core -d /etc/mihomo`，并通过 `ExecStartPre=/usr/local/bin/mihomo apply-rules`、`ExecStopPost=/usr/local/bin/mihomo clear-rules` 管理规则。
-- 这台机子上 `/usr/local/bin/minimalist`、`/etc/minimalist`、`/var/lib/minimalist` 目前都不存在，`minimalist.service` 也不存在。
-- 现网 `iptables` / `ip rule` 已有真实的 MIHOMO 透明代理状态：`MIHOMO_PRE`、`MIHOMO_PRE_HANDLE`、`MIHOMO_OUT`、`MIHOMO_DNS` 都在，`fwmark 0x2333 lookup 233` 规则和 table `233` 也都在。
-- 之前那轮“系统调用不可用”的判断只代表 Codex 沙箱限制，不代表这台 NAS 的真实宿主机状态。
-- 只读清点确认 `/usr/local/bin/mihomo` 指向 `/usr/local/lib/mihomo-manager/mihomo`，后者是 shell 版 `mihomo v0.6.0`，不是 Go 版 `minimalist`。
-- 旧 `/etc/mihomo` 同时包含 runtime `config.yaml`、`router.env`、`settings.env`、`state/*.json`、provider、ruleset、UI 与 geodata；这不是 Go 版 `/etc/minimalist/config.yaml` + `/var/lib/minimalist/state.json` 的同构目录。
-- Go 版目标 unit 当前会使用 `/var/lib/minimalist/mihomo` 作为 `mihomo-core -d` 运行目录；旧 unit 使用 `/etc/mihomo`。
-- Go 版与旧 shell 版默认都会操作 `MIHOMO_*` 链名、`0x2333` mark 与 table `233`，所以未切换服务归属前运行 Go 版 `apply-rules` / `clear-rules` 会与现网旧服务争用同一组规则。
-- `cutover-preflight` 已在实机只读跑通，当前结果是 `cutover-ready=false`：旧 `mihomo.service` active/enabled，Go 版 `minimalist.service` / bin 尚未落地。
-- `setup` / `start` / `restart` / `apply-rules` / `clear-rules` 已接入执行前 cutover guard；旧 `mihomo.service` live 且 `minimalist.service` 未 active/enabled 时会返回 `cutover blocked`。当前实机 `setup` 已验证会阻断，且不会创建 `/etc/minimalist`、`/var/lib/minimalist`、`minimalist.service` 或 `/usr/local/bin/minimalist`。
-- `docs/CUTOVER.md` 已记录人工 cutover 与回滚步骤，当前不提供自动切换命令。
-- `cutover-plan` 已实现并在实机只读跑通：当前输出 `legacy_live=true`、`minimalist_service_live=false`、`cutover_ready=false`、`next-action: prepare-minimalist-inputs`，且不会创建 Go 版目标文件。
-- 本轮最终验证结果：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test -cover ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过。
+- 本机已在 2026-04-28 00:14 CST 完成人工 cutover：旧 `mihomo.service` 已 `inactive/disabled`，Go 版 `minimalist.service` 已 `active/enabled`。
+- 当前运行入口为 `/usr/local/bin/minimalist`、`/etc/minimalist/config.yaml`、`/var/lib/minimalist/state.json` 与 `/var/lib/minimalist/mihomo/`。
+- Go 版服务当前以 `/usr/local/bin/mihomo-core -d /var/lib/minimalist/mihomo` 运行，`ExecStartPre=/usr/local/bin/minimalist apply-rules` 已成功执行。
+- 为避免启动阶段依赖外网下载，已把旧 runtime 中的 geodata 与 UI 资源复制到 `/var/lib/minimalist/mihomo/`；不复制旧 env/state 真相，不提交任何节点、secret 或订阅内容。
+- 旧状态中 4 个手动节点已导入 Go 版 state 并启用；当前没有订阅。
+- `minimalist healthcheck` 已通过，controller 返回 `{"meta":true,"version":"alpha-c59c99a"}`。
+- `minimalist status` 已确认当前模式来自 runtime，服务 `active=true enabled=true`，手动节点数为 4。
+- `minimalist runtime-audit` 已确认 `providers-ready=true`、`cutover-ready=true`；其中 warn/error 计数包含切换过程中 UI/geodata 缺失导致的历史日志，复制资源并重启后最近 2 分钟 `journalctl -u minimalist.service` 无新增日志。
+- 当前路由状态已由 Go 版服务接管：`fwmark 0x2333 lookup 233` 存在，table `233` 为 `local default dev lo scope host`，`mangle PREROUTING` 已跳转 `MIHOMO_PRE`，`nat MIHOMO_DNS` 已接入 `bridge1`。
+- 回滚入口仍保留：`sudo systemctl disable --now minimalist.service && sudo systemctl enable --now mihomo.service`。
+- 本轮最终验证结果：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist`、实机 cutover smoke 全部通过。
 
 ## 当前风险与限制
 
-- 这台 NAS 现在跑的是 legacy `mihomo.service`，不能直接当作 `minimalist.service` 的验收环境。
-- 在未确认迁移策略前，不要清理或重写现网 `MIHOMO_*` 规则，以免打断正在运行的透明代理。
-- 后续如果要验收 Go 版 `minimalist`，需要先把 live install 从 `/etc/mihomo` / `mihomo.service` 迁到 `/etc/minimalist` / `minimalist.service`。
-- 当前 guard 只负责阻断误操作；还没有提供自动 cutover、回滚或旧配置迁移命令。
+- 旧 `/etc/mihomo`、`/usr/local/lib/mihomo-manager` 与 `/usr/local/bin/mihomo` 暂时保留作为回滚入口，不自动清理。
+- `runtime-audit` 的 24 小时 warn/error 计数短期内仍会包含本次切换早期 UI/geodata 缺失产生的历史日志。
+- 当前 guard 只负责阻断误操作；仍不提供自动 cutover、自动回滚或旧配置迁移命令。
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移。
 - 不恢复 `alpha/stable` 核心通道切换、core 回滚、自动同步安装目录、自定义更新/重启定时器和 `external-controller-tls`。

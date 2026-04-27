@@ -52,3 +52,11 @@
 - `ClearRules` 对不存在的 jump 仍然保持幂等忽略
 - 如果 `deleteJump` 先确认到规则存在，但随后删除命令失败，必须把错误返回给上层
 - 这样 `ApplyRules` 才能在清理阶段失败时直接停止，避免继续写入半新半旧的路由规则
+
+## 2026-04-28 本机现网切到 Go 版 `minimalist`
+
+- 本机 live install 已从旧 `mihomo.service` 切到 Go 版 `minimalist.service`
+- 旧 `mihomo.service` 当前保留为回滚入口，不自动删除旧目录或旧二进制
+- 旧状态中 4 个手动节点被导入 Go 版 state 并启用；旧 env/state 文件仍不作为 Go 版真相，也不做通用迁移
+- 为避免启动依赖外网下载，本机将旧 runtime 中已有的 geodata 与 UI 资源复制到 `/var/lib/minimalist/mihomo/`
+- 项目仍不新增自动 cutover、自动回滚、旧状态迁移、alpha/stable 通道切换或 core 回滚能力
