@@ -1890,6 +1890,47 @@ func TestStatusFallsBackToConfigModeAndReportsReadySubscriptions(t *testing.T) {
 	}
 }
 
+func TestStatusCountsOnlyEnabledNonEmptySubscriptionCachesAsReady(t *testing.T) {
+	app, _ := newTestApp(t)
+	for _, sub := range []struct {
+		name string
+		url  string
+	}{
+		{"ready-sub", "https://subscription.example.com/ready.txt"},
+		{"empty-sub", "https://subscription.example.com/empty.txt"},
+		{"disabled-sub", "https://subscription.example.com/disabled.txt"},
+	} {
+		if err := app.AddSubscription(sub.name, sub.url, true); err != nil {
+			t.Fatalf("add subscription %s: %v", sub.name, err)
+		}
+	}
+	if err := app.SetSubscriptionEnabled(3, false); err != nil {
+		t.Fatalf("disable subscription: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.SubscriptionFile(st.Subscriptions[0].ID), []byte("trojan://password@example.org:443?security=tls#ready\n"), 0o640); err != nil {
+		t.Fatalf("write ready cache: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.SubscriptionFile(st.Subscriptions[1].ID), nil, 0o640); err != nil {
+		t.Fatalf("write empty cache: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.SubscriptionFile(st.Subscriptions[2].ID), []byte("trojan://password@example.org:443?security=tls#disabled\n"), 0o640); err != nil {
+		t.Fatalf("write disabled cache: %v", err)
+	}
+	if err := app.Status(); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "订阅: enabled=2 total=3 ready=1") {
+		t.Fatalf("unexpected subscription counts:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestStatusPrefersRuntimeModeWhenControllerConfigResponds(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Client = &http.Client{
