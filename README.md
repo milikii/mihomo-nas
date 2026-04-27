@@ -82,4 +82,4 @@ sudo /usr/local/bin/minimalist setup
 - `setup` / `start` / `restart` 的真实验证需要 systemd 正常运行
 - `apply-rules` / `clear-rules` 的真实验证需要 `CAP_NET_ADMIN` 和可用的 `iptables` / `ip rule`
 - `cutover-preflight` 是只读实机检查；若检测到旧 `mihomo.service` 正在承载现网，默认只告警，不停服务、不清规则
-- 在旧 `mihomo.service` active/enabled 且 Go 版目标未落地时，`setup` / `start` / `restart` / `apply-rules` / `clear-rules` 会返回 `cutover blocked`
+- 在旧 `mihomo.service` active/enabled 且 `minimalist.service` 尚未 active/enabled 时，`setup` / `start` / `restart` / `apply-rules` / `clear-rules` 会返回 `cutover blocked`

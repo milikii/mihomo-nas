@@ -55,12 +55,12 @@ func (s cutoverPreflightStatus) legacyLive() bool {
 	return s.LegacyServiceActive || s.LegacyServiceEnabled
 }
 
-func (s cutoverPreflightStatus) minimalistReady() bool {
-	return s.MinimalistServiceActive || s.MinimalistServiceEnabled || s.MinimalistUnit || s.MinimalistBin
+func (s cutoverPreflightStatus) minimalistServiceLive() bool {
+	return s.MinimalistServiceActive || s.MinimalistServiceEnabled
 }
 
 func (s cutoverPreflightStatus) Ready() bool {
-	return !s.legacyLive() || s.minimalistReady()
+	return !s.legacyLive() || s.minimalistServiceLive()
 }
 
 func New() *App {
@@ -289,7 +289,7 @@ func (a *App) printCutoverPreflight() {
 		status.MinimalistUnit,
 		status.MinimalistBin,
 	)
-	if status.legacyLive() && !status.minimalistReady() {
+	if status.legacyLive() && !status.minimalistServiceLive() {
 		fmt.Fprintln(a.Stdout, "cutover-warning: legacy live install detected; do not run apply-rules or clear-rules before an explicit cutover plan")
 	}
 	if status.LegacyServiceActive || status.LegacyServiceEnabled || status.LegacyBin || status.LegacyConfigDir {

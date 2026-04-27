@@ -2013,7 +2013,7 @@ func TestCutoverReadyStates(t *testing.T) {
 		}
 	})
 
-	t.Run("minimalist-ready-allows", func(t *testing.T) {
+	t.Run("legacy-live-with-minimalist-bin-still-blocks", func(t *testing.T) {
 		app, root := newTestApp(t)
 		oldLegacy := legacyLiveInstall
 		legacyLiveInstall = struct {
@@ -2039,8 +2039,34 @@ func TestCutoverReadyStates(t *testing.T) {
 			},
 		}
 		status := app.cutoverPreflightStatus()
+		if status.Ready() {
+			t.Fatalf("expected legacy live install with only minimalist bin to be blocked, got %#v", status)
+		}
+		if err := app.ensureCutoverReady(); err == nil || !strings.Contains(err.Error(), "cutover blocked") {
+			t.Fatalf("expected cutover blocked error, got %v", err)
+		}
+	})
+
+	t.Run("minimalist-installed-without-legacy-live-allows", func(t *testing.T) {
+		app, root := newTestApp(t)
+		oldLegacy := legacyLiveInstall
+		legacyLiveInstall = struct {
+			BinPath   string
+			ConfigDir string
+		}{
+			BinPath:   filepath.Join(root, "usr", "local", "bin", "mihomo"),
+			ConfigDir: filepath.Join(root, "etc", "mihomo"),
+		}
+		defer func() { legacyLiveInstall = oldLegacy }()
+		if err := os.MkdirAll(filepath.Dir(app.Paths.BinPath), 0o755); err != nil {
+			t.Fatalf("mkdir minimalist bin dir: %v", err)
+		}
+		if err := os.WriteFile(app.Paths.BinPath, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+			t.Fatalf("write minimalist bin: %v", err)
+		}
+		status := app.cutoverPreflightStatus()
 		if !status.Ready() {
-			t.Fatalf("expected minimalist-ready install to be allowed, got %#v", status)
+			t.Fatalf("expected minimalist install without legacy live service to be allowed, got %#v", status)
 		}
 		if err := app.ensureCutoverReady(); err != nil {
 			t.Fatalf("ensureCutoverReady: %v", err)
