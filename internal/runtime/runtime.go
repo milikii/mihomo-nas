@@ -238,7 +238,13 @@ func buildRuntimeConfig(paths Paths, cfg config.Config, st state.State, builtin 
 	}
 	b.WriteString("\nrules:\n")
 	for _, path := range []string{paths.CustomRules(), paths.ACLRules(), paths.BuiltinRules()} {
-		lines, _ := os.ReadFile(path)
+		lines, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", err
+		}
 		for _, line := range strings.Split(string(lines), "\n") {
 			line = strings.TrimSpace(line)
 			if line != "" && !strings.HasPrefix(line, "#") {

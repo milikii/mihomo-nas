@@ -1399,6 +1399,27 @@ func TestBuildRuntimeConfigPreservesRulesRenderOrder(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigReturnsRuleReadError(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := os.MkdirAll(paths.CustomRules(), 0o755); err != nil {
+		t.Fatalf("mkdir custom rules blocker: %v", err)
+	}
+	cfg := config.Default()
+	_, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected rule read error, got %v", err)
+	}
+}
+
 func TestBuildServiceUnitIncludesHardeningFlags(t *testing.T) {
 	paths := Paths{
 		RuntimeDir:  filepath.Join(t.TempDir(), "runtime"),
