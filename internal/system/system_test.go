@@ -41,3 +41,25 @@ func TestOutputTimeout(t *testing.T) {
 		t.Fatalf("expected timeout wording, got: %v", err)
 	}
 }
+
+func TestRunDelegatesToOutputAndReturnsFailure(t *testing.T) {
+	runner := Runner{Timeout: 2 * time.Second}
+	err := runner.Run("bash", "-lc", "echo run-fail >&2; exit 3")
+	if err == nil {
+		t.Fatalf("expected run failure")
+	}
+	if !strings.Contains(err.Error(), "run-fail") {
+		t.Fatalf("expected stderr in run error, got: %v", err)
+	}
+}
+
+func TestOutputUsesDefaultTimeoutWhenZero(t *testing.T) {
+	runner := Runner{}
+	stdout, _, err := runner.Output("bash", "-lc", "printf 'default-timeout'")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stdout != "default-timeout" {
+		t.Fatalf("unexpected stdout: %q", stdout)
+	}
+}
