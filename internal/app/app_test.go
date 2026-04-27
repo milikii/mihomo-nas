@@ -2914,6 +2914,63 @@ func TestApplyRulesPropagatesExplicitProxyOnlyClearRulesFailure(t *testing.T) {
 	}
 }
 
+func TestApplyRulesExplicitProxyOnlyClearsExistingRulesWithoutManualNodes(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	cfg, err := config.Ensure(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	cfg.Network.ProxyIngressInterfaces = nil
+	cfg.Network.DNSHijackEnabled = false
+	cfg.Network.DNSHijackInterfaces = nil
+	cfg.Network.ProxyHostOutput = false
+	if err := config.Save(app.Paths.ConfigPath(), cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	var calls []commandCall
+	checkHits := 0
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "systemctl" && len(args) >= 2 && (args[0] == "is-active" || args[0] == "is-enabled") {
+				return errors.New("inactive")
+			}
+			if name == "iptables" && hasArgSequence(args, "-C", "PREROUTING", "-j", "MIHOMO_PRE") {
+				if checkHits == 0 {
+					checkHits++
+					return nil
+				}
+				return errors.New("missing")
+			}
+			if name == "iptables" && hasArgSequence(args, "-D", "PREROUTING", "-j", "MIHOMO_PRE") {
+				return nil
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return errors.New("missing")
+		},
+	}
+
+	if err := app.ApplyRules(); err != nil {
+		t.Fatalf("apply explicit-proxy-only rules: %v", err)
+	}
+	if !hasRecordedCall(calls, "iptables", "-w", "5", "-t", "mangle", "-D", "PREROUTING", "-j", "MIHOMO_PRE") {
+		t.Fatalf("expected existing transparent jump to be removed, calls=%#v", calls)
+	}
+	if hasRecordedCall(calls, "iptables", "-w", "5", "-t", "mangle", "-A", "MIHOMO_PRE_HANDLE", "-p", "tcp", "-j", "TPROXY") {
+		t.Fatalf("did not expect transparent TPROXY programming, calls=%#v", calls)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "当前模板为仅显式代理，不下发透明旁路由规则") {
+		t.Fatalf("unexpected apply output:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestApplyRulesPropagatesEnsureChainFailure(t *testing.T) {
 	app, _ := newTestApp(t)
 	oldGeteuid := geteuid
