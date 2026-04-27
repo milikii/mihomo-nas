@@ -111,6 +111,28 @@ func TestRenderProviderFiltersAndHandlesEmptyAndUnsupportedNodes(t *testing.T) {
 	}
 }
 
+func TestRenderProviderCreatesNestedParentDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "runtime", "proxy_providers", "manual.txt")
+	nodes := []state.Node{{
+		ID:         "1",
+		Name:       "manual-node",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443?security=tls#manual-node",
+		ImportedAt: state.NowISO(),
+		Source:     state.Source{Kind: "manual"},
+	}}
+	if err := RenderProvider(path, nodes, "manual", "subscription"); err != nil {
+		t.Fatalf("render provider: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read provider: %v", err)
+	}
+	if !strings.Contains(string(body), "manual-node") {
+		t.Fatalf("expected rendered provider, got:\n%s", string(body))
+	}
+}
+
 func TestDecodeSubscriptionLinesAndScannableURIsHandleBase64Payload(t *testing.T) {
 	payload := base64.StdEncoding.EncodeToString([]byte(strings.Join([]string{
 		"trojan://password@example.org:443?security=tls#one",
