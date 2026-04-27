@@ -46,3 +46,9 @@
 - `cutover-preflight` 必须保持只读，不创建 `/etc/minimalist`、不启停 systemd unit、不操作 `iptables` / `ip rule`
 - `setup` / `start` / `restart` / `apply-rules` / `clear-rules` 在 legacy live 且 `minimalist.service` 尚未 active/enabled 时必须阻断；仅有 Go 版二进制或 unit 文件不足以放行
 - 在确认 cutover 方案前，不自动停旧服务、不自动清理现网 `MIHOMO_*` 规则、不自动迁移旧 `settings.env` / `router.env` / `state/*.json`
+
+## 2026-04-27 `clear-rules` 删除失败要上浮
+
+- `ClearRules` 对不存在的 jump 仍然保持幂等忽略
+- 如果 `deleteJump` 先确认到规则存在，但随后删除命令失败，必须把错误返回给上层
+- 这样 `ApplyRules` 才能在清理阶段失败时直接停止，避免继续写入半新半旧的路由规则
