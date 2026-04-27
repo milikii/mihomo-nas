@@ -559,3 +559,25 @@ func TestRemoveEntryIndexRejectsOutOfRange(t *testing.T) {
 		t.Fatalf("expected out of range error, got %v", err)
 	}
 }
+
+func TestRemoveEntryIndexRemovesSelectedEntryAndPreservesOrder(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "manifest.yaml")
+	source := filepath.Join(dir, "entries.txt")
+	if err := os.WriteFile(manifest, []byte("rulesets:\n  - name: test\n    category: demo\n    type: domain\n    source: entries.txt\n    target: direct\n"), 0o640); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := os.WriteFile(source, []byte("first.example\nsecond.example\nthird.example\n"), 0o640); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	if err := RemoveEntryIndex(manifest, "test", 2); err != nil {
+		t.Fatalf("remove entry index: %v", err)
+	}
+	entries, err := ReadEntries(source)
+	if err != nil {
+		t.Fatalf("read entries: %v", err)
+	}
+	if strings.Join(entries, ",") != "first.example,third.example" {
+		t.Fatalf("expected order-preserving removal, got %#v", entries)
+	}
+}
