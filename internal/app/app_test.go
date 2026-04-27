@@ -406,6 +406,19 @@ func newTestApp(t *testing.T) (*App, string) {
 	return app, root
 }
 
+func newTestAppWithEnabledManualNode(t *testing.T) *App {
+	t.Helper()
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#service-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	return app
+}
+
 func hasRecordedCall(calls []commandCall, name string, want ...string) bool {
 	for _, call := range calls {
 		if call.name != name {
@@ -1329,6 +1342,72 @@ func TestSetupFailsWhenBuiltinRulesPathIsDirectory(t *testing.T) {
 	}
 }
 
+func TestSetupFailsWhenManualProviderPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.ManualProvider(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking manual provider path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected manual provider write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect runner calls when render files fails, calls=%#v", calls)
+	}
+}
+
+func TestSetupFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.CustomRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking custom rules path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected custom rules write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect runner calls when render files fails, calls=%#v", calls)
+	}
+}
+
+func TestSetupFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.RuntimeConfig(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking runtime config path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected runtime config write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect runner calls when render files fails, calls=%#v", calls)
+	}
+}
+
 func TestReadImportInputReturnsAllLinesWhenNotTerminal(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#one\nsocks5://proxy.example.com:1080#two\n")
@@ -1394,6 +1473,75 @@ func TestStartRendersConfigAndEnablesService(t *testing.T) {
 	}
 }
 
+func TestStartPropagatesRenderConfigFailureWithoutSystemctlCall(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(filepath.Dir(app.Paths.RulesRepoPath()), 0o755); err != nil {
+		t.Fatalf("mkdir rules repo dir: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.RulesRepoPath(), []byte("rulesets: [\n"), 0o640); err != nil {
+		t.Fatalf("write invalid manifest: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Start(); err == nil || !strings.Contains(err.Error(), "parse manifest") {
+		t.Fatalf("expected render-config failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
+	}
+}
+
+func TestStartFailsWhenManualProviderPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.ManualProvider(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking manual provider path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Start(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected manual provider write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
+	}
+}
+
+func TestStartFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.RuntimeConfig(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking runtime config path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Start(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected runtime config write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
+	}
+}
+
 func TestStartReturnsRootErrorWhenNotRoot(t *testing.T) {
 	app, _ := newTestApp(t)
 	oldGeteuid := geteuid
@@ -1440,6 +1588,75 @@ func TestRestartRendersConfigAndRestartsService(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "manual:") {
 		t.Fatalf("unexpected runtime config:\n%s", string(body))
+	}
+}
+
+func TestRestartPropagatesRenderConfigFailureWithoutSystemctlCall(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(filepath.Dir(app.Paths.RulesRepoPath()), 0o755); err != nil {
+		t.Fatalf("mkdir rules repo dir: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.RulesRepoPath(), []byte("rulesets: [\n"), 0o640); err != nil {
+		t.Fatalf("write invalid manifest: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Restart(); err == nil || !strings.Contains(err.Error(), "parse manifest") {
+		t.Fatalf("expected render-config failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
+	}
+}
+
+func TestRestartFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.CustomRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking custom rules path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Restart(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected custom rules write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
+	}
+}
+
+func TestRestartFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.RuntimeConfig(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking runtime config path: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+		return nil
+	}}
+	if err := app.Restart(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected runtime config write failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect systemctl calls when render-config fails, calls=%#v", calls)
 	}
 }
 
@@ -2914,6 +3131,17 @@ func TestRenderConfigFailsWhenBuiltinRulesPathIsDirectory(t *testing.T) {
 	err := app.RenderConfig()
 	if err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected builtin rules write failure, got %v", err)
+	}
+}
+
+func TestRenderConfigFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	if err := os.MkdirAll(app.Paths.RuntimeConfig(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking runtime config path: %v", err)
+	}
+	err := app.RenderConfig()
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected runtime config write failure, got %v", err)
 	}
 }
 

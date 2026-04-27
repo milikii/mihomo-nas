@@ -26,6 +26,7 @@
   - `Setup` runtime layout 阻塞、manifest 损坏、`builtin.rules` 路径阻塞的早失败分支
   - `install-self` 的 `rules-repo` / `state.json` 路径阻塞失败分支
   - `runtime.RenderFiles` 的 `manual.txt` / `custom.rules` / `builtin.rules` / 最终 `config.yaml` 路径阻塞失败分支
+  - `Start` / `Restart` 的 manifest 损坏与 runtime 路径阻塞早失败、`Setup` 的 `manual.txt` / `custom.rules` / 最终 `config.yaml` 路径阻塞早失败、`RenderConfig` 的最终 `config.yaml` 路径阻塞补强
   - `rulesrepo` `Search` 空关键词 / `Render` 非法条目早失败分支
   - `rules-repo add/remove/remove-index` 的 `Run` 成功分发
   - `apply-rules` 的 `Run` 成功分发
@@ -34,7 +35,7 @@
 ## 下一最小闭环
 
 - 在真实主机上补 `ApplyRules` / `ClearRules` 的 `iptables` / `ip rule` smoke，验证当前命令编排与测试假设一致
-- 若本机具备 systemd / root 环境，继续补 `setup` / `start` / `restart` 的更贴近真实运行环境 smoke
+- 若本机具备 systemd / root 环境，继续补 `setup` / `start` / `restart` 的真实 smoke，重点验证当前测试覆盖之外的系统命令实际回执
 - 保持 README / flows / STATUS 只描述 `minimalist` 当前真相，不回退到旧 `mihomo` 叙述
 
 ## 本轮不做
