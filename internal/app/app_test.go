@@ -2513,6 +2513,30 @@ func TestRenderConfigRejectsInvalidPersistedRuleTarget(t *testing.T) {
 	}
 }
 
+func TestRenderConfigRejectsPersistedSubscriptionNodeTarget(t *testing.T) {
+	app, _ := newTestApp(t)
+	st := state.Empty()
+	st.Nodes = []state.Node{{
+		ID:         "sub-node-1",
+		Name:       "sub-only-node",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443?security=tls#sub-only-node",
+		ImportedAt: state.NowISO(),
+		Source:     state.Source{Kind: "subscription", ID: "sub-1"},
+	}}
+	st.Rules = []state.Rule{{ID: "rule-1", Kind: "domain", Pattern: "example.com", Target: "sub-only-node"}}
+	if err := state.Save(app.Paths.StatePath(), st); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	err := app.RenderConfig()
+	if err == nil || !strings.Contains(err.Error(), "无效规则目标: sub-only-node") {
+		t.Fatalf("expected subscription target validation error, got %v", err)
+	}
+	if _, statErr := os.Stat(app.Paths.RuntimeConfig()); !os.IsNotExist(statErr) {
+		t.Fatalf("render-config should not write runtime config after validation failure, stat err=%v", statErr)
+	}
+}
+
 func TestRenameNodeRewritesRuleAndACLTargets(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#rename-me\n")
