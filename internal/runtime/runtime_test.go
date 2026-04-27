@@ -44,6 +44,28 @@ func TestEnsureLayoutCreatesAllExpectedDirectories(t *testing.T) {
 	}
 }
 
+func TestEnsureLayoutReturnsErrorWhenExpectedDirectoryIsFile(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatalf("mkdir runtime dir: %v", err)
+	}
+	if err := os.WriteFile(paths.ProviderDir(), []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking provider dir: %v", err)
+	}
+	if err := EnsureLayout(paths); err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("expected layout error, got %v", err)
+	}
+}
+
 func TestDefaultPathsUseEnvironmentOverrides(t *testing.T) {
 	t.Setenv("MINIMALIST_CONFIG_DIR", "/custom/etc")
 	t.Setenv("MINIMALIST_DATA_DIR", "/custom/var")

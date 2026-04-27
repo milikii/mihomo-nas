@@ -113,6 +113,19 @@ func TestURIBaseKeyIgnoresVMessPSField(t *testing.T) {
 	}
 }
 
+func TestURIBaseKeyHandlesInvalidURIsAndDropsFragment(t *testing.T) {
+	raw := "trojan://secret@example.com:443?security=tls#display-name"
+	if got := URIBaseKey(raw); got != "trojan://secret@example.com:443?security=tls" {
+		t.Fatalf("expected fragment-free base key, got %q", got)
+	}
+	if got := URIBaseKey("vmess://@@@"); got != "vmess://@@@" {
+		t.Fatalf("expected invalid vmess base key to stay raw, got %q", got)
+	}
+	if got := URIBaseKey("%"); got != "%" {
+		t.Fatalf("expected invalid URI base key to stay raw, got %q", got)
+	}
+}
+
 func TestGuessNamePrefersFragmentAndVMessPS(t *testing.T) {
 	vmessPayload, err := json.Marshal(map[string]any{
 		"v":    "2",
@@ -135,6 +148,28 @@ func TestGuessNamePrefersFragmentAndVMessPS(t *testing.T) {
 	}
 }
 
+func TestGuessNameCoversFallbacks(t *testing.T) {
+	vmessPayload, err := json.Marshal(map[string]any{
+		"add": "edge.example.com",
+		"net": "ws",
+	})
+	if err != nil {
+		t.Fatalf("marshal vmess: %v", err)
+	}
+	if name := GuessName("vmess://" + base64.StdEncoding.EncodeToString(vmessPayload)); name != "ws-edge.example.com" {
+		t.Fatalf("expected vmess host fallback name, got %q", name)
+	}
+	if name := GuessName("%"); name != "node" {
+		t.Fatalf("expected invalid uri fallback name, got %q", name)
+	}
+	if name := GuessName("ss://secret@example.com:443"); name != "ss-example.com" {
+		t.Fatalf("expected ss host fallback name, got %q", name)
+	}
+	if name := GuessName("trojan://secret@:443"); name != "tcp-node" {
+		t.Fatalf("expected missing host fallback name, got %q", name)
+	}
+}
+
 func TestURIHelpersExposeSchemeHostPortAndQuery(t *testing.T) {
 	raw := "  VLESS://12345678-1234-1234-1234-1234567890ab@edge.example.com:8443?type=ws&security=tls  "
 	if scheme := uriScheme(raw); scheme != "vless" {
@@ -151,6 +186,15 @@ func TestURIHelpersExposeSchemeHostPortAndQuery(t *testing.T) {
 	}
 	if fallback := queryField("::not a uri::", "type", "tcp"); fallback != "tcp" {
 		t.Fatalf("expected fallback query field, got %q", fallback)
+	}
+	if scheme := uriScheme("not-a-uri"); scheme != "" {
+		t.Fatalf("expected empty scheme, got %q", scheme)
+	}
+	if host := splitHost("%"); host != "" {
+		t.Fatalf("expected empty host for invalid uri, got %q", host)
+	}
+	if port := splitPort("%"); port != "" {
+		t.Fatalf("expected empty port for invalid uri, got %q", port)
 	}
 }
 
@@ -182,6 +226,37 @@ func TestParseSSSupportsBase64PrefixAndPluginOptions(t *testing.T) {
 func TestDecodeSSAuthorityRejectsInvalidPayload(t *testing.T) {
 	if _, _, _, _, err := decodeSSAuthority("ss://not-valid"); err == nil {
 		t.Fatalf("expected invalid ss uri error")
+	}
+}
+
+func TestProtocolParsersRejectInvalidURIs(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{"vless", func() error {
+			_, err := parseVless("vless://12345678-1234-1234-1234-1234567890ab@example.com")
+			return err
+		}},
+		{"trojan", func() error {
+			_, err := parseTrojan("trojan://secret@example.com")
+			return err
+		}},
+		{"ss", func() error {
+			_, err := parseSS("ss://YWVzLTI1Ni1nY206c2VjcmV0")
+			return err
+		}},
+		{"vmess", func() error {
+			_, err := parseVMess("vmess://not-valid")
+			return err
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.run(); err == nil {
+				t.Fatalf("expected invalid %s uri error", tc.name)
+			}
+		})
 	}
 }
 
@@ -226,6 +301,41 @@ func TestParseVMessAndBuildProviderKeepTLSAndGRPCFields(t *testing.T) {
 	}
 	if item.SkipCertVerify == nil || !*item.SkipCertVerify {
 		t.Fatalf("expected skip cert verify to be true: %#v", item)
+	}
+}
+
+func TestProviderItemFromNodeDispatchesSupportedSchemes(t *testing.T) {
+	vmessPayload, err := json.Marshal(map[string]any{
+		"add":  "vmess.example.com",
+		"port": "443",
+		"id":   "12345678-1234-1234-1234-1234567890ab",
+	})
+	if err != nil {
+		t.Fatalf("marshal vmess: %v", err)
+	}
+	tests := []struct {
+		name string
+		uri  string
+		want string
+	}{
+		{"vless", "vless://12345678-1234-1234-1234-1234567890ab@example.com:443?encryption=none#vless", "vless"},
+		{"ss", "ss://YWVzLTI1Ni1nY206c2VjcmV0QGV4YW1wbGUubmV0OjQ0Mw==#ss", "ss"},
+		{"vmess", "vmess://" + base64.StdEncoding.EncodeToString(vmessPayload), "vmess"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			item, err := providerItemFromNode(state.Node{Name: tc.name, URI: tc.uri})
+			if err != nil {
+				t.Fatalf("provider item from node: %v", err)
+			}
+			raw, err := yaml.Marshal(item)
+			if err != nil {
+				t.Fatalf("marshal provider item: %v", err)
+			}
+			if !strings.Contains(string(raw), "type: "+tc.want+"\n") {
+				t.Fatalf("expected provider type %s, got:\n%s", tc.want, string(raw))
+			}
+		})
 	}
 }
 
@@ -540,14 +650,26 @@ func TestSecurityNameReflectsProtocolSpecificRules(t *testing.T) {
 	if got := securityName(uriInfo{Scheme: "vless"}); got != "vless" {
 		t.Fatalf("expected plain vless security, got %q", got)
 	}
+	if got := securityName(uriInfo{Scheme: "vless", ServerName: "edge.example.com"}); got != "tls" {
+		t.Fatalf("expected vless tls security, got %q", got)
+	}
 	if got := securityName(uriInfo{Scheme: "vless", RealityOpts: map[string]any{"public-key": "pub"}}); got != "reality" {
 		t.Fatalf("expected vless reality security, got %q", got)
+	}
+	if got := securityName(uriInfo{Scheme: "trojan"}); got != "tls" {
+		t.Fatalf("expected trojan tls security, got %q", got)
 	}
 	if got := securityName(uriInfo{Scheme: "trojan", Plugin: "obfs-local"}); got != "obfs-local" {
 		t.Fatalf("expected trojan plugin security, got %q", got)
 	}
 	if got := securityName(uriInfo{Scheme: "vmess", TLS: true}); got != "tls" {
 		t.Fatalf("expected vmess tls security, got %q", got)
+	}
+	if got := securityName(uriInfo{Scheme: "ss"}); got != "ss" {
+		t.Fatalf("expected ss security, got %q", got)
+	}
+	if got := securityName(uriInfo{Scheme: "unknown"}); got != "unknown" {
+		t.Fatalf("expected unknown scheme passthrough, got %q", got)
 	}
 }
 

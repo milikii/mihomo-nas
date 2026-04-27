@@ -219,6 +219,9 @@ func TestValidateEntrySupportsKnownRuleTypes(t *testing.T) {
 	}{
 		{name: "comma", ruleType: "domain", value: "bad,entry"},
 		{name: "newline", ruleType: "domain", value: "bad\nentry"},
+		{name: "invalid-ip-cidr", ruleType: "ip_cidr", value: "999.999.999.999/32"},
+		{name: "domain-suffix-space", ruleType: "domain_suffix", value: "bad suffix"},
+		{name: "keyword-space", ruleType: "domain_keyword", value: "bad keyword"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := ValidateEntry(tc.ruleType, tc.value, "entries.txt"); err == nil {

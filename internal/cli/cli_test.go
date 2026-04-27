@@ -212,6 +212,26 @@ func withStdinFile(t *testing.T, content string, fn func()) {
 	fn()
 }
 
+func TestIsTTYReturnsFalseForRegularAndClosedStdin(t *testing.T) {
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+
+	file, err := os.CreateTemp(t.TempDir(), "stdin-*")
+	if err != nil {
+		t.Fatalf("create stdin file: %v", err)
+	}
+	os.Stdin = file
+	if isTTY() {
+		t.Fatalf("expected regular file stdin to be non-tty")
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close stdin file: %v", err)
+	}
+	if isTTY() {
+		t.Fatalf("expected closed stdin to be non-tty")
+	}
+}
+
 func mustImportNode(t *testing.T, a *app.App, uri string) {
 	t.Helper()
 	a.Stdin = strings.NewReader(uri + "\n")

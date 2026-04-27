@@ -265,6 +265,22 @@ func TestAppendIfMissingRuleAndTerminalHelpers(t *testing.T) {
 	}
 }
 
+func TestTerminalHelpersReturnFalseForClosedFiles(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "stdin-*")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+	if isTerminal(file) {
+		t.Fatalf("expected closed file to be non-terminal")
+	}
+	if isCharDevice(file) {
+		t.Fatalf("expected closed file to not be a char device")
+	}
+}
+
 func TestHasReadyProvidersAndHTTPClientFallback(t *testing.T) {
 	app, _ := newTestApp(t)
 	st := state.Empty()
@@ -303,6 +319,31 @@ func TestRemoveCommandsRejectOutOfRangeIndexes(t *testing.T) {
 	}
 	if err := app.RemoveSubscription(1); err == nil || !strings.Contains(err.Error(), "subscription index out of range") {
 		t.Fatalf("expected subscription range error, got %v", err)
+	}
+}
+
+func TestReadOnlyCommandsReturnEnsureAllErrors(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := os.WriteFile(app.Paths.ConfigDir, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking config dir: %v", err)
+	}
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{"list-nodes", app.ListNodes},
+		{"list-rules", func() error { return app.ListRules(false) }},
+		{"list-acl", func() error { return app.ListRules(true) }},
+		{"list-subscriptions", app.ListSubscriptions},
+		{"show-secret", app.ShowSecret},
+		{"healthcheck", app.Healthcheck},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.run(); err == nil {
+				t.Fatalf("expected ensureAll error")
+			}
+		})
 	}
 }
 
@@ -1050,6 +1091,16 @@ func TestSetNodeEnabledUpdatesManualNodesAndRejectsSubscriptionNodes(t *testing.
 	err = app.SetNodeEnabled(1, true)
 	if err == nil || !strings.Contains(err.Error(), "subscription node is provider-managed") {
 		t.Fatalf("expected subscription ownership error, got %v", err)
+	}
+}
+
+func TestNodeMutationCommandsRejectOutOfRangeIndexes(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.RenameNode(1, "missing"); err == nil || !strings.Contains(err.Error(), "node index out of range") {
+		t.Fatalf("expected rename range error, got %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err == nil || !strings.Contains(err.Error(), "node index out of range") {
+		t.Fatalf("expected enable range error, got %v", err)
 	}
 }
 
@@ -2691,6 +2742,35 @@ func TestControllerConfigModeFallsBackToLoopbackAndUsesSecret(t *testing.T) {
 	}
 	if mode != "direct" {
 		t.Fatalf("unexpected mode: %q", mode)
+	}
+}
+
+func TestControllerConfigModeHandlesInvalidAndMissingModeResponses(t *testing.T) {
+	app, _ := newTestApp(t)
+	cfg, err := config.Ensure(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, `{"mode":`), nil
+		}),
+	}
+	if _, err := app.controllerConfigMode(cfg); err == nil {
+		t.Fatalf("expected decode error for invalid config response")
+	}
+
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, `{"mode": 7}`), nil
+		}),
+	}
+	mode, err := app.controllerConfigMode(cfg)
+	if err != nil {
+		t.Fatalf("controller config mode: %v", err)
+	}
+	if mode != "" {
+		t.Fatalf("expected empty mode for non-string payload, got %q", mode)
 	}
 }
 
