@@ -13,7 +13,7 @@
   - legacy live 状态下 `cutover-plan` 输出 `prepare-minimalist-inputs`
   - `cutover-plan` 不创建 `/etc/minimalist`、`/var/lib/minimalist` 或 `/usr/local/bin/minimalist`
   - `cutover-plan` 不停旧服务、不启新服务、不清规则
-- 质量硬化继续保持 `render-config` / `subscriptions update` 集成覆盖稳定；当前剩余主要是更保守的 app 高风险命令失败路径与 rules-repo 文件系统异常边角，不扩大 cutover 能力。
+- 质量硬化目前已经把 `apply-rules` 的关键失败传播、rules-repo / provider 边界、config/state 缺省边界补到可测；下一步只做全量验证、文档收口和 push，不扩大 cutover 能力。
 - 在确认迁移策略前，不对现网 `MIHOMO_*` 规则做清理或重写。
 - 若确认要切换到 Go 版，再做最小迁移闭环并重新跑 `setup` / `start` / `restart` / `apply-rules` / `clear-rules` 实机 smoke。
 - 保持 README / flows 描述 Go 版 `minimalist` 目标真相；STATUS / NEXT_STEP 只记录 live host 差异，不恢复旧 `mihomo` 作为项目目标。
@@ -29,5 +29,5 @@
 ## 退出条件
 
 - README 与权威文档只描述 Go 版 `minimalist` 当前真相。
-- `go test ./...` 覆盖核心命令与系统编排关键路径。
+- `go test ./...` 覆盖核心命令与系统编排关键路径，且当前轮次的 focused 验证已通过。
 - Go 版高风险命令在 legacy live install 存在时已有 guard，人工 cutover 步骤已文档化，`cutover-plan` 已实机验证为只读输出。
