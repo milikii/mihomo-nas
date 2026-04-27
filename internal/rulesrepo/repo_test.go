@@ -196,6 +196,16 @@ func TestInitDefaultRepoIsNoopWhenManifestAlreadyExists(t *testing.T) {
 	}
 }
 
+func TestInitDefaultRepoReturnsErrorWhenTargetRootIsFile(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "blocked")
+	if err := os.WriteFile(root, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+	if err := InitDefaultRepo(root); err == nil || (!strings.Contains(err.Error(), "not a directory") && !strings.Contains(err.Error(), "file exists")) {
+		t.Fatalf("expected init repo path error, got %v", err)
+	}
+}
+
 func TestValidateEntrySupportsKnownRuleTypes(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -392,6 +402,21 @@ func TestAppendEntryRejectsInvalidEntryAndRemoveEntryNoopsOnMissingValue(t *test
 	}
 	if string(before) != string(after) {
 		t.Fatalf("expected missing value removal to be a no-op, before=%q after=%q", string(before), string(after))
+	}
+}
+
+func TestAppendEntryPropagatesSourceReadErrorWhenSourceIsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "manifest.yaml")
+	source := filepath.Join(dir, "entries.txt")
+	if err := os.WriteFile(manifest, []byte("rulesets:\n  - name: test\n    category: demo\n    type: domain\n    source: entries.txt\n    target: direct\n"), 0o640); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatalf("mkdir source path: %v", err)
+	}
+	if err := AppendEntry(manifest, "test", "example.com"); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected source read error, got %v", err)
 	}
 }
 
