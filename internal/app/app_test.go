@@ -1381,6 +1381,24 @@ func TestDeleteIPRuleReturnsShowError(t *testing.T) {
 	}
 }
 
+func TestDeleteIPRuleReturnsDeleteErrorWhenRuleIsPresent(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			if name == "ip" && len(args) >= 9 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("delete failed")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "100: from all fwmark 0x2333 lookup 233\n", "", nil
+		},
+	}
+	if err := app.deleteIPRule("233", "100"); err == nil || !strings.Contains(err.Error(), "delete failed") {
+		t.Fatalf("expected delete error, got %v", err)
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
