@@ -445,6 +445,48 @@ func TestRulesMenuAddsRuleAndPromptStringKeepsDefaultOnBlankInput(t *testing.T) 
 	}
 }
 
+func TestContainerBypassIPsAndEnsureChainHandleRunnerResponses(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "iptables" && len(args) >= 6 && args[4] == "-S" && args[5] == "CHAIN_EXISTS" {
+				return nil
+			}
+			if name == "iptables" && len(args) >= 6 && args[4] == "-S" && args[5] == "CHAIN_NEW" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			if name == "docker" && len(args) >= 2 && args[1] == "alpha" {
+				return "172.18.0.2\n172.18.0.3\n", "", nil
+			}
+			if name == "docker" && len(args) >= 2 && args[1] == "beta" {
+				return "172.18.0.2\n", "", nil
+			}
+			return "", "", errors.New("missing")
+		},
+	}
+	ips := app.containerBypassIPs([]string{"alpha", "beta", "missing"})
+	if strings.Join(ips, ",") != "172.18.0.2/32,172.18.0.3/32" {
+		t.Fatalf("unexpected container bypass ips: %#v", ips)
+	}
+	if err := app.ensureChain("mangle", "CHAIN_EXISTS"); err != nil {
+		t.Fatalf("ensure existing chain: %v", err)
+	}
+	if err := app.ensureChain("mangle", "CHAIN_NEW"); err != nil {
+		t.Fatalf("ensure new chain: %v", err)
+	}
+	if !hasRecordedCall(calls, "iptables", "-F", "CHAIN_EXISTS") {
+		t.Fatalf("expected flush call for existing chain, calls=%#v", calls)
+	}
+	if !hasRecordedCall(calls, "iptables", "-N", "CHAIN_NEW") {
+		t.Fatalf("expected create call for missing chain, calls=%#v", calls)
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
