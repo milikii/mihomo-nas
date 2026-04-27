@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"minimalist/internal/config"
+	"minimalist/internal/rulesrepo"
 	"minimalist/internal/runtime"
 	"minimalist/internal/state"
 )
@@ -246,6 +248,64 @@ func TestListSubscriptionsAndMenuViewPrintCurrentState(t *testing.T) {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in subscriptions output:\n%s", needle, output)
 		}
+	}
+}
+
+func TestRulesRepoCommandsExposeAndMutateRepoState(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.RulesRepoAdd("fcm-site", "codex.example.com"); err != nil {
+		t.Fatalf("rules repo add: %v", err)
+	}
+	if err := app.RulesRepoSummary(); err != nil {
+		t.Fatalf("rules repo summary: %v", err)
+	}
+	if err := app.RulesRepoEntries("fcm-site", "codex"); err != nil {
+		t.Fatalf("rules repo entries: %v", err)
+	}
+	if err := app.RulesRepoFind("codex"); err != nil {
+		t.Fatalf("rules repo find: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"规则仓库:",
+		"fcm-site",
+		"codex.example.com",
+		"matched=1",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in rules repo output:\n%s", needle, output)
+		}
+	}
+	if err := app.RulesRepoRemove("fcm-site", "codex.example.com"); err != nil {
+		t.Fatalf("rules repo remove: %v", err)
+	}
+	if err := app.RulesRepoAdd("fcm-site", "codex.example.com"); err != nil {
+		t.Fatalf("rules repo re-add: %v", err)
+	}
+	lines, err := rulesrepo.ListEntries(app.Paths.RulesRepoPath(), "fcm-site", "codex")
+	if err != nil {
+		t.Fatalf("list entries after re-add: %v", err)
+	}
+	if len(lines) == 0 {
+		t.Fatalf("expected codex entry after re-add")
+	}
+	indexText, _, ok := strings.Cut(lines[0], "\t")
+	if !ok {
+		t.Fatalf("unexpected entry line: %q", lines[0])
+	}
+	index, err := strconv.Atoi(indexText)
+	if err != nil {
+		t.Fatalf("parse entry index: %v", err)
+	}
+	if err := app.RulesRepoRemoveIndex("fcm-site", index); err != nil {
+		t.Fatalf("rules repo remove index: %v", err)
+	}
+	lines, err = rulesrepo.ListEntries(app.Paths.RulesRepoPath(), "fcm-site", "codex")
+	if err != nil {
+		t.Fatalf("list entries after remove-index: %v", err)
+	}
+	if len(lines) != 0 {
+		t.Fatalf("expected codex entry removed, got %#v", lines)
 	}
 }
 
