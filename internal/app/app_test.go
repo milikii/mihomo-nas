@@ -178,6 +178,51 @@ func TestRemoveCommandsRejectOutOfRangeIndexes(t *testing.T) {
 	}
 }
 
+func TestStartRestartAndStopPropagateSystemctlErrors(t *testing.T) {
+	prepare := func(t *testing.T) *App {
+		t.Helper()
+		app, _ := newTestApp(t)
+		app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#service-node\n")
+		if err := app.ImportLinks(); err != nil {
+			t.Fatalf("import links: %v", err)
+		}
+		if err := app.SetNodeEnabled(1, true); err != nil {
+			t.Fatalf("enable node: %v", err)
+		}
+		return app
+	}
+
+	startApp := prepare(t)
+	startApp.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		if name == "systemctl" && len(args) >= 2 && args[0] == "enable" {
+			return errors.New("enable failed")
+		}
+		return nil
+	}}
+	if err := startApp.Start(); err == nil || !strings.Contains(err.Error(), "enable failed") {
+		t.Fatalf("expected start error, got %v", err)
+	}
+
+	restartApp := prepare(t)
+	restartApp.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		if name == "systemctl" && len(args) >= 1 && args[0] == "restart" {
+			return errors.New("restart failed")
+		}
+		return nil
+	}}
+	if err := restartApp.Restart(); err == nil || !strings.Contains(err.Error(), "restart failed") {
+		t.Fatalf("expected restart error, got %v", err)
+	}
+
+	stopApp, _ := newTestApp(t)
+	stopApp.Runner = fakeRunner{runFn: func(name string, args ...string) error {
+		return errors.New("stop failed")
+	}}
+	if err := stopApp.Stop(); err == nil || !strings.Contains(err.Error(), "stop failed") {
+		t.Fatalf("expected stop error, got %v", err)
+	}
+}
+
 func (f fakeRunner) Run(name string, args ...string) error {
 	if f.runFn != nil {
 		return f.runFn(name, args...)
