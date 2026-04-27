@@ -34,6 +34,22 @@ func TestEnsureAndLoadRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSaveCreatesMissingParentDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "etc", "config.yaml")
+	cfg := Default()
+	cfg.Controller.Secret = "persisted-secret"
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if loaded.Controller.Secret != "persisted-secret" {
+		t.Fatalf("expected saved secret, got %q", loaded.Controller.Secret)
+	}
+}
+
 func TestEnsureBackfillsMissingSecret(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
