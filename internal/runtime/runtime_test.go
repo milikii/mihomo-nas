@@ -831,6 +831,36 @@ func TestBuildRuntimeConfigOmitsSubscriptionProviderWhenCacheMissing(t *testing.
 	}
 }
 
+func TestBuildRuntimeConfigOmitsSubscriptionProviderWhenCacheEmpty(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{
+		ID:        "sub-1",
+		Name:      "sub-1",
+		URL:       "https://subscription.example.com/sub.txt",
+		Enabled:   true,
+		CreatedAt: state.NowISO(),
+	}}
+	if err := os.MkdirAll(paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("sub-1"), nil, 0o640); err != nil {
+		t.Fatalf("write empty subscription cache: %v", err)
+	}
+	text, err := buildRuntimeConfig(paths, cfg, st, nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	if strings.Contains(text, "subscription-sub") {
+		t.Fatalf("did not expect subscription provider with empty cache:\n%s", text)
+	}
+}
+
 func TestBuildRuntimeConfigIncludesPortAndModeHeaders(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),
