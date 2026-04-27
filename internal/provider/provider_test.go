@@ -422,3 +422,52 @@ func TestRenderProviderFiltersManualAndSubscriptionSources(t *testing.T) {
 		t.Fatalf("unexpected rendered proxy: %#v", file.Proxies[0])
 	}
 }
+
+func TestProviderHelpersNormalizePrimitiveValues(t *testing.T) {
+	if !truthy("YES") || truthy("0") {
+		t.Fatalf("unexpected truthy behavior")
+	}
+	if anyString(12.0) != "12" || anyString(7) != "7" || anyString(true) != "" {
+		t.Fatalf("unexpected anyString conversions")
+	}
+	if intFromAny("9") != 9 || intFromAny(3.0) != 3 || intFromAny(false) != 0 {
+		t.Fatalf("unexpected intFromAny conversions")
+	}
+	if got := splitLines(" a \n\nb\n "); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("unexpected split lines: %#v", got)
+	}
+	if firstNonEmpty("", "fallback", "ignored") != "fallback" {
+		t.Fatalf("unexpected firstNonEmpty result")
+	}
+	if got := splitCSV("h2, http/1.1, ,grpc"); len(got) != 3 || got[1] != "http/1.1" {
+		t.Fatalf("unexpected splitCSV result: %#v", got)
+	}
+}
+
+func TestScanURIRowMarksUnsupportedScheme(t *testing.T) {
+	row := ScanURIRow("socks5://proxy.example.com:1080#legacy")
+	if row.Supported != "0" {
+		t.Fatalf("expected unsupported row: %#v", row)
+	}
+	if row.Scheme != "socks5" || row.Name != "legacy" {
+		t.Fatalf("unexpected unsupported row metadata: %#v", row)
+	}
+	if !strings.Contains(row.Reason, "unsupported scheme") {
+		t.Fatalf("expected unsupported reason, got %#v", row)
+	}
+}
+
+func TestSecurityNameReflectsProtocolSpecificRules(t *testing.T) {
+	if got := securityName(uriInfo{Scheme: "vless"}); got != "vless" {
+		t.Fatalf("expected plain vless security, got %q", got)
+	}
+	if got := securityName(uriInfo{Scheme: "vless", RealityOpts: map[string]any{"public-key": "pub"}}); got != "reality" {
+		t.Fatalf("expected vless reality security, got %q", got)
+	}
+	if got := securityName(uriInfo{Scheme: "trojan", Plugin: "obfs-local"}); got != "obfs-local" {
+		t.Fatalf("expected trojan plugin security, got %q", got)
+	}
+	if got := securityName(uriInfo{Scheme: "vmess", TLS: true}); got != "tls" {
+		t.Fatalf("expected vmess tls security, got %q", got)
+	}
+}
