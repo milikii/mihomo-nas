@@ -93,12 +93,12 @@ func TestAppendImportedNodesDeduplicatesByBaseKeyAndRenamesConflicts(t *testing.
 func TestURIBaseKeyIgnoresVMessPSField(t *testing.T) {
 	makeVMess := func(name string) string {
 		payload, err := json.Marshal(map[string]any{
-			"v":   "2",
-			"ps":  name,
-			"add": "example.com",
+			"v":    "2",
+			"ps":   name,
+			"add":  "example.com",
 			"port": "443",
-			"id":  "12345678-1234-1234-1234-1234567890ab",
-			"net": "ws",
+			"id":   "12345678-1234-1234-1234-1234567890ab",
+			"net":  "ws",
 			"path": "/ws",
 		})
 		if err != nil {
@@ -180,5 +180,62 @@ func TestParseSSSupportsBase64PrefixAndPluginOptions(t *testing.T) {
 func TestDecodeSSAuthorityRejectsInvalidPayload(t *testing.T) {
 	if _, _, _, _, err := decodeSSAuthority("ss://not-valid"); err == nil {
 		t.Fatalf("expected invalid ss uri error")
+	}
+}
+
+func TestParseVMessAndBuildProviderKeepTLSAndGRPCFields(t *testing.T) {
+	payload, err := json.Marshal(map[string]any{
+		"v":           "2",
+		"ps":          "vmess-grpc",
+		"add":         "vmess.example.com",
+		"port":        "443",
+		"id":          "12345678-1234-1234-1234-1234567890ab",
+		"net":         "grpc",
+		"path":        "/ignored",
+		"tls":         "tls",
+		"sni":         "edge.example.com",
+		"alpn":        "h2,http/1.1",
+		"fp":          "chrome",
+		"insecure":    "1",
+		"serviceName": "grpc-svc",
+	})
+	if err != nil {
+		t.Fatalf("marshal vmess: %v", err)
+	}
+	info, err := parseVMess("vmess://" + base64.StdEncoding.EncodeToString(payload))
+	if err != nil {
+		t.Fatalf("parse vmess: %v", err)
+	}
+	if info.Server != "vmess.example.com" || info.UUID != "12345678-1234-1234-1234-1234567890ab" {
+		t.Fatalf("unexpected vmess identity: %#v", info)
+	}
+	if !info.TLS || info.ServiceName != "grpc-svc" {
+		t.Fatalf("expected tls grpc info, got %#v", info)
+	}
+	item := buildVMessProvider("vmess-grpc", info)
+	if !item.TLS || item.Network != "grpc" {
+		t.Fatalf("unexpected vmess provider flags: %#v", item)
+	}
+	if item.GRPCOpts["grpc-service-name"] != "grpc-svc" {
+		t.Fatalf("expected grpc service name, got %#v", item.GRPCOpts)
+	}
+	if item.ServerName != "edge.example.com" || item.Fingerprint != "chrome" {
+		t.Fatalf("unexpected tls fields: %#v", item)
+	}
+	if item.SkipCertVerify == nil || !*item.SkipCertVerify {
+		t.Fatalf("expected skip cert verify to be true: %#v", item)
+	}
+}
+
+func TestParseVMessRejectsMissingIdentity(t *testing.T) {
+	payload, err := json.Marshal(map[string]any{
+		"add":  "vmess.example.com",
+		"port": "443",
+	})
+	if err != nil {
+		t.Fatalf("marshal vmess: %v", err)
+	}
+	if _, err := parseVMess("vmess://" + base64.StdEncoding.EncodeToString(payload)); err == nil {
+		t.Fatalf("expected invalid vmess uri")
 	}
 }
