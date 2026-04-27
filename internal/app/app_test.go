@@ -171,6 +171,48 @@ func TestListNodesAndRemoveNodePersistUpdatedState(t *testing.T) {
 	}
 }
 
+func TestListRulesAndRemoveRuleSupportACLAndMainRules(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#rule-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.AddRule(false, "domain-suffix", "example.com", "DIRECT"); err != nil {
+		t.Fatalf("add rule: %v", err)
+	}
+	if err := app.AddRule(true, "src", "192.168.2.10/32", "DIRECT"); err != nil {
+		t.Fatalf("add acl: %v", err)
+	}
+	if err := app.ListRules(false); err != nil {
+		t.Fatalf("list rules: %v", err)
+	}
+	if err := app.ListRules(true); err != nil {
+		t.Fatalf("list acl: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"1\tDOMAIN-SUFFIX,example.com,DIRECT",
+		"1\tSRC-IP-CIDR,192.168.2.10/32,DIRECT",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in rule output:\n%s", needle, output)
+		}
+	}
+	if err := app.RemoveRule(false, 1); err != nil {
+		t.Fatalf("remove rule: %v", err)
+	}
+	if err := app.RemoveRule(true, 1); err != nil {
+		t.Fatalf("remove acl: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Rules) != 0 || len(st.ACL) != 0 {
+		t.Fatalf("expected empty rules after removal, got rules=%+v acl=%+v", st.Rules, st.ACL)
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
