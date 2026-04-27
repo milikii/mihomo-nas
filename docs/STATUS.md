@@ -31,7 +31,7 @@
 - `go build` 已覆盖当前主入口。
 - `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...` 作为当前全量回归入口。
 - 当前测试已经覆盖配置、状态、provider、rules-repo、runtime 渲染、核心 app 命令、CLI 分发、错误透传、路径阻塞、菜单/helper 边界与 system runner，并补上了 config/state/provider/system 的关键错误路径、missing-file 分支、订阅输入空值保护、订阅启停分流、订阅删除缓存清理失败、订阅节点 provider-managed 保护、手动节点删除前引用检查、节点重命名空值保护、规则输入 kind / pattern 校验、CLI/app 终端判断、runtime layout 阻塞、runtime rule read error、provider URI fallback、rules-repo 校验边界、controller body read error、`apply-rules` 的关键失败传播、provider 过滤边界，以及 config 随机 secret 回退与 state existing-state 复用。
-- 最近一轮补强重点继续收口在高风险路由编排边界：`ApplyRules` 现在对清理阶段的 jump 删除失败会直接返回，不再吞掉；仅显式代理分支的清理失败也已上浮；同时补了 chain flush、已有 jump、DNS hijack 和订阅文本 fallback 的 focused tests。
+- 最近一轮补强重点收口在输入/状态一致性与维护窗口前的只读边界：规则、节点重命名、订阅和 rules-repo 条目会在落盘或匹配前 trim；`cutover-plan` 已覆盖 legacy 与 minimalist 同时 live 的状态；显式代理模式下的 `apply-rules` 清理路径已有 focused test；provider 补了 wrapped unpadded base64 订阅和明文 SS authority 解析覆盖；config 补了 `Load` 缺省 secret 的只读行为测试。
 
 ## 本机真实验证结论
 
