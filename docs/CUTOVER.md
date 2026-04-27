@@ -92,9 +92,11 @@ ip route show table 233
 
 不要在回滚前删除 `/etc/mihomo`、`/usr/local/lib/mihomo-manager` 或 `/usr/local/bin/mihomo`。
 
+当前本机旧 `/etc/mihomo`、`mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager` 已在 Go 版验证通过后清理，因此上述旧服务回滚步骤只适用于清理前状态。清理后 `cutover-plan` 应报告 legacy rollback unavailable。
+
 ## 不做的事
 
 - 不自动迁移旧 env/state。
-- 不自动删除旧服务和旧目录。
+- 不自动删除旧服务和旧目录；旧资产清理必须由人工明确确认。
 - 不自动清理或重命名旧 `MIHOMO_*` 规则。
 - 不在没有维护窗口和回滚入口时执行 cutover。

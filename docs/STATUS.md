@@ -45,13 +45,14 @@
 - `minimalist status` 已确认当前模式来自 runtime，服务 `active=true enabled=true`，手动节点数为 4。
 - `minimalist runtime-audit` 已确认 `providers-ready=true`、`cutover-ready=true`；其中 warn/error 计数包含切换过程中 UI/geodata 缺失导致的历史日志，复制资源并重启后最近 2 分钟 `journalctl -u minimalist.service` 无新增日志。
 - 当前路由状态已由 Go 版服务接管：`fwmark 0x2333 lookup 233` 存在，table `233` 为 `local default dev lo scope host`，`mangle PREROUTING` 已跳转 `MIHOMO_PRE`，`nat MIHOMO_DNS` 已接入 `bridge1`。
-- 回滚入口仍保留：`sudo systemctl disable --now minimalist.service && sudo systemctl enable --now mihomo.service`。
+- 旧 `mihomo.service` unit、旧 `/etc/mihomo`、旧 `/usr/local/bin/mihomo` 与旧 `/usr/local/lib/mihomo-manager` 已按人工确认清理；`/usr/local/bin/mihomo-core` 保留为 Go 版底层内核。
+- 旧服务快速回滚入口已移除；`cutover-plan` 在旧资产不存在时会输出 `rollback: unavailable; legacy mihomo assets are not present`。
 - 本轮最终验证结果：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist`、实机 cutover smoke 全部通过。
 
 ## 当前风险与限制
 
-- 旧 `/etc/mihomo`、`/usr/local/lib/mihomo-manager` 与 `/usr/local/bin/mihomo` 暂时保留作为回滚入口，不自动清理。
 - `runtime-audit` 的 24 小时 warn/error 计数短期内仍会包含本次切换早期 UI/geodata 缺失产生的历史日志。
 - 当前 guard 只负责阻断误操作；仍不提供自动 cutover、自动回滚或旧配置迁移命令。
+- 旧服务资产已清理，后续不再依赖旧 `mihomo.service` 作为回滚路径。
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移。
 - 不恢复 `alpha/stable` 核心通道切换、core 回滚、自动同步安装目录、自定义更新/重启定时器和 `external-controller-tls`。

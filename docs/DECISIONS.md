@@ -56,7 +56,13 @@
 ## 2026-04-28 本机现网切到 Go 版 `minimalist`
 
 - 本机 live install 已从旧 `mihomo.service` 切到 Go 版 `minimalist.service`
-- 旧 `mihomo.service` 当前保留为回滚入口，不自动删除旧目录或旧二进制
 - 旧状态中 4 个手动节点被导入 Go 版 state 并启用；旧 env/state 文件仍不作为 Go 版真相，也不做通用迁移
 - 为避免启动依赖外网下载，本机将旧 runtime 中已有的 geodata 与 UI 资源复制到 `/var/lib/minimalist/mihomo/`
 - 项目仍不新增自动 cutover、自动回滚、旧状态迁移、alpha/stable 通道切换或 core 回滚能力
+
+## 2026-04-28 清理旧 `mihomo` 回滚入口
+
+- 经人工确认，已删除旧 `/etc/mihomo`、`/etc/systemd/system/mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager`
+- `/usr/local/bin/mihomo-core` 仍保留，继续作为 Go 版 `minimalist.service` 的底层内核运行
+- 旧 `mihomo.service` 快速回滚路径已移除；后续以 Go 版 `minimalist` 为唯一 live 管理入口
+- `cutover-plan` 在检测不到旧资产时应明确输出 legacy rollback unavailable，不再提示启用已删除的旧 service

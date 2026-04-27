@@ -2422,9 +2422,10 @@ func TestCutoverPreflightIsReadOnly(t *testing.T) {
 
 func TestCutoverPlanReportsCurrentState(t *testing.T) {
 	tests := []struct {
-		name    string
-		runFn   func(name string, args ...string) error
-		needles []string
+		name         string
+		legacyAssets bool
+		runFn        func(name string, args ...string) error
+		needles      []string
 	}{
 		{
 			name: "legacy-live",
@@ -2441,13 +2442,15 @@ func TestCutoverPlanReportsCurrentState(t *testing.T) {
 			},
 		},
 		{
-			name: "legacy-stopped",
+			name:         "legacy-stopped",
+			legacyAssets: true,
 			runFn: func(name string, args ...string) error {
 				return errors.New("inactive")
 			},
 			needles: []string{
 				"cutover-plan: legacy_live=false minimalist_service_live=false cutover_ready=true",
 				"next-action: run-minimalist-setup",
+				"rollback: disable --now minimalist.service; enable --now mihomo.service",
 			},
 		},
 		{
@@ -2461,6 +2464,7 @@ func TestCutoverPlanReportsCurrentState(t *testing.T) {
 			needles: []string{
 				"cutover-plan: legacy_live=false minimalist_service_live=true cutover_ready=true",
 				"next-action: validate-minimalist",
+				"rollback: unavailable; legacy mihomo assets are not present",
 			},
 		},
 		{
@@ -2474,12 +2478,33 @@ func TestCutoverPlanReportsCurrentState(t *testing.T) {
 			needles: []string{
 				"cutover-plan: legacy_live=true minimalist_service_live=true cutover_ready=true",
 				"next-action: validate-minimalist",
+				"rollback: disable --now minimalist.service; enable --now mihomo.service",
 			},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			app, _ := newTestApp(t)
+			app, root := newTestApp(t)
+			oldLegacy := legacyLiveInstall
+			legacyLiveInstall = struct {
+				BinPath   string
+				ConfigDir string
+			}{
+				BinPath:   filepath.Join(root, "legacy", "mihomo"),
+				ConfigDir: filepath.Join(root, "legacy", "etc"),
+			}
+			defer func() { legacyLiveInstall = oldLegacy }()
+			if tc.legacyAssets {
+				if err := os.MkdirAll(legacyLiveInstall.ConfigDir, 0o755); err != nil {
+					t.Fatalf("create legacy config dir: %v", err)
+				}
+				if err := os.MkdirAll(filepath.Dir(legacyLiveInstall.BinPath), 0o755); err != nil {
+					t.Fatalf("create legacy bin dir: %v", err)
+				}
+				if err := os.WriteFile(legacyLiveInstall.BinPath, []byte("legacy"), 0o755); err != nil {
+					t.Fatalf("create legacy bin: %v", err)
+				}
+			}
 			var calls []commandCall
 			app.Runner = fakeRunner{
 				runFn: func(name string, args ...string) error {
@@ -2495,9 +2520,6 @@ func TestCutoverPlanReportsCurrentState(t *testing.T) {
 				if !strings.Contains(output, needle) {
 					t.Fatalf("missing %q in cutover plan output:\n%s", needle, output)
 				}
-			}
-			if !strings.Contains(output, "rollback: disable --now minimalist.service; enable --now mihomo.service") {
-				t.Fatalf("missing rollback line in output:\n%s", output)
 			}
 			if _, err := os.Stat(app.Paths.ConfigPath()); !os.IsNotExist(err) {
 				t.Fatalf("cutover plan must not create config, stat err=%v", err)

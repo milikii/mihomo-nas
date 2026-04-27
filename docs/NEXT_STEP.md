@@ -16,12 +16,11 @@
   - 观察 `minimalist.service` 24 小时日志，确认 UI/geodata 资源复制后不再出现启动下载错误。
   - 补一个 focused test 或文档说明，覆盖 geodata/UI 需要预置时的运维约束。
   - 复跑 `runtime-audit`，确认 warn/error 计数只剩历史窗口内记录。
-- 旧 `/etc/mihomo` 与 `mihomo.service` 保留为回滚入口，暂不清理。
+- 旧 `/etc/mihomo`、`mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager` 已清理；下一步不再围绕旧服务回滚路径推进。
 - 保持 README / flows 描述 Go 版 `minimalist` 目标真相；STATUS / NEXT_STEP 记录 live host 已切换完成。
 
 ## 本轮不做
 
-- 不清理旧 `/etc/mihomo`、`/usr/local/lib/mihomo-manager` 或 `/usr/local/bin/mihomo`。
 - 不做旧状态迁移兼容。
 - 不引入 alpha/stable 切换、自同步、回滚 core 等旧运维能力。
 - 不扩 `external-controller-tls`。

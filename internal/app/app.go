@@ -63,6 +63,10 @@ func (s cutoverPreflightStatus) Ready() bool {
 	return !s.legacyLive() || s.minimalistServiceLive()
 }
 
+func (s cutoverPreflightStatus) legacyRollbackAvailable() bool {
+	return s.LegacyServiceActive || s.LegacyServiceEnabled || s.LegacyBin || s.LegacyConfigDir
+}
+
 func New() *App {
 	return &App{
 		Paths:  runtime.DefaultPaths(),
@@ -289,7 +293,11 @@ func (a *App) CutoverPlan() error {
 		fmt.Fprintln(a.Stdout, "next-action: validate-minimalist")
 		fmt.Fprintln(a.Stdout, "maintenance-window: keep rollback path until healthcheck and routing state are stable")
 	}
-	fmt.Fprintln(a.Stdout, "rollback: disable --now minimalist.service; enable --now mihomo.service")
+	if status.legacyRollbackAvailable() {
+		fmt.Fprintln(a.Stdout, "rollback: disable --now minimalist.service; enable --now mihomo.service")
+	} else {
+		fmt.Fprintln(a.Stdout, "rollback: unavailable; legacy mihomo assets are not present")
+	}
 	return nil
 }
 

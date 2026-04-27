@@ -74,7 +74,7 @@ sudo /usr/local/bin/minimalist setup
 - `subscriptions update` 更新的是订阅 provider 缓存；`render-config` 直接读取缓存生成订阅 provider
 - 即使当前没有手动节点或订阅 provider，`render-config` 仍会生成仅含 `DIRECT` 的 `PROXY` 组
 - provider 导入会按 `URIBaseKey` 去重，并为重名节点自动追加后缀
-- 从旧 `mihomo.service` 切到 Go 版前，先按 `docs/CUTOVER.md` 做人工 cutover 检查与回滚准备
+- 从旧 `mihomo.service` 切到 Go 版前，先按 `docs/CUTOVER.md` 做人工 cutover 检查；当前本机旧服务资产已在切换验证后清理
 
 ## 当前限制
 
@@ -84,5 +84,5 @@ sudo /usr/local/bin/minimalist setup
 - `setup` / `start` / `restart` 的真实验证需要 systemd 正常运行
 - `apply-rules` / `clear-rules` 的真实验证需要 `CAP_NET_ADMIN` 和可用的 `iptables` / `ip rule`
 - `cutover-preflight` 是只读实机检查；若检测到旧 `mihomo.service` 正在承载现网，默认只告警，不停服务、不清规则
-- `cutover-plan` 是只读计划输出；只给当前状态和下一步建议，不执行 cutover
+- `cutover-plan` 是只读计划输出；只给当前状态、下一步建议和回滚可用性，不执行 cutover
 - 在旧 `mihomo.service` active/enabled 且 `minimalist.service` 尚未 active/enabled 时，`setup` / `start` / `restart` / `apply-rules` / `clear-rules` 会返回 `cutover blocked`
