@@ -78,6 +78,38 @@ func TestInstallSelfCopiesBinaryAndInitializesAssets(t *testing.T) {
 	}
 }
 
+func TestNormalizeRuleHelpersCoverLegacyAliases(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want string
+	}{
+		{"domain_suffix", "suffix"},
+		{"domain-keyword", "keyword"},
+		{"src", "src-cidr"},
+		{"dst", "ip-cidr"},
+		{"rule-set", "ruleset"},
+	} {
+		if got := normalizeRuleInput(tc.in); got != tc.want {
+			t.Fatalf("normalizeRuleInput(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		in   string
+		want string
+	}{
+		{"domain", "DOMAIN"},
+		{"suffix", "DOMAIN-SUFFIX"},
+		{"keyword", "DOMAIN-KEYWORD"},
+		{"src-cidr", "SRC-IP-CIDR"},
+		{"ip-cidr", "IP-CIDR"},
+		{"ruleset", "RULE-SET"},
+	} {
+		if got := normalizeRuleKind(tc.in); got != tc.want {
+			t.Fatalf("normalizeRuleKind(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func (f fakeRunner) Run(name string, args ...string) error {
 	if f.runFn != nil {
 		return f.runFn(name, args...)
