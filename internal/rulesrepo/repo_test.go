@@ -152,6 +152,7 @@ func TestDescribeListEntriesDescribeRulesetAndRemoveEntry(t *testing.T) {
 		"ruleset=fcm-site",
 		"type=domain",
 		"target=proxy",
+		"entries=14",
 		"source=rules/proxy/fcm-site.txt",
 	} {
 		if !strings.Contains(strings.Join(ruleset, "\n"), needle) {
