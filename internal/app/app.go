@@ -909,8 +909,12 @@ func (a *App) ApplyRules() error {
 		}
 	}
 	_ = a.deleteIPRule(routeTable, priority)
-	_ = a.Runner.Run("ip", "-4", "route", "replace", "local", "0.0.0.0/0", "dev", "lo", "table", routeTable)
-	_ = a.Runner.Run("ip", "-4", "rule", "add", "fwmark", "9011", "table", routeTable, "priority", priority)
+	if err := a.Runner.Run("ip", "-4", "route", "replace", "local", "0.0.0.0/0", "dev", "lo", "table", routeTable); err != nil {
+		return err
+	}
+	if err := a.Runner.Run("ip", "-4", "rule", "add", "fwmark", "9011", "table", routeTable, "priority", priority); err != nil {
+		return err
+	}
 	fmt.Fprintln(a.Stdout, "已应用路由规则")
 	return nil
 }

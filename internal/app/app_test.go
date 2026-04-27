@@ -2690,6 +2690,68 @@ func TestApplyRulesPropagatesIptablesAppendFailure(t *testing.T) {
 	}
 }
 
+func TestApplyRulesPropagatesRouteProgrammingFailures(t *testing.T) {
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	for _, tc := range []struct {
+		name string
+		fail func(args []string) bool
+		want string
+	}{
+		{
+			name: "route-replace",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-4", "route", "replace", "local")
+			},
+			want: "route replace failed",
+		},
+		{
+			name: "rule-add",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-4", "rule", "add", "fwmark", "9011")
+			},
+			want: "rule add failed",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, _ := newTestApp(t)
+			app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#apply-node\n")
+			if err := app.ImportLinks(); err != nil {
+				t.Fatalf("import links: %v", err)
+			}
+			if err := app.SetNodeEnabled(1, true); err != nil {
+				t.Fatalf("enable node: %v", err)
+			}
+			app.Runner = fakeRunner{
+				runFn: func(name string, args ...string) error {
+					if name == "iptables" {
+						for _, arg := range args {
+							if arg == "-C" || arg == "-S" {
+								return errors.New("missing")
+							}
+						}
+					}
+					if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+						return errors.New("missing")
+					}
+					if name == "ip" && tc.fail(args) {
+						return errors.New(tc.want)
+					}
+					return nil
+				},
+			}
+			if err := app.ApplyRules(); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+			if strings.Contains(app.Stdout.(*bytes.Buffer).String(), "已应用路由规则") {
+				t.Fatalf("did not expect success output after route failure:\n%s", app.Stdout.(*bytes.Buffer).String())
+			}
+		})
+	}
+}
+
 func TestApplyRulesReturnsRootErrorWhenNotRoot(t *testing.T) {
 	app, _ := newTestApp(t)
 	oldGeteuid := geteuid
