@@ -13,7 +13,7 @@
 ## 当前保留能力
 
 - 核心主路径：`install-self`、`setup`、`render-config`、`start` / `stop` / `restart`
-- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`
+- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`
 - 交互入口：`menu`、`router-wizard`、`import-links`
 - 规则与订阅：`nodes`、`subscriptions`、`rules`、`acl`、`rules-repo`
 
@@ -65,7 +65,8 @@ sudo /usr/local/bin/minimalist setup
 4. `minimalist subscriptions update`
 5. `minimalist router-wizard`
 6. `minimalist healthcheck`
-7. `minimalist status`
+7. `minimalist cutover-preflight`
+8. `minimalist status`
 
 补充当前行为：
 
@@ -80,3 +81,4 @@ sudo /usr/local/bin/minimalist setup
 - `nas-single-lan-dualstack` 已不再进入当前产品边界
 - `setup` / `start` / `restart` 的真实验证需要 systemd 正常运行
 - `apply-rules` / `clear-rules` 的真实验证需要 `CAP_NET_ADMIN` 和可用的 `iptables` / `ip rule`
+- `cutover-preflight` 是只读实机检查；若检测到旧 `mihomo.service` 正在承载现网，默认只告警，不停服务、不清规则

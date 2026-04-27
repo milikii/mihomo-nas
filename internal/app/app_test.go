@@ -1874,6 +1874,98 @@ func TestRuntimeAuditOmitsRuntimeSummaryWhenControllerUnavailable(t *testing.T) 
 	}
 }
 
+func TestRuntimeAuditReportsLegacyLiveCutoverRisk(t *testing.T) {
+	app, root := newTestApp(t)
+	oldLegacy := legacyLiveInstall
+	legacyLiveInstall = struct {
+		BinPath   string
+		ConfigDir string
+	}{
+		BinPath:   filepath.Join(root, "usr", "local", "bin", "mihomo"),
+		ConfigDir: filepath.Join(root, "etc", "mihomo"),
+	}
+	defer func() { legacyLiveInstall = oldLegacy }()
+	if err := os.MkdirAll(filepath.Dir(legacyLiveInstall.BinPath), 0o755); err != nil {
+		t.Fatalf("mkdir legacy bin dir: %v", err)
+	}
+	if err := os.WriteFile(legacyLiveInstall.BinPath, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+		t.Fatalf("write legacy bin: %v", err)
+	}
+	if err := os.MkdirAll(legacyLiveInstall.ConfigDir, 0o750); err != nil {
+		t.Fatalf("mkdir legacy config dir: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "systemctl" && len(args) >= 3 && args[2] == "mihomo.service" {
+				return nil
+			}
+			return errors.New("inactive")
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			if name == "journalctl" {
+				return "", "", nil
+			}
+			return "", "", errors.New("unavailable")
+		},
+	}
+	if err := app.RuntimeAudit(); err != nil {
+		t.Fatalf("runtime audit: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"cutover-preflight: legacy_service_active=true legacy_service_enabled=true legacy_bin=true legacy_config_dir=true minimalist_service_active=false minimalist_service_enabled=false minimalist_unit=false minimalist_bin=false",
+		"cutover-warning: legacy live install detected",
+		"cutover-note: legacy mihomo and minimalist use the same MIHOMO_* chains plus 0x2333/table 233 defaults",
+		"cutover-ready=false",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in runtime audit output:\n%s", needle, output)
+		}
+	}
+	for _, call := range calls {
+		if call.name == "systemctl" && len(call.args) > 0 && (call.args[0] == "stop" || call.args[0] == "restart" || call.args[0] == "enable") {
+			t.Fatalf("runtime audit must stay read-only, got call %#v", call)
+		}
+	}
+}
+
+func TestCutoverPreflightIsReadOnly(t *testing.T) {
+	app, root := newTestApp(t)
+	oldLegacy := legacyLiveInstall
+	legacyLiveInstall = struct {
+		BinPath   string
+		ConfigDir string
+	}{
+		BinPath:   filepath.Join(root, "legacy", "mihomo"),
+		ConfigDir: filepath.Join(root, "legacy", "etc"),
+	}
+	defer func() { legacyLiveInstall = oldLegacy }()
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			return errors.New("inactive")
+		},
+	}
+	if err := app.CutoverPreflight(); err != nil {
+		t.Fatalf("cutover preflight: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	if !strings.Contains(output, "cutover-preflight:") || !strings.Contains(output, "cutover-ready=true") {
+		t.Fatalf("unexpected cutover preflight output:\n%s", output)
+	}
+	if _, err := os.Stat(app.Paths.ConfigPath()); !os.IsNotExist(err) {
+		t.Fatalf("cutover preflight must not create config, stat err=%v", err)
+	}
+	for _, call := range calls {
+		if call.name == "systemctl" && len(call.args) > 0 && (call.args[0] == "stop" || call.args[0] == "restart" || call.args[0] == "enable") {
+			t.Fatalf("cutover preflight must stay read-only, got call %#v", call)
+		}
+	}
+}
+
 func TestShowSecretPrintsConfiguredSecret(t *testing.T) {
 	app, _ := newTestApp(t)
 	cfg, err := config.Ensure(app.Paths.ConfigPath())

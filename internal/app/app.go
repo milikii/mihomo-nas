@@ -32,6 +32,14 @@ type App struct {
 	Stdin  io.Reader
 }
 
+var legacyLiveInstall = struct {
+	BinPath   string
+	ConfigDir string
+}{
+	BinPath:   "/usr/local/bin/mihomo",
+	ConfigDir: "/etc/mihomo",
+}
+
 func New() *App {
 	return &App{
 		Paths:  runtime.DefaultPaths(),
@@ -223,10 +231,48 @@ func (a *App) RuntimeAudit() error {
 	}
 	fmt.Fprintf(a.Stdout, "alerts: warn=%d error=%d\n", warnCount, errCount)
 	fmt.Fprintf(a.Stdout, "providers-ready=%t\n", a.hasReadyProviders(st))
+	a.printCutoverPreflight()
 	if summary, err := a.controllerRuntimeSummary(cfg); err == nil {
 		fmt.Fprintf(a.Stdout, "runtime: %s\n", summary)
 	}
 	return nil
+}
+
+func (a *App) CutoverPreflight() error {
+	a.printCutoverPreflight()
+	return nil
+}
+
+func (a *App) printCutoverPreflight() {
+	legacyActive := commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "mihomo.service"))
+	legacyEnabled := commandOK(a.Runner.Run("systemctl", "is-enabled", "--quiet", "mihomo.service"))
+	minimalistActive := commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "minimalist.service"))
+	minimalistEnabled := commandOK(a.Runner.Run("systemctl", "is-enabled", "--quiet", "minimalist.service"))
+	legacyBin := pathExists(legacyLiveInstall.BinPath)
+	legacyConfig := pathExists(legacyLiveInstall.ConfigDir)
+	minimalistUnit := pathExists(a.Paths.ServiceUnit)
+	minimalistBin := pathExists(a.Paths.BinPath)
+	fmt.Fprintf(
+		a.Stdout,
+		"cutover-preflight: legacy_service_active=%t legacy_service_enabled=%t legacy_bin=%t legacy_config_dir=%t minimalist_service_active=%t minimalist_service_enabled=%t minimalist_unit=%t minimalist_bin=%t\n",
+		legacyActive,
+		legacyEnabled,
+		legacyBin,
+		legacyConfig,
+		minimalistActive,
+		minimalistEnabled,
+		minimalistUnit,
+		minimalistBin,
+	)
+	legacyLive := legacyActive || legacyEnabled
+	minimalistReady := minimalistActive || minimalistEnabled || minimalistUnit || minimalistBin
+	if legacyLive && !minimalistReady {
+		fmt.Fprintln(a.Stdout, "cutover-warning: legacy live install detected; do not run apply-rules or clear-rules before an explicit cutover plan")
+	}
+	if legacyActive || legacyEnabled || legacyBin || legacyConfig {
+		fmt.Fprintln(a.Stdout, "cutover-note: legacy mihomo and minimalist use the same MIHOMO_* chains plus 0x2333/table 233 defaults")
+	}
+	fmt.Fprintf(a.Stdout, "cutover-ready=%t\n", !legacyLive || minimalistReady)
 }
 
 func (a *App) ImportLinks() error {
@@ -1142,6 +1188,11 @@ func boolInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func normalizeRuleInput(kind string) string {

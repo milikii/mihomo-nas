@@ -45,6 +45,8 @@ func runWithApp(args []string, a *app.App, tty bool) error {
 		return a.Healthcheck()
 	case "runtime-audit":
 		return a.RuntimeAudit()
+	case "cutover-preflight":
+		return a.CutoverPreflight()
 	case "import-links":
 		return a.ImportLinks()
 	case "router-wizard":
@@ -242,6 +244,7 @@ func printUsage() {
   minimalist render-config
   minimalist start|stop|restart
   minimalist status|show-secret|healthcheck|runtime-audit
+  minimalist cutover-preflight
   minimalist import-links
   minimalist router-wizard
   minimalist apply-rules|clear-rules

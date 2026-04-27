@@ -22,7 +22,7 @@
 当前保留命令：
 
 - 核心主路径：`install-self`、`setup`、`render-config`、`start`、`stop`、`restart`
-- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`
+- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`
 - 交互与资源入口：`menu`、`router-wizard`、`import-links`
 - 规则与订阅：`nodes`、`subscriptions`、`rules`、`acl`、`rules-repo`
 
@@ -44,11 +44,13 @@
 - 旧 `/etc/mihomo` 同时包含 runtime `config.yaml`、`router.env`、`settings.env`、`state/*.json`、provider、ruleset、UI 与 geodata；这不是 Go 版 `/etc/minimalist/config.yaml` + `/var/lib/minimalist/state.json` 的同构目录。
 - Go 版目标 unit 当前会使用 `/var/lib/minimalist/mihomo` 作为 `mihomo-core -d` 运行目录；旧 unit 使用 `/etc/mihomo`。
 - Go 版与旧 shell 版默认都会操作 `MIHOMO_*` 链名、`0x2333` mark 与 table `233`，所以未切换服务归属前运行 Go 版 `apply-rules` / `clear-rules` 会与现网旧服务争用同一组规则。
+- `cutover-preflight` 已在实机只读跑通，当前结果是 `cutover-ready=false`：旧 `mihomo.service` active/enabled，Go 版 `minimalist.service` / bin 尚未落地。
 
 ## 当前风险与限制
 
 - 这台 NAS 现在跑的是 legacy `mihomo.service`，不能直接当作 `minimalist.service` 的验收环境。
 - 在未确认迁移策略前，不要清理或重写现网 `MIHOMO_*` 规则，以免打断正在运行的透明代理。
 - 后续如果要验收 Go 版 `minimalist`，需要先把 live install 从 `/etc/mihomo` / `mihomo.service` 迁到 `/etc/minimalist` / `minimalist.service`。
+- 当前已有只读 preflight 入口，但还没有把 legacy live 风险强制接入 `setup` / `start` / `restart` / `apply-rules` / `clear-rules` 的执行前 guard。
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移。
 - 不恢复 `alpha/stable` 核心通道切换、core 回滚、自动同步安装目录、自定义更新/重启定时器和 `external-controller-tls`。
