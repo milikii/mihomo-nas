@@ -24,6 +24,7 @@
    - `/var/lib/minimalist/mihomo/proxy_providers/subscriptions/*.txt`
    - `/var/lib/minimalist/mihomo/ruleset/*.rules`
 4. `minimalist.service` 通过 `mihomo-core` 读取运行目录启动
+5. `setup` 现在会显式返回 `sysctl -p`、`systemctl daemon-reload` 和 `systemctl enable --now` 的失败，不再假装部署成功
 
 补充当前真相：
 

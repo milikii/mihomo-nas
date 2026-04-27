@@ -17,6 +17,7 @@
 
 - 为 `app` / `runtime` 剩余 root 依赖与真实 I/O 失败路径补 focused tests
 - 继续补贴近真实运行环境的 `render-config` / `setup` / `status` / `rules-repo` smoke 断言
+- 继续保持 `setup` 这类部署命令对 `sysctl` / `daemon-reload` / `enable` 失败显式透传，不再静默成功
 - 保持 README / flows / STATUS 只描述 `minimalist` 当前真相，不回退到旧 `mihomo` 叙述
 
 ## 本轮不做

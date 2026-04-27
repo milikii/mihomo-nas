@@ -774,13 +774,9 @@ func TestRunDispatchesMenuThroughRun(t *testing.T) {
 
 func TestRunDispatchesSetupThroughRun(t *testing.T) {
 	setCLIPathsEnv(t)
-	err := Run([]string{"setup"})
-	if os.Geteuid() != 0 {
-		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
-			t.Fatalf("expected root error, got %v", err)
-		}
-		return
-	}
+	a, _ := newCLIApp(t)
+	a.Runner = system.CommandRunner(noopRunner{})
+	err := runWithApp([]string{"setup"}, a, false)
 	if err != nil {
 		t.Fatalf("run setup: %v", err)
 	}
