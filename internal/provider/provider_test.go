@@ -317,6 +317,19 @@ func TestParseSSSupportsBase64PrefixAndPluginOptions(t *testing.T) {
 	}
 }
 
+func TestParseSSSupportsPlainAuthority(t *testing.T) {
+	info, err := parseSS("ss://aes-128-gcm:secret@example.com:8388#plain")
+	if err != nil {
+		t.Fatalf("parse ss plain authority: %v", err)
+	}
+	if info.Cipher != "aes-128-gcm" || info.Password != "secret" {
+		t.Fatalf("unexpected ss credentials: %#v", info)
+	}
+	if info.Server != "example.com" || info.Port != 8388 {
+		t.Fatalf("unexpected ss endpoint: %#v", info)
+	}
+}
+
 func TestDecodeSSAuthorityRejectsInvalidPayload(t *testing.T) {
 	if _, _, _, _, err := decodeSSAuthority("ss://not-valid"); err == nil {
 		t.Fatalf("expected invalid ss uri error")
