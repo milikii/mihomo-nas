@@ -59,6 +59,8 @@
   - `internal/app` install-self / setup / render-config / update-subscriptions / readImportInput / requireRoot 的真实 I/O 失败路径补强
   - `internal/app` `install-self` 非 root 早失败分支补强
   - `internal/app` `start` / `restart` / `stop` / `apply-rules` / `clear-rules` 的 non-root smoke 与 `rules-repo` wrapper 错误透传补强
+  - `internal/app` `deleteIPRule` 重试退出、`ApplyRules` `ensureChain` 失败、`Setup` manifest 失败、`install-self` 的 `rules-repo` / `state.json` 路径阻塞、`Setup` `builtin.rules` 路径阻塞补强
+  - `internal/runtime` `RenderFiles` 的 `manual.txt` / `custom.rules` / `builtin.rules` / 最终 `config.yaml` 路径阻塞失败路径补强
   - `subscriptions update -> render-config` 的最小集成断言
   - `render-config` 的规则目标与 provider 组合断言
   - `render-config` 的“无 provider / auth+cors / 仅显式代理 / secret / external-controller / LAN 允许/禁止网段 / external-ui / nameserver-policy / default-nameserver / direct-nameserver / fake-ip-filter / profile / fallback-filter / proxy-server-nameserver / nameserver / geox-url / dns.listen / allow-lan / bind-address / log-level / mixed-port / tproxy-port / mode / ipv6 / geo flags / DNS behavior flags / manual & subscription provider / provider health-check / direct-only & AUTO proxy-groups / rules section & order / auth omission” 边界断言
@@ -74,14 +76,10 @@
 
 - `go build -o /tmp/gobin/minimalist ./cmd/minimalist`：通过
 - `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`：通过
-- focused coverage 快照：
-- `internal/app`: `90.3%`
-- `internal/runtime`: `96.3%`
-  - `internal/provider`: `87.2%`
-- `internal/rulesrepo`: `84.2%`
+- focused coverage 继续向 `ApplyRules` / `Setup` / `install-self` / `RenderFiles` 的真实失败路径收口
 
 ## 当前风险与限制
 
-- 当前 Go 测试已覆盖配置、provider、rules-repo、核心 app 路径、status/healthcheck/runtime-audit 回退与 runtime 优先、top-level CLI 与 `runWithApp` 主要分发、runtime 文本生成、system runner 以及多组 helper 边界；当前剩余缺口进一步收缩到少量 root/真实环境依赖链路、`ApplyRules` 更深的 iptables/ip rule 编排分支，以及 `runtime.RenderFiles` / `install-self` 之外的更贴近真实运行环境的 smoke
+- 当前 Go 测试已覆盖配置、provider、rules-repo、核心 app 路径、status/healthcheck/runtime-audit 回退与 runtime 优先、top-level CLI 与 `runWithApp` 主要分发、runtime 文本生成、system runner 以及多组 helper 边界；当前剩余缺口进一步收缩到少量 root/真实环境依赖链路和真实主机上的 `iptables` / `ip rule` smoke
 - `docs/images/readme-overview.svg` 已移除，后续若需要项目总览图应按 `minimalist` 当前架构重画
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移

@@ -130,6 +130,43 @@ func TestInstallSelfFailsWhenBinaryPathIsDirectory(t *testing.T) {
 	}
 }
 
+func TestInstallSelfFailsWhenRulesRepoParentIsFile(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.ConfigDir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	blocked := filepath.Join(app.Paths.ConfigDir, "rules-repo")
+	if err := os.WriteFile(blocked, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking rules repo parent: %v", err)
+	}
+	err := app.InstallSelf()
+	if err == nil || (!strings.Contains(err.Error(), "not a directory") && !strings.Contains(err.Error(), "file exists")) {
+		t.Fatalf("expected rules repo init failure, got %v", err)
+	}
+}
+
+func TestInstallSelfFailsWhenStatePathIsDirectory(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.Remove(app.Paths.StatePath()); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove state file: %v", err)
+	}
+	if err := os.MkdirAll(app.Paths.StatePath(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking state path: %v", err)
+	}
+	err := app.InstallSelf()
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected state write failure, got %v", err)
+	}
+}
+
 func TestInstallSelfReturnsRootErrorWhenNotRoot(t *testing.T) {
 	app, _ := newTestApp(t)
 	oldGeteuid := geteuid
@@ -989,6 +1026,34 @@ func TestContainerBypassIPsAndEnsureChainHandleRunnerResponses(t *testing.T) {
 	}
 }
 
+func TestDeleteIPRuleRetriesUntilRuleIsMissing(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	hits := 0
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "ip" && len(args) >= 9 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				hits++
+				if hits == 1 {
+					return nil
+				}
+				return errors.New("missing")
+			}
+			return nil
+		},
+	}
+	if err := app.deleteIPRule("233", "100"); err != nil {
+		t.Fatalf("delete ip rule: %v", err)
+	}
+	if hits != 2 {
+		t.Fatalf("expected delete loop to stop after missing rule, hits=%d calls=%#v", hits, calls)
+	}
+	if !hasRecordedCall(calls, "ip", "-4", "rule", "del", "fwmark", "9011", "table", "233", "priority", "100") {
+		t.Fatalf("expected ip rule delete call, calls=%#v", calls)
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
@@ -1193,6 +1258,33 @@ func TestSetupPropagatesSysctlAndDaemonReloadFailures(t *testing.T) {
 	}
 }
 
+func TestSetupPropagatesRenderFilesRulesRepoError(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(filepath.Dir(app.Paths.RulesRepoPath()), 0o755); err != nil {
+		t.Fatalf("mkdir rules repo dir: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.RulesRepoPath(), []byte("rulesets: [\n"), 0o640); err != nil {
+		t.Fatalf("write invalid manifest: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			return nil
+		},
+	}
+	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "parse manifest") {
+		t.Fatalf("expected render files failure, got %v", err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("did not expect runner calls before render files succeeds, calls=%#v", calls)
+	}
+}
+
 func TestSetupSurfaceEnsureAllFailureWhenRuntimeLayoutBlocked(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := os.WriteFile(app.Paths.RuntimeDir, []byte("blocked"), 0o640); err != nil {
@@ -1220,6 +1312,20 @@ func TestSetupFailsWhenSysctlPathIsDirectory(t *testing.T) {
 	}
 	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
 		t.Fatalf("expected sysctl write failure, got %v", err)
+	}
+}
+
+func TestSetupFailsWhenBuiltinRulesPathIsDirectory(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.MkdirAll(app.Paths.BuiltinRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking builtin rules path: %v", err)
+	}
+	if err := app.Setup(); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected builtin rules write failure, got %v", err)
 	}
 }
 
@@ -1830,6 +1936,41 @@ func TestApplyRulesSkipsTransparentRulesForExplicitProxyOnlyConfig(t *testing.T)
 	}
 	if hasRecordedCall(calls, "iptables", "-A", "MIHOMO_PRE_HANDLE", "-p", "tcp", "-j", "TPROXY") {
 		t.Fatalf("did not expect transparent routing rules in explicit-proxy-only mode: %#v", calls)
+	}
+}
+
+func TestApplyRulesPropagatesEnsureChainFailure(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#apply-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			if name == "iptables" && hasArgSequence(args, "-C") {
+				return errors.New("missing")
+			}
+			if name == "iptables" && hasArgSequence(args, "-S", "MIHOMO_PRE") {
+				return errors.New("missing")
+			}
+			if name == "iptables" && hasArgSequence(args, "-N", "MIHOMO_PRE") {
+				return errors.New("create failed")
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+	}
+	if err := app.ApplyRules(); err == nil || !strings.Contains(err.Error(), "create failed") {
+		t.Fatalf("expected ensure-chain failure, got %v", err)
 	}
 }
 

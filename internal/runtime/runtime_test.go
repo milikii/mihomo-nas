@@ -252,6 +252,106 @@ func TestRenderFilesReturnsErrorForInvalidRulesRepo(t *testing.T) {
 	}
 }
 
+func TestRenderFilesFailsWhenManualProviderPathIsDirectory(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	if err := EnsureLayout(paths); err != nil {
+		t.Fatalf("ensure layout: %v", err)
+	}
+	if err := os.MkdirAll(paths.ManualProvider(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking manual provider path: %v", err)
+	}
+	if err := RenderFiles(paths, config.Default(), state.Empty()); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected manual provider write failure, got %v", err)
+	}
+}
+
+func TestRenderFilesFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	if err := EnsureLayout(paths); err != nil {
+		t.Fatalf("ensure layout: %v", err)
+	}
+	if err := os.MkdirAll(paths.CustomRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking custom rules path: %v", err)
+	}
+	if err := RenderFiles(paths, config.Default(), state.Empty()); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected custom rules write failure, got %v", err)
+	}
+}
+
+func TestRenderFilesFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	if err := EnsureLayout(paths); err != nil {
+		t.Fatalf("ensure layout: %v", err)
+	}
+	if err := os.MkdirAll(paths.RuntimeConfig(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking runtime config path: %v", err)
+	}
+	if err := RenderFiles(paths, config.Default(), state.Empty()); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected runtime config write failure, got %v", err)
+	}
+}
+
+func TestRenderFilesFailsWhenBuiltinRulesPathIsDirectory(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	if err := EnsureLayout(paths); err != nil {
+		t.Fatalf("ensure layout: %v", err)
+	}
+	if err := os.MkdirAll(paths.BuiltinRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking builtin rules path: %v", err)
+	}
+	if err := RenderFiles(paths, config.Default(), state.Empty()); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected builtin rules write failure, got %v", err)
+	}
+}
+
 func TestBuildRuntimeConfigFallsBackToDefaultSecret(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),

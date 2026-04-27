@@ -21,19 +21,20 @@
   - `menu` 主入口分发、`SetNodeEnabled` 手动节点启停与订阅节点只读边界、`SetSubscriptionEnabled` 启用/越界分支
   - `rulesMenu` 主/ACL 增删分支、`promptList` / `promptBool` 显式输入、`normalizeRuleInput` / `normalizeRuleKind` 扩展映射
   - `Setup` 基于 subscription cache 启服务、`Status` active+manual node 统计
-  - `ApplyRules` 无启用手动节点、DNS/OUTPUT 关闭时的跳转省略 smoke
+  - `ApplyRules` 无启用手动节点、DNS/OUTPUT 关闭时的跳转省略 smoke、`deleteIPRule` 重试退出、`ensureChain` 失败透传
   - `RulesRepoAdd` / `RulesRepoRemove` / `RulesRepoRemoveIndex` 的成功与早失败分支
-  - `Setup` runtime layout 阻塞的早失败分支
+  - `Setup` runtime layout 阻塞、manifest 损坏、`builtin.rules` 路径阻塞的早失败分支
+  - `install-self` 的 `rules-repo` / `state.json` 路径阻塞失败分支
+  - `runtime.RenderFiles` 的 `manual.txt` / `custom.rules` / `builtin.rules` / 最终 `config.yaml` 路径阻塞失败分支
   - `rulesrepo` `Search` 空关键词 / `Render` 非法条目早失败分支
   - `rules-repo add/remove/remove-index` 的 `Run` 成功分发
   - `apply-rules` 的 `Run` 成功分发
   - `render-config` 的 `Run` 成功分发
-  - `internal/app` focused coverage 已提升到 `90.1%`
 
 ## 下一最小闭环
 
-- 继续补 `ApplyRules` 更深的 iptables / ip rule 编排 smoke 断言
-- 继续补 `runtime.RenderFiles` / `install-self` / `setup` 更贴近真实运行环境的失败与回退断言
+- 在真实主机上补 `ApplyRules` / `ClearRules` 的 `iptables` / `ip rule` smoke，验证当前命令编排与测试假设一致
+- 若本机具备 systemd / root 环境，继续补 `setup` / `start` / `restart` 的更贴近真实运行环境 smoke
 - 保持 README / flows / STATUS 只描述 `minimalist` 当前真相，不回退到旧 `mihomo` 叙述
 
 ## 本轮不做
