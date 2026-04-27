@@ -301,6 +301,7 @@ func AppendEntry(manifestPath, rulesetName, value string) error {
 	if err != nil {
 		return err
 	}
+	value = strings.TrimSpace(value)
 	if err := ValidateEntry(strings.ToLower(ruleset.Type), value, source); err != nil {
 		return err
 	}
@@ -320,6 +321,7 @@ func RemoveEntry(manifestPath, rulesetName, value string) error {
 	if err != nil {
 		return err
 	}
+	value = strings.TrimSpace(value)
 	entries, err := ReadEntries(source)
 	if err != nil {
 		return err

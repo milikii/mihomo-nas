@@ -455,6 +455,41 @@ func TestAppendAndRemoveEntryIndexDeduplicateAndRewrite(t *testing.T) {
 	}
 }
 
+func TestAppendAndRemoveEntryTrimValues(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "manifest.yaml")
+	source := filepath.Join(dir, "entries.txt")
+	if err := os.WriteFile(manifest, []byte("rulesets:\n  - name: test\n    category: demo\n    type: domain\n    source: entries.txt\n    target: direct\n"), 0o640); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	if err := os.WriteFile(source, nil, 0o640); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	if err := AppendEntry(manifest, "test", " example.com "); err != nil {
+		t.Fatalf("append trimmed entry: %v", err)
+	}
+	if err := AppendEntry(manifest, "test", "example.com"); err != nil {
+		t.Fatalf("append duplicate entry: %v", err)
+	}
+	lines, err := ReadEntries(source)
+	if err != nil {
+		t.Fatalf("read entries: %v", err)
+	}
+	if len(lines) != 1 || lines[0] != "example.com" {
+		t.Fatalf("expected one trimmed entry, got %#v", lines)
+	}
+	if err := RemoveEntry(manifest, "test", " example.com "); err != nil {
+		t.Fatalf("remove trimmed entry: %v", err)
+	}
+	lines, err = ReadEntries(source)
+	if err != nil {
+		t.Fatalf("read entries after remove: %v", err)
+	}
+	if len(lines) != 0 {
+		t.Fatalf("expected trimmed removal to delete entry, got %#v", lines)
+	}
+}
+
 func TestRemoveEntryIndexRejectsOutOfRange(t *testing.T) {
 	dir := t.TempDir()
 	manifest := filepath.Join(dir, "manifest.yaml")
