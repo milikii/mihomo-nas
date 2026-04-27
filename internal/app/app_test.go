@@ -4472,6 +4472,43 @@ func TestApplyRulesProgramsDNSHijackForUDPAndTCP(t *testing.T) {
 	}
 }
 
+func TestApplyRulesPropagatesDNSRedirectFailure(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			if name == "systemctl" && len(args) >= 2 && (args[0] == "is-active" || args[0] == "is-enabled") {
+				return errors.New("inactive")
+			}
+			if name == "iptables" && hasArgSequence(args, "-A", "MIHOMO_DNS_HANDLE", "-p", "udp", "--dport", "53", "-j", "REDIRECT") {
+				return errors.New("dns redirect failed")
+			}
+			if name == "iptables" {
+				for _, arg := range args {
+					if arg == "-C" || arg == "-S" {
+						return errors.New("missing")
+					}
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+	}
+
+	err := app.ApplyRules()
+	if err == nil || !strings.Contains(err.Error(), "dns redirect failed") {
+		t.Fatalf("expected DNS redirect failure, got %v", err)
+	}
+	if strings.Contains(app.Stdout.(*bytes.Buffer).String(), "已应用路由规则") {
+		t.Fatalf("did not expect success output after DNS redirect failure:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestRenderConfigWritesRuntimeArtifacts(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
