@@ -1319,3 +1319,70 @@ func TestBuildServiceUnitUsesConfiguredCoreBin(t *testing.T) {
 		t.Fatalf("expected configured core bin in service unit:\n%s", unit)
 	}
 }
+
+func TestActiveProvidersIgnoresDisabledAndEmptySubscriptionCaches(t *testing.T) {
+	paths := Paths{RuntimeDir: t.TempDir()}
+	if err := os.MkdirAll(paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("sub-enabled"), []byte(""), 0o640); err != nil {
+		t.Fatalf("write empty subscription cache: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("sub-ready"), []byte("trojan://secret@example.com:443\n"), 0o640); err != nil {
+		t.Fatalf("write non-empty subscription cache: %v", err)
+	}
+
+	st := state.Empty()
+	st.Nodes = []state.Node{
+		{Enabled: true, Source: state.Source{Kind: "manual"}},
+		{Enabled: false, Source: state.Source{Kind: "manual"}},
+	}
+	st.Subscriptions = []state.Subscription{
+		{ID: "sub-enabled", Enabled: true},
+		{ID: "sub-disabled", Enabled: false},
+		{ID: "sub-ready", Enabled: true},
+	}
+
+	names, subs, manualCount := activeProviders(paths, st)
+	if manualCount != 1 {
+		t.Fatalf("expected one active manual provider, got %d", manualCount)
+	}
+	if len(names) != 2 || names[0] != "manual" || names[1] != "subscription-sub" {
+		t.Fatalf("unexpected provider names: %#v", names)
+	}
+	if len(subs) != 1 || subs[0] != "sub-ready" {
+		t.Fatalf("unexpected active subscriptions: %#v", subs)
+	}
+}
+
+func TestGetenvFallsBackOnEmptyValue(t *testing.T) {
+	t.Setenv("MINIMALIST_TEST_ENV", "")
+	if got := getenv("MINIMALIST_TEST_ENV", "fallback"); got != "fallback" {
+		t.Fatalf("expected fallback, got %q", got)
+	}
+	t.Setenv("MINIMALIST_TEST_ENV", "configured")
+	if got := getenv("MINIMALIST_TEST_ENV", "fallback"); got != "configured" {
+		t.Fatalf("expected configured env, got %q", got)
+	}
+}
+
+func TestRenderFilesRejectsUnsupportedRuleKinds(t *testing.T) {
+	paths := Paths{
+		ConfigDir:   filepath.Join(t.TempDir(), "etc"),
+		DataDir:     filepath.Join(t.TempDir(), "var"),
+		RuntimeDir:  filepath.Join(t.TempDir(), "runtime"),
+		InstallDir:  filepath.Join(t.TempDir(), "install"),
+		BinPath:     filepath.Join(t.TempDir(), "bin", "minimalist"),
+		ServiceUnit: filepath.Join(t.TempDir(), "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(t.TempDir(), "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	cfg := config.Default()
+	st := state.Empty()
+	st.Rules = []state.Rule{{Kind: "unknown", Pattern: "example.com", Target: "DIRECT"}}
+	if err := RenderFiles(paths, cfg, st); err == nil || !strings.Contains(err.Error(), "unsupported rule kind: unknown") {
+		t.Fatalf("expected unsupported rule kind error, got %v", err)
+	}
+}
