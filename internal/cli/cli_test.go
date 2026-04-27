@@ -12,6 +12,7 @@ import (
 
 	"minimalist/internal/app"
 	"minimalist/internal/config"
+	"minimalist/internal/rulesrepo"
 	"minimalist/internal/runtime"
 	"minimalist/internal/system"
 )
@@ -67,6 +68,28 @@ func (r recordingRunner) Run(name string, args ...string) error {
 }
 
 func (r recordingRunner) Output(name string, args ...string) (string, string, error) {
+	return "", "", nil
+}
+
+type applyRulesRecordingRunner struct {
+	calls *[]recordedCommand
+}
+
+func (r applyRulesRecordingRunner) Run(name string, args ...string) error {
+	*r.calls = append(*r.calls, recordedCommand{name: name, args: append([]string{}, args...)})
+	if name == "iptables" {
+		if len(args) >= 5 && (args[4] == "-S" || args[4] == "-C") {
+			return os.ErrNotExist
+		}
+		return nil
+	}
+	if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+		return os.ErrNotExist
+	}
+	return nil
+}
+
+func (r applyRulesRecordingRunner) Output(name string, args ...string) (string, string, error) {
 	return "", "", nil
 }
 
@@ -558,6 +581,26 @@ func TestRunDispatchesStatusThroughRun(t *testing.T) {
 	}
 }
 
+func TestRunDispatchesRenderConfigThroughRun(t *testing.T) {
+	setCLIPathsEnv(t)
+	a := app.New()
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#run-render")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	output := captureStdout(t, func() {
+		if err := Run([]string{"render-config"}); err != nil {
+			t.Fatalf("run render-config: %v", err)
+		}
+	})
+	if _, err := os.Stat(a.Paths.RuntimeConfig()); err != nil {
+		t.Fatalf("expected runtime config: %v", err)
+	}
+	if !strings.Contains(output, "已生成 "+a.Paths.RuntimeConfig()) {
+		t.Fatalf("unexpected render-config output:\n%s", output)
+	}
+}
+
 func TestRunDispatchesHealthcheckThroughRun(t *testing.T) {
 	setCLIPathsEnv(t)
 	output := captureStdout(t, func() {
@@ -691,6 +734,62 @@ func TestRunDispatchesRulesRepoFindThroughRun(t *testing.T) {
 	})
 	if !strings.Contains(output, "keyword=google") || !strings.Contains(output, "matched=") {
 		t.Fatalf("unexpected rules-repo find output:\n%s", output)
+	}
+}
+
+func TestRunDispatchesRulesRepoAddRemoveAndRemoveIndex(t *testing.T) {
+	setCLIPathsEnv(t)
+	a := app.New()
+
+	if err := Run([]string{"rules-repo", "add", "pt", "cli-run.example.com"}); err != nil {
+		t.Fatalf("run rules-repo add: %v", err)
+	}
+	lines, err := rulesrepo.ListEntries(a.Paths.RulesRepoPath(), "pt", "cli-run")
+	if err != nil {
+		t.Fatalf("list entries after add: %v", err)
+	}
+	if len(lines) == 0 || !strings.Contains(lines[0], "cli-run.example.com") {
+		t.Fatalf("expected added entry, got %#v", lines)
+	}
+
+	if err := Run([]string{"rules-repo", "remove", "pt", "cli-run.example.com"}); err != nil {
+		t.Fatalf("run rules-repo remove: %v", err)
+	}
+	lines, err = rulesrepo.ListEntries(a.Paths.RulesRepoPath(), "pt", "cli-run")
+	if err != nil {
+		t.Fatalf("list entries after remove: %v", err)
+	}
+	if len(lines) != 0 {
+		t.Fatalf("expected entry removed, got %#v", lines)
+	}
+
+	if err := Run([]string{"rules-repo", "add", "pt", "cli-run-index.example.com"}); err != nil {
+		t.Fatalf("run rules-repo add for remove-index: %v", err)
+	}
+	lines, err = rulesrepo.ListEntries(a.Paths.RulesRepoPath(), "pt", "cli-run-index")
+	if err != nil {
+		t.Fatalf("list entries after re-add: %v", err)
+	}
+	if len(lines) == 0 {
+		t.Fatalf("expected indexed entry after re-add")
+	}
+	indexText, _, ok := strings.Cut(lines[0], "\t")
+	if !ok {
+		t.Fatalf("unexpected indexed entry: %q", lines[0])
+	}
+	index, err := strconv.Atoi(indexText)
+	if err != nil {
+		t.Fatalf("parse remove-index: %v", err)
+	}
+	if err := Run([]string{"rules-repo", "remove-index", "pt", strconv.Itoa(index)}); err != nil {
+		t.Fatalf("run rules-repo remove-index: %v", err)
+	}
+	lines, err = rulesrepo.ListEntries(a.Paths.RulesRepoPath(), "pt", "cli-run-index")
+	if err != nil {
+		t.Fatalf("list entries after remove-index: %v", err)
+	}
+	if len(lines) != 0 {
+		t.Fatalf("expected entry removed by index, got %#v", lines)
 	}
 }
 
@@ -964,6 +1063,40 @@ func TestRunWithAppDispatchesClearRules(t *testing.T) {
 	}
 	if err != nil {
 		t.Fatalf("run clear-rules: %v", err)
+	}
+}
+
+func TestRunWithAppDispatchesApplyRules(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	var calls []recordedCommand
+	a.Runner = system.CommandRunner(applyRulesRecordingRunner{calls: &calls})
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#apply-dispatch")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	err := runWithApp([]string{"apply-rules"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("run apply-rules: %v", err)
+	}
+	for _, want := range []struct {
+		name string
+		args []string
+	}{
+		{"ip", []string{"route", "replace", "local", "table", "233"}},
+		{"ip", []string{"rule", "add", "fwmark", "9011", "table", "233", "priority", "100"}},
+	} {
+		if !hasRecordedRunnerCall(calls, want.name, want.args...) {
+			t.Fatalf("expected %s call with %v, got %#v", want.name, want.args, calls)
+		}
+	}
+	if !strings.Contains(stdout.String(), "已应用路由规则") {
+		t.Fatalf("unexpected apply-rules output:\n%s", stdout.String())
 	}
 }
 

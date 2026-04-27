@@ -18,13 +18,15 @@
   - `requireRoot` 的可测错误分支
   - `start` / `restart` / `stop` / `apply-rules` / `clear-rules` 的 non-root smoke
   - `rules-repo` wrapper 的 manifest / ruleset / keyword / invalid entry / index range 错误透传
+  - `rules-repo add/remove/remove-index` 的 `Run` 成功分发
+  - `apply-rules` 的 `Run` 成功分发
+  - `render-config` 的 `Run` 成功分发
   - `internal/app` focused coverage 已提升到 `85.0%`
 
 ## 下一最小闭环
 
-- 继续补 `rules-repo add/remove/remove-index` 的 success smoke 与 app wrapper 成功路径断言
-- 继续补 `start` / `restart` / `apply-rules` 更贴近真实运行环境的 smoke
-- 继续补贴近真实运行环境的 `render-config` / `setup` / `status` / `rules-repo` smoke 断言
+- 继续补 `setup` 更贴近真实运行环境的 smoke 断言
+- 继续补 `status` / `rules-repo` 更贴近真实运行环境的 smoke 断言
 - 保持 README / flows / STATUS 只描述 `minimalist` 当前真相，不回退到旧 `mihomo` 叙述
 
 ## 本轮不做
