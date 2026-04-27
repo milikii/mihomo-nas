@@ -309,6 +309,36 @@ func TestRulesRepoCommandsExposeAndMutateRepoState(t *testing.T) {
 	}
 }
 
+func TestImportLinksReportsUnsupportedOnlyAndMixedSkippedInputs(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("socks5://proxy.example.com:1080#legacy\n")
+	err := app.ImportLinks()
+	if err == nil || !strings.Contains(err.Error(), "没有读取到有效节点") {
+		t.Fatalf("expected no valid node error, got %v", err)
+	}
+	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "有 1 条链接因协议不受支持而被跳过") {
+		t.Fatalf("unexpected stderr for unsupported input:\n%s", app.Stderr.(*bytes.Buffer).String())
+	}
+
+	app, _ = newTestApp(t)
+	app.Stdin = strings.NewReader(strings.Join([]string{
+		"socks5://proxy.example.com:1080#legacy",
+		"trojan://password@example.org:443?security=tls#mixed-node",
+	}, "\n") + "\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import mixed links: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"已处理 1 条节点",
+		"有 1 条链接因协议不受支持而被跳过",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in import output:\n%s", needle, output)
+		}
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
