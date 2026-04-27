@@ -141,6 +141,20 @@ func TestDecodeSubscriptionLinesHandlesWrappedUnpaddedBase64Payload(t *testing.T
 	}
 }
 
+func TestDecodeSubscriptionLinesHandlesCRLFWrappedBase64Payload(t *testing.T) {
+	raw := "trojan://password@example.org:443?security=tls#crlf\r\n"
+	payload := strings.TrimRight(base64.StdEncoding.EncodeToString([]byte(raw)), "=")
+	wrapped := payload[:16] + "\r\n" + payload[16:] + "\r\n"
+	lines := DecodeSubscriptionLines(wrapped)
+	if len(lines) != 1 || lines[0] != "trojan://password@example.org:443?security=tls#crlf" {
+		t.Fatalf("unexpected decoded lines: %#v", lines)
+	}
+	uris := ScannableSubscriptionURIs(wrapped)
+	if len(uris) != 1 || uris[0] != lines[0] {
+		t.Fatalf("unexpected scannable uris: %#v", uris)
+	}
+}
+
 func TestDecodeSubscriptionLinesFallsBackToRawPlainText(t *testing.T) {
 	payload := "not-base64\n  trojan://password@example.org:443?security=tls#raw-node  \nplain-text"
 	lines := DecodeSubscriptionLines(payload)
