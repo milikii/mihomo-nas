@@ -21,10 +21,11 @@
   - `menu` 主入口分发、`SetNodeEnabled` 手动节点启停与订阅节点只读边界、`SetSubscriptionEnabled` 启用/越界分支
   - `rulesMenu` 主/ACL 增删分支、`promptList` / `promptBool` 显式输入、`normalizeRuleInput` / `normalizeRuleKind` 扩展映射
   - `Setup` 基于 subscription cache 启服务、`Status` active+manual node 统计
+  - `ApplyRules` 无启用手动节点、DNS/OUTPUT 关闭时的跳转省略 smoke
   - `rules-repo add/remove/remove-index` 的 `Run` 成功分发
   - `apply-rules` 的 `Run` 成功分发
   - `render-config` 的 `Run` 成功分发
-  - `internal/app` focused coverage 已提升到 `88.0%`
+  - `internal/app` focused coverage 已提升到 `88.2%`
 
 ## 下一最小闭环
 

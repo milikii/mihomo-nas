@@ -384,6 +384,25 @@ func hasRecordedCall(calls []commandCall, name string, want ...string) bool {
 	return false
 }
 
+func hasArgSequence(args []string, want ...string) bool {
+	if len(want) == 0 || len(want) > len(args) {
+		return false
+	}
+	for i := 0; i <= len(args)-len(want); i++ {
+		matched := true
+		for j := range want {
+			if args[i+j] != want[j] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
 func TestImportLinksPersistsManualNode(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#demo-node\n")
@@ -1766,6 +1785,20 @@ func TestApplyRulesReturnsRootErrorWhenNotRoot(t *testing.T) {
 	}
 }
 
+func TestApplyRulesRejectsWhenNoEnabledManualNodes(t *testing.T) {
+	app, _ := newTestApp(t)
+	err := app.ApplyRules()
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err == nil || !strings.Contains(err.Error(), "没有启用的手动节点") {
+		t.Fatalf("expected missing manual node error, got %v", err)
+	}
+}
+
 func TestControllerRuntimeSummaryFallsBackToLoopbackAndUsesSecret(t *testing.T) {
 	app, _ := newTestApp(t)
 	cfg, err := config.Ensure(app.Paths.ConfigPath())
@@ -2462,6 +2495,74 @@ func TestApplyRulesProgramsExpectedRoutingCommands(t *testing.T) {
 	}
 	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "已应用路由规则") {
 		t.Fatalf("unexpected apply output:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
+func TestApplyRulesSkipsDNSAndOutputJumpsWhenDisabled(t *testing.T) {
+	app, _ := newTestApp(t)
+	cfg, err := config.Ensure(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	cfg.Network.DNSHijackEnabled = false
+	cfg.Network.DNSHijackInterfaces = nil
+	cfg.Network.ProxyHostOutput = false
+	if err := config.Save(app.Paths.ConfigPath(), cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "docker" {
+				return errors.New("missing")
+			}
+			if name == "iptables" {
+				for _, arg := range args {
+					if arg == "-C" || arg == "-S" {
+						return errors.New("missing")
+					}
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#apply-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	err = app.ApplyRules()
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("apply rules: %v", err)
+	}
+	for _, call := range calls {
+		if call.name == "iptables" && hasArgSequence(call.args, "-A", "PREROUTING", "-j", "MIHOMO_DNS") {
+			t.Fatalf("did not expect nat PREROUTING DNS jump when dns hijack disabled: %#v", calls)
+		}
+		if call.name == "iptables" && hasArgSequence(call.args, "-A", "OUTPUT", "-j", "MIHOMO_OUT") {
+			t.Fatalf("did not expect OUTPUT jump when proxy host output disabled: %#v", calls)
+		}
+		if call.name == "iptables" && hasArgSequence(call.args, "-A", "MIHOMO_DNS_HANDLE", "-p", "udp", "--dport", "53") {
+			t.Fatalf("did not expect DNS redirect rules when dns hijack disabled: %#v", calls)
+		}
+	}
+	if !hasRecordedCall(calls, "iptables", "-w", "5", "-t", "mangle", "-A", "PREROUTING", "-j", "MIHOMO_PRE") {
+		t.Fatalf("expected mangle PREROUTING jump, calls=%#v", calls)
 	}
 }
 
