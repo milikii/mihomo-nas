@@ -1780,6 +1780,18 @@ func TestReadImportInputReturnsAllLinesWhenNotTerminal(t *testing.T) {
 	}
 }
 
+func TestReadImportInputKeepsFinalLineWithoutTrailingNewline(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#no-newline")
+	text, err := app.readImportInput()
+	if err != nil {
+		t.Fatalf("read import input: %v", err)
+	}
+	if text != "trojan://password@example.org:443?security=tls#no-newline" {
+		t.Fatalf("unexpected import input text: %q", text)
+	}
+}
+
 func TestReadImportInputStopsAtEndWhenTerminal(t *testing.T) {
 	app, _ := newTestApp(t)
 	oldCheck := terminalCheck
