@@ -50,6 +50,20 @@ func TestSaveCreatesMissingParentDirectories(t *testing.T) {
 	}
 }
 
+func TestEnsureCreatesMissingParentDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "etc", "config.yaml")
+	cfg, err := Ensure(path)
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	if cfg.Version != 1 {
+		t.Fatalf("expected default config, got %#v", cfg)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected config file to exist: %v", err)
+	}
+}
+
 func TestEnsureBackfillsMissingSecret(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

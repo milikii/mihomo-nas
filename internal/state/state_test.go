@@ -45,6 +45,20 @@ func TestEnsureCreatesDefaultState(t *testing.T) {
 	}
 }
 
+func TestEnsureCreatesMissingParentDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "var", "state.json")
+	st, err := Ensure(path)
+	if err != nil {
+		t.Fatalf("ensure state: %v", err)
+	}
+	if st.Version != 1 {
+		t.Fatalf("expected default state, got %#v", st)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected state file to exist: %v", err)
+	}
+}
+
 func TestEnsureReturnsExistingStateWithoutOverwriting(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
