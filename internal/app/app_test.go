@@ -138,6 +138,39 @@ func TestImportLinksPersistsManualNode(t *testing.T) {
 	}
 }
 
+func TestListNodesAndRemoveNodePersistUpdatedState(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader(strings.Join([]string{
+		"trojan://password@example.org:443?security=tls#first-node",
+		"trojan://password@two.example.org:443?security=tls#second-node",
+	}, "\n") + "\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.ListNodes(); err != nil {
+		t.Fatalf("list nodes: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"1\tfirst-node\t0\tmanual\t",
+		"2\tsecond-node\t0\tmanual\t",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in node list:\n%s", needle, output)
+		}
+	}
+	if err := app.RemoveNode(1); err != nil {
+		t.Fatalf("remove node: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Nodes) != 1 || st.Nodes[0].Name != "second-node" {
+		t.Fatalf("expected only second-node after remove, got %+v", st.Nodes)
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
