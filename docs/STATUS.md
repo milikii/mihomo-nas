@@ -30,8 +30,8 @@
 
 - `go build` 已覆盖当前主入口。
 - `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...` 作为当前全量回归入口。
-- 当前测试已经覆盖配置、状态、provider、rules-repo、runtime 渲染、核心 app 命令、CLI 分发、错误透传、路径阻塞、菜单/helper 边界与 system runner，并补上了 config/state/provider/system 的关键错误路径、missing-file 分支、订阅输入空值保护、订阅启停分流、订阅删除缓存清理失败、订阅节点 provider-managed 保护、手动节点删除前引用检查、节点重命名空值保护、规则输入 kind / pattern 校验、CLI/app 终端判断、runtime layout 阻塞、runtime rule read error、provider URI fallback、rules-repo 校验边界、controller body read error、`apply-rules` 的关键失败传播、provider 过滤边界、config 随机 secret 回退、state existing-state 复用，以及 config/state 嵌套父目录创建。
-- 最近十个小闭环继续收口 app / runtime / provider / rules-repo / config / state 的 focused coverage：订阅菜单 update 路径、`deleteIPRule` 删除失败直返、ACL rules 渲染写失败、VLESS `skip-cert-verify` 别名、VLESS 坏 `extra` 容错、rules-repo append/remove 输入 trim、导入输入 EOF 无尾换行、config/state 嵌套父目录持久化均已有 focused tests。
+- 当前测试已经覆盖配置、状态、provider、rules-repo、runtime 渲染、核心 app 命令、CLI 分发、错误透传、路径阻塞、菜单/helper 边界与 system runner，并补上了 config/state/provider/system 的关键错误路径、missing-file 分支、订阅输入空值保护、订阅启停分流、订阅删除缓存清理失败、订阅节点 provider-managed 保护、手动节点删除前引用检查、节点重命名空值保护、规则输入 kind / pattern 校验、CLI/app 终端判断、runtime layout 阻塞、runtime rule read error、provider URI fallback、rules-repo 校验边界、controller body read error、`apply-rules` 的关键失败传播、provider 过滤边界、config 随机 secret 回退、state existing-state 复用，以及 config/state/provider 的嵌套父目录创建。
+- 最近十个小闭环继续收口 runtime / provider / rules-repo / config / state 的 focused coverage：订阅空缓存与禁用订阅缓存不生成 provider、runtime 规则文件读错误上浮、CRLF wrapped base64 订阅解码、不支持 URI scan row 回退字段、provider 渲染父目录创建、rules-repo 按序号删除保序、ruleset entries 计数输出，以及 config/state `Ensure` 首次创建父目录均已有 focused tests。
 
 ## 本机真实验证结论
 
