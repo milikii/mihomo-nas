@@ -37,7 +37,7 @@ go build -o ./minimalist ./cmd/minimalist
 GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...
 ```
 
-发布到当前机器：
+发布到具备 systemd 的目标机：
 
 ```bash
 sudo go run ./cmd/minimalist install-self
@@ -78,10 +78,5 @@ sudo /usr/local/bin/minimalist setup
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移
 - 不保留 `alpha/stable` 核心通道切换、自动同步、自定义更新定时器等旧运维能力
 - `nas-single-lan-dualstack` 已不再进入当前产品边界
-
-若已经本地构建：
-
-```bash
-sudo ./minimalist install-self
-sudo /usr/local/bin/minimalist setup
-```
+- `setup` / `start` / `restart` 的真实验证需要 systemd 正常运行
+- `apply-rules` / `clear-rules` 的真实验证需要 `CAP_NET_ADMIN` 和可用的 `iptables` / `ip rule`

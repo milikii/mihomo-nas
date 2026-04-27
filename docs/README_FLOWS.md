@@ -28,20 +28,10 @@
 
 补充当前真相：
 
-- 即使当前没有手动节点或订阅 provider，`render-config` 仍会生成仅含 `DIRECT` 的 `PROXY` 组
-- 开启显式代理认证或控制面 CORS 时，对应段落直接写入运行时 `config.yaml`
-- DNS 相关默认静态段落当前固定由 `render-config` 生成，包括 `default-nameserver`、`direct-nameserver`、`fake-ip-filter` 与 `nameserver-policy`
-- `profile`、`fallback-filter`、`proxy-server-nameserver` 当前也由 `render-config` 直接生成固定默认段落
-- `nameserver`、`geox-url`、`dns.listen` 当前同样由 `render-config` 直接生成固定默认段落
-- `allow-lan`、`bind-address`、`log-level`、`ipv6`、geo 与 DNS 行为标志当前也由 `render-config` 直接生成固定默认段落
-- `secret`、`external-controller`、`lan-allowed-ips`、`lan-disallowed-ips` 当前同样由 `render-config` 直接生成确定性段落
-- `proxy-groups` 与 `rules` 尾段当前也由 `render-config` 直接拼装，provider 存在与否会影响 `DIRECT` / `AUTO` 组形态
-- `BuildServiceUnit` 与 `BuildSysctl` 的输出当前也已被 focused tests 固定到当前真相
-- provider 的 `health-check` 默认段落、`AUTO` 组参数和 `rules` 渲染顺序当前也已被 focused tests 固定
-- provider 的命名、`ss` / `vmess` / `vless` / `trojan` 协议解析、`xhttp` / `grpc` / `ws` / `h2` / `httpupgrade` 网络分支当前也已被 focused tests 固定
-- 认证段落的省略条件、service unit 的 install/依赖/core bin 输出当前也已被 focused tests 固定
-- `DefaultPaths`、`EnsureLayout`、`RenderFiles`、`writeRules` 的当前输出与路径真相也已被 focused tests 固定
-- 顶层 `minimalist rules|acl|subscriptions|rules-repo ...` 当前都已直接分发到同一组底层 CLI helper
+- `render-config` 是运行产物唯一生成入口；即使没有 provider，也会生成仅含 `DIRECT` 的 `PROXY` 组。
+- DNS、controller、profile、proxy-groups、rules、provider health-check、service unit 与 sysctl 输出已经由 focused tests 固定。
+- 顶层 `minimalist rules|acl|subscriptions|rules-repo ...` 当前都直接分发到同一组底层 CLI helper。
+- `setup` / `start` / `restart` 的真实验证依赖 systemd；`apply-rules` / `clear-rules` 的真实验证依赖 `CAP_NET_ADMIN` 与可用 `iptables` / `ip rule`。
 
 ## 节点与订阅
 
