@@ -600,6 +600,12 @@ func (a *App) AddSubscription(name, url string, enabled bool) error {
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(name) == "" {
+		return errors.New("subscription name is empty")
+	}
+	if strings.TrimSpace(url) == "" {
+		return errors.New("subscription url is empty")
+	}
 	for idx := range st.Subscriptions {
 		if st.Subscriptions[idx].URL == url {
 			st.Subscriptions[idx].Name = name

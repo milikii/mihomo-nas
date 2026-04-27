@@ -2560,6 +2560,31 @@ func TestAddSubscriptionUpdatesExistingURLInPlace(t *testing.T) {
 	}
 }
 
+func TestAddSubscriptionRejectsEmptyNameOrURLBeforePersisting(t *testing.T) {
+	app, _ := newTestApp(t)
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{name: "   ", url: "https://subscription.example.com/blank-name.txt", want: "subscription name is empty"},
+		{name: "blank-url", url: "   ", want: "subscription url is empty"},
+	}
+	for _, tc := range tests {
+		err := app.AddSubscription(tc.name, tc.url, true)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("expected %q, got %v", tc.want, err)
+		}
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Subscriptions) != 0 {
+		t.Fatalf("expected no invalid subscriptions persisted, got %+v", st.Subscriptions)
+	}
+}
+
 func TestSetSubscriptionDisabledPurgesSubscriptionNodes(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Client = &http.Client{
