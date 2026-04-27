@@ -778,7 +778,9 @@ func (a *App) ApplyRules() error {
 		return err
 	}
 	if len(cfg.Network.ProxyIngressInterfaces) == 0 && !cfg.Network.DNSHijackEnabled && !cfg.Network.ProxyHostOutput {
-		_ = a.ClearRules()
+		if err := a.ClearRules(); err != nil {
+			return err
+		}
 		fmt.Fprintln(a.Stdout, "当前模板为仅显式代理，不下发透明旁路由规则")
 		return nil
 	}
