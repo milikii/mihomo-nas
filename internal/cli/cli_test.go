@@ -970,3 +970,42 @@ func TestRunWithAppDispatchesClearRules(t *testing.T) {
 		t.Fatalf("run clear-rules: %v", err)
 	}
 }
+
+func TestToggleNodeAndSubscriptionHelpersRequireIndices(t *testing.T) {
+	a, _ := newCLIApp(t)
+	if err := toggleNode(a, nil, true); err == nil || !strings.Contains(err.Error(), "usage: minimalist nodes enable|disable <index>") {
+		t.Fatalf("expected toggleNode usage error, got %v", err)
+	}
+	if err := toggleSubscription(a, nil, true); err == nil || !strings.Contains(err.Error(), "usage: minimalist subscriptions enable|disable <index>") {
+		t.Fatalf("expected toggleSubscription usage error, got %v", err)
+	}
+}
+
+func TestRunRulesRepoFindJoinsMultiwordKeyword(t *testing.T) {
+	a, _ := newCLIApp(t)
+	err := runRulesRepo(a, []string{"find", "google", "dns"})
+	if err != nil {
+		t.Fatalf("run rules-repo find: %v", err)
+	}
+	if !strings.Contains(a.Stdout.(*bytes.Buffer).String(), "keyword=google dns") {
+		t.Fatalf("expected joined keyword in output:\n%s", a.Stdout.(*bytes.Buffer).String())
+	}
+}
+
+func TestRunRulesAndSubscriptionsHelperUsageErrors(t *testing.T) {
+	a, _ := newCLIApp(t)
+	for _, tc := range []struct {
+		name string
+		fn   func() error
+		want string
+	}{
+		{"runRules", func() error { return runRules(a, false, nil) }, "usage: minimalist rules list|add|remove ..."},
+		{"runRulesACL", func() error { return runRules(a, true, nil) }, "usage: minimalist acl list|add|remove ..."},
+		{"runSubscriptions", func() error { return runSubscriptions(a, nil) }, "usage: minimalist subscriptions list|add|enable|disable|remove|update ..."},
+	} {
+		err := tc.fn()
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%s expected %q, got %v", tc.name, tc.want, err)
+		}
+	}
+}
