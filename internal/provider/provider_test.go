@@ -423,6 +423,59 @@ func TestRenderProviderFiltersManualAndSubscriptionSources(t *testing.T) {
 	}
 }
 
+func TestRenderProviderFiltersRequestedSourceKind(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "provider.yaml")
+	nodes := []state.Node{
+		{
+			Name:    "manual-node",
+			Enabled: true,
+			URI:     "trojan://secret@example.com:443?security=tls#manual-node",
+			Source:  state.Source{Kind: "manual"},
+		},
+		{
+			Name:    "subscription-node",
+			Enabled: true,
+			URI:     "trojan://secret@subscription.example.com:443?security=tls#subscription-node",
+			Source:  state.Source{Kind: "subscription", ID: "sub-1"},
+		},
+	}
+	if err := RenderProvider(out, nodes, "subscription", ""); err != nil {
+		t.Fatalf("render provider: %v", err)
+	}
+	body, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("read provider: %v", err)
+	}
+	var file providerFile
+	if err := yaml.Unmarshal(body, &file); err != nil {
+		t.Fatalf("unmarshal provider yaml: %v", err)
+	}
+	if len(file.Proxies) != 1 {
+		t.Fatalf("expected only subscription node after source filter, got %#v", file.Proxies)
+	}
+	rendered, ok := file.Proxies[0].(map[interface{}]interface{})
+	if !ok || rendered["name"] != "subscription-node" {
+		t.Fatalf("unexpected rendered proxy: %#v", file.Proxies[0])
+	}
+}
+
+func TestRenderProviderReturnsErrorWhenParentPathIsBlocked(t *testing.T) {
+	root := t.TempDir()
+	blockedDir := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blockedDir, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+	err := RenderProvider(filepath.Join(blockedDir, "provider.yaml"), []state.Node{{
+		Name:    "manual-node",
+		Enabled: true,
+		URI:     "trojan://secret@example.com:443?security=tls#manual-node",
+		Source:  state.Source{Kind: "manual"},
+	}}, "", "")
+	if err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("expected blocked path error, got %v", err)
+	}
+}
+
 func TestProviderHelpersNormalizePrimitiveValues(t *testing.T) {
 	if !truthy("YES") || truthy("0") {
 		t.Fatalf("unexpected truthy behavior")

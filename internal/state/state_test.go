@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadBackfillsNilSlicesAndVersion(t *testing.T) {
@@ -37,5 +38,41 @@ func TestSaveWritesTrailingNewline(t *testing.T) {
 	}
 	if !strings.HasSuffix(string(raw), "\n") {
 		t.Fatalf("expected trailing newline, got %q", string(raw))
+	}
+}
+
+func TestLoadReportsParseError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(path, []byte("{\n"), 0o640); err != nil {
+		t.Fatalf("write invalid state: %v", err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "parse state") {
+		t.Fatalf("expected parse state error, got %v", err)
+	}
+}
+
+func TestSaveAndEnsureReturnErrorsWhenParentPathIsBlocked(t *testing.T) {
+	root := t.TempDir()
+	blockedDir := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blockedDir, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+
+	savePath := filepath.Join(blockedDir, "state.json")
+	if err := Save(savePath, Empty()); err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("expected save error, got %v", err)
+	}
+
+	ensurePath := filepath.Join(root, "blocked", "nested", "state.json")
+	if _, err := Ensure(ensurePath); err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("expected ensure error, got %v", err)
+	}
+}
+
+func TestNowISOReturnsRFC3339(t *testing.T) {
+	ts := NowISO()
+	if _, err := time.Parse(time.RFC3339, ts); err != nil {
+		t.Fatalf("expected RFC3339 timestamp, got %q: %v", ts, err)
 	}
 }

@@ -305,7 +305,7 @@ func AppendEntry(manifestPath, rulesetName, value string) error {
 		return err
 	}
 	entries, err := ReadEntries(source)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil {
 		return err
 	}
 	if slices.Contains(entries, value) {

@@ -54,3 +54,32 @@ func TestEnsureBackfillsMissingSecret(t *testing.T) {
 		t.Fatalf("expected secret to be persisted:\n%s", string(raw))
 	}
 }
+
+func TestLoadReportsParseError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("version: [\n"), 0o640); err != nil {
+		t.Fatalf("write invalid config: %v", err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "parse config") {
+		t.Fatalf("expected parse config error, got %v", err)
+	}
+}
+
+func TestSaveAndEnsureReturnErrorsWhenParentPathIsBlocked(t *testing.T) {
+	root := t.TempDir()
+	blockedDir := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blockedDir, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking file: %v", err)
+	}
+
+	savePath := filepath.Join(blockedDir, "config.yaml")
+	if err := Save(savePath, Default()); err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("expected save error, got %v", err)
+	}
+
+	ensurePath := filepath.Join(root, "blocked", "nested", "config.yaml")
+	if _, err := Ensure(ensurePath); err == nil || !strings.Contains(err.Error(), "not a directory") {
+		t.Fatalf("expected ensure error, got %v", err)
+	}
+}

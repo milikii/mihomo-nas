@@ -63,3 +63,10 @@ func TestOutputUsesDefaultTimeoutWhenZero(t *testing.T) {
 		t.Fatalf("unexpected stdout: %q", stdout)
 	}
 }
+
+func TestNewRunnerSetsDefaultTimeout(t *testing.T) {
+	runner := NewRunner()
+	if runner.Timeout != 30*time.Second {
+		t.Fatalf("expected default timeout, got %s", runner.Timeout)
+	}
+}

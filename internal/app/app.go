@@ -634,12 +634,9 @@ func (a *App) RemoveSubscription(index int) error {
 }
 
 func (a *App) UpdateSubscriptions() error {
-	cfg, st, err := a.ensureAll()
+	_, st, err := a.ensureAll()
 	if err != nil {
 		return err
-	}
-	if cfg.Profile.RulePreset == "" {
-		cfg.Profile.RulePreset = "default"
 	}
 	changed := false
 	for idx := range st.Subscriptions {

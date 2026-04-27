@@ -251,6 +251,27 @@ func TestSearchRejectsEmptyKeywordAndRenderRejectsUnsupportedEntries(t *testing.
 	}
 }
 
+func TestSearchReportsZeroMatchesWithTrimmedKeyword(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "rules-repo", "default")
+	if err := InitDefaultRepo(root); err != nil {
+		t.Fatalf("init repo: %v", err)
+	}
+	manifest := filepath.Join(root, "manifest.yaml")
+	lines, err := Search(manifest, "   no-such-keyword   ")
+	if err != nil {
+		t.Fatalf("search repo: %v", err)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("expected keyword header and zero-match footer, got %#v", lines)
+	}
+	if lines[0] != "keyword=no-such-keyword" {
+		t.Fatalf("unexpected search header: %#v", lines[0])
+	}
+	if lines[1] != "matched=0" {
+		t.Fatalf("unexpected search footer: %#v", lines[1])
+	}
+}
+
 func TestAppendAndRemoveEntryIndexDeduplicateAndRewrite(t *testing.T) {
 	dir := t.TempDir()
 	manifest := filepath.Join(dir, "manifest.yaml")
