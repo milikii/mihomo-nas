@@ -127,6 +127,18 @@ func TestDecodeSubscriptionLinesAndScannableURIsHandleBase64Payload(t *testing.T
 	}
 }
 
+func TestDecodeSubscriptionLinesFallsBackToRawPlainText(t *testing.T) {
+	payload := "not-base64\n  trojan://password@example.org:443?security=tls#raw-node  \nplain-text"
+	lines := DecodeSubscriptionLines(payload)
+	if len(lines) != 3 || lines[0] != "not-base64" || lines[1] != "trojan://password@example.org:443?security=tls#raw-node" || lines[2] != "plain-text" {
+		t.Fatalf("unexpected raw fallback lines: %#v", lines)
+	}
+	uris := ScannableSubscriptionURIs(payload)
+	if len(uris) != 1 || uris[0] != "trojan://password@example.org:443?security=tls#raw-node" {
+		t.Fatalf("unexpected scannable uris: %#v", uris)
+	}
+}
+
 func TestAppendImportedNodesDeduplicatesByBaseKeyAndRenamesConflicts(t *testing.T) {
 	existing := []state.Node{{
 		ID:         "1",
