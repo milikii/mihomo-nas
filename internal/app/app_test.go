@@ -2815,6 +2815,32 @@ func TestAddRuleRejectsAUTOWithoutEnabledManualNodes(t *testing.T) {
 	}
 }
 
+func TestAddRuleRejectsSubscriptionNodeTarget(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, "trojan://password@example.org:443?security=tls#sub-target\n"), nil
+		}),
+	}
+	if err := app.AddSubscription("target-sub", "https://subscription.example.com/target.txt", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions: %v", err)
+	}
+	err := app.AddRule(false, "domain", "example.com", "sub-target")
+	if err == nil || !strings.Contains(err.Error(), "未知规则目标: sub-target") {
+		t.Fatalf("expected subscription target rejection, got %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Rules) != 0 {
+		t.Fatalf("expected no rule persisted for subscription target, got %+v", st.Rules)
+	}
+}
+
 func TestAddRuleRejectsUnsupportedKindBeforePersisting(t *testing.T) {
 	app, _ := newTestApp(t)
 	err := app.AddRule(false, "custom-kind", "example.com", "DIRECT")
