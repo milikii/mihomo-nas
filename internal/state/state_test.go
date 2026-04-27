@@ -90,6 +90,29 @@ func TestSaveWritesTrailingNewline(t *testing.T) {
 	}
 }
 
+func TestSaveCreatesMissingParentDirectories(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nested", "var", "state.json")
+	st := Empty()
+	st.Nodes = []Node{{
+		ID:         "node-1",
+		Name:       "persisted",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443#persisted",
+		ImportedAt: "2026-04-27T00:00:00Z",
+		Source:     Source{Kind: "manual"},
+	}}
+	if err := Save(path, st); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(loaded.Nodes) != 1 || loaded.Nodes[0].Name != "persisted" {
+		t.Fatalf("expected saved node to round trip, got %#v", loaded.Nodes)
+	}
+}
+
 func TestLoadReportsParseError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
