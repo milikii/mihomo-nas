@@ -110,6 +110,33 @@ func TestNormalizeRuleHelpersCoverLegacyAliases(t *testing.T) {
 	}
 }
 
+func TestAppendIfMissingRuleAndTerminalHelpers(t *testing.T) {
+	rules := []state.Rule{{ID: "1", Kind: "domain", Pattern: "example.com", Target: "DIRECT"}}
+	rules = appendIfMissingRule(rules, state.Rule{ID: "2", Kind: "domain", Pattern: "example.com", Target: "DIRECT"})
+	if len(rules) != 1 {
+		t.Fatalf("expected duplicate rule to be skipped, got %#v", rules)
+	}
+	rules = appendIfMissingRule(rules, state.Rule{ID: "3", Kind: "domain", Pattern: "example.org", Target: "DIRECT"})
+	if len(rules) != 2 {
+		t.Fatalf("expected new rule to be appended, got %#v", rules)
+	}
+	if isTerminal(strings.NewReader("nope")) {
+		t.Fatalf("expected non-file reader to be non-terminal")
+	}
+	tmp := t.TempDir()
+	file, err := os.Create(filepath.Join(tmp, "input.txt"))
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer file.Close()
+	if isTerminal(file) {
+		t.Fatalf("expected regular file to be non-terminal")
+	}
+	if isCharDevice(file) {
+		t.Fatalf("expected regular file to not be a char device")
+	}
+}
+
 func (f fakeRunner) Run(name string, args ...string) error {
 	if f.runFn != nil {
 		return f.runFn(name, args...)
