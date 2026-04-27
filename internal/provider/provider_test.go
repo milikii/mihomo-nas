@@ -306,6 +306,22 @@ func TestURIHelpersExposeSchemeHostPortAndQuery(t *testing.T) {
 	}
 }
 
+func TestScanURIRowKeepsFallbackFieldsForUnsupportedURI(t *testing.T) {
+	row := ScanURIRow("socks5://proxy.example.com:1080?type=tcp#proxy-node")
+	if row.Supported != "0" {
+		t.Fatalf("expected unsupported row, got %#v", row)
+	}
+	if row.Name != "proxy-node" || row.Server != "proxy.example.com" || row.Port != "1080" {
+		t.Fatalf("expected display fallback fields, got %#v", row)
+	}
+	if row.Network != "tcp" || row.Security != "socks5" || row.Scheme != "socks5" {
+		t.Fatalf("expected scan metadata fallback fields, got %#v", row)
+	}
+	if !strings.Contains(row.Reason, "unsupported scheme") {
+		t.Fatalf("expected unsupported reason, got %#v", row)
+	}
+}
+
 func TestParseSSSupportsBase64PrefixAndPluginOptions(t *testing.T) {
 	info, err := parseSS("ss://YWVzLTI1Ni1nY206c2VjcmV0@example.com:443?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dcdn.example%3Btls%3D1#mynode")
 	if err != nil {
