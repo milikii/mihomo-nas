@@ -379,6 +379,31 @@ func TestRenderFilesFailsWhenCustomRulesPathIsDirectory(t *testing.T) {
 	}
 }
 
+func TestRenderFilesFailsWhenACLRulesPathIsDirectory(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	if err := EnsureLayout(paths); err != nil {
+		t.Fatalf("ensure layout: %v", err)
+	}
+	if err := os.MkdirAll(paths.ACLRules(), 0o755); err != nil {
+		t.Fatalf("mkdir blocking acl rules path: %v", err)
+	}
+	if err := RenderFiles(paths, config.Default(), state.Empty()); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected acl rules write failure, got %v", err)
+	}
+}
+
 func TestRenderFilesFailsWhenRuntimeConfigPathIsDirectory(t *testing.T) {
 	root := t.TempDir()
 	paths := Paths{
