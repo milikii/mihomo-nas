@@ -58,6 +58,26 @@ func TestNewInitializesDefaultDependencies(t *testing.T) {
 	}
 }
 
+func TestInstallSelfCopiesBinaryAndInitializesAssets(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.InstallSelf(); err != nil {
+		t.Fatalf("install self: %v", err)
+	}
+	for _, path := range []string{
+		app.Paths.BinPath,
+		app.Paths.ConfigPath(),
+		app.Paths.StatePath(),
+		app.Paths.RulesRepoPath(),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected %s to exist: %v", path, err)
+		}
+	}
+	if _, err := os.ReadFile(app.Paths.BinPath); err != nil {
+		t.Fatalf("expected copied binary to be readable: %v", err)
+	}
+}
+
 func (f fakeRunner) Run(name string, args ...string) error {
 	if f.runFn != nil {
 		return f.runFn(name, args...)
