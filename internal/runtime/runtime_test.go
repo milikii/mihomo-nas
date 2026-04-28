@@ -714,6 +714,28 @@ func TestBuildRuntimeConfigIncludesGeoFlags(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigKeepsRuntimeAssetsLocal(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: filepath.Join(t.TempDir(), "mihomo"),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"external-ui: " + paths.UIPath() + "\n",
+		"geo-auto-update: false\n",
+		"geodata-mode: false\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing local asset guard %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
 func TestBuildRuntimeConfigIncludesDNSBehaviorFlags(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),
