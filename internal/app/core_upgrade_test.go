@@ -126,6 +126,7 @@ func TestSelectLatestAlphaAssetRejectsAMD64HigherCPUVariant(t *testing.T) {
 			Prerelease: true,
 			Assets: []githubReleaseAsset{
 				{Name: "mihomo-linux-amd64-v4-v1.19.23.gz", BrowserDownloadURL: "https://example.com/v4.gz"},
+				{Name: "mihomo-linux-amd64-v10-v1.19.23.gz", BrowserDownloadURL: "https://example.com/v10.gz"},
 			},
 		},
 	}
@@ -136,6 +137,9 @@ func TestSelectLatestAlphaAssetRejectsAMD64HigherCPUVariant(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "mihomo-linux-amd64-v4-v1.19.23.gz") {
 		t.Fatalf("expected v4 asset name in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "mihomo-linux-amd64-v10-v1.19.23.gz") {
+		t.Fatalf("expected v10 asset name in error, got %v", err)
 	}
 }
 
