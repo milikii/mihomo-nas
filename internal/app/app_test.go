@@ -971,6 +971,30 @@ func TestSubscriptionsMenuAddsSubscriptionFromPrompts(t *testing.T) {
 	}
 }
 
+func TestSubscriptionsMenuRetriesAfterInvalidChoice(t *testing.T) {
+	app, _ := newTestApp(t)
+	reader := bufio.NewReader(strings.NewReader("x\n2\nmenu-retry\nhttps://subscription.example.com/menu-retry.txt\n"))
+	if err := app.subscriptionsMenu(reader); err != nil {
+		t.Fatalf("subscriptions menu retry add: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Subscriptions) != 1 || st.Subscriptions[0].Name != "menu-retry" {
+		t.Fatalf("expected subscription to be added after retry, got %+v", st.Subscriptions)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"无效选择",
+		"2) 添加订阅",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in subscriptions menu output:\n%s", needle, output)
+		}
+	}
+}
+
 func TestSubscriptionsMenuTogglesAndRemovesSubscription(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.AddSubscription("menu-toggle", "https://subscription.example.com/menu-toggle.txt", false); err != nil {
