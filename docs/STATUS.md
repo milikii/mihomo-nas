@@ -8,6 +8,10 @@
 - 配置真相：`/etc/minimalist/config.yaml`
 - 状态真相：`/var/lib/minimalist/state.json`
 - 运行产物：`/var/lib/minimalist/mihomo/`
+- 当前代码主路径已收窄到“启用的手动节点 + 自定义规则分流”；订阅不再视为旁路由核心成功路径。
+- 当前代码默认姿态已被测试固定：`proxy_host_output: false`、LAN DNS hijack 打开、host OUTPUT 默认不接管。
+- 当前文档真相已补齐成熟模板层次：baseline 模板 -> 个人规则层（custom/ACL） -> 仓库规则层 -> 固定 tail。
+- 当前 CLI 已暴露 `minimalist nodes test`，`--help` 已显式列出 `verify-runtime-assets`；下一步是按 runbook 做实机 restart / reboot smoke。
 
 ## 已完成能力
 
@@ -32,6 +36,10 @@
 
 - `go build` 已覆盖当前主入口。
 - `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...` 作为当前全量回归入口。
+- 2026-04-28 当前分支已新增/收紧三轮 focused contracts：
+  - PR-1：手动节点主路径、规则目标前移校验、节点保留名/重名保护
+  - PR-2：DNS baseline 与 host-safe 默认姿态 contract tests
+  - PR-4（代码面）：`nodes test` CLI 分发与 `verify-runtime-assets` 帮助文案对齐
 - 当前测试已经覆盖配置、状态、provider、rules-repo、runtime 渲染、核心 app 命令、CLI 分发、错误透传、路径阻塞、菜单/helper 边界与 system runner，并补上了 config/state/provider/system 的关键错误路径、missing-file 分支、订阅输入空值保护、订阅启停分流、订阅删除缓存清理失败、订阅节点 provider-managed 保护、手动节点删除前引用检查、节点重命名空值保护、规则输入 kind / pattern 校验、CLI/app 终端判断、runtime layout 阻塞、runtime rule read error、provider URI fallback、rules-repo 校验边界、controller body read error、`apply-rules` 的关键失败传播、provider 过滤边界、config 随机 secret 回退、state existing-state 复用，以及 config/state/provider 的嵌套父目录创建。
 - 最近十个小闭环继续收口 runtime / provider / rules-repo / config / state / app / cli 的 focused coverage：runtime asset 本地预置约束、CLI 节点管理分发、节点菜单校验错误透传、节点测速 controller 错误输出、订阅纯空输入、空白 rules manifest、空白 secret 持久化回写、legacy state 缺失 version 回填，以及此前的订阅空缓存与禁用订阅缓存不生成 provider、runtime 规则文件读错误上浮、CRLF wrapped base64 订阅解码、不支持 URI scan row 回退字段、provider 渲染父目录创建、rules-repo 按序号删除保序、ruleset entries 计数输出、config/state `Ensure` 首次创建父目录，当前都已有 focused tests。
 - 2026-04-28 继续新增 focused app tests，补上安装路径阻断、`ImportLinks` 读取错误、`RenderConfig` 非法规则目标、`ensureAll` 失败传播，以及 `apply-rules` 的链创建 / 入口 / 绕行失败分支；当前 `internal/app` 包覆盖率已提升到 95.3%。

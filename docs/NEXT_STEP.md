@@ -3,6 +3,10 @@
 ## 当前阶段
 
 - Go 版 `minimalist` 主实现已经落地，默认分支保持可构建、可测试。
+- 当前代码面已经完成三件关键收口：
+  - 手动节点是唯一旁路由核心成功路径
+  - DNS / host-safe 默认姿态已被 tests 固定
+  - README / FLOWS / help / runbook 已对齐当前运维真相
 - 单元与 focused 测试已经覆盖核心配置、状态、provider、rules-repo、runtime 渲染、app 命令编排、CLI 分发与多组失败路径；本次又补上菜单共享 stdin、索引空回车误命中、unsupported subscription cache readiness 与 `core-upgrade-alpha` 的一组鲁棒性分支后，`internal/app` 当前为 93.3% 语句覆盖率，`internal/config` 维持 94.3%。
 - 这台 Debian NAS 已经是可用实机：`systemd`、`iptables`、`ip rule` 都是真实可达的。
 - 现网已经从旧 `mihomo.service` 切换到 Go 版 `minimalist.service`；旧服务当前 `inactive/disabled`，新服务 `active/enabled`。
@@ -10,7 +14,7 @@
 
 ## 下一最小闭环
 
-- 当前没有新的功能缺口；下一步优先做切换后观察与最小硬化，不扩协议、不恢复旧运维能力。
+- 当前没有新的主路径功能缺口；下一步优先做实机 restart / reboot smoke，不扩协议、不恢复旧运维能力。
 - 当前主线从“补剩余低覆盖率热点”切到“长期稳定运行达标口径”。判断标准不再是多几个 focused tests，而是：
   - `minimalist.service` 经过冷启动 / 重启 / 宿主机 reboot 后都能稳定回到 `active/enabled`
   - `/var/lib/minimalist/mihomo/` 的 `Country.mmdb`、`GeoSite.dat`、`ui/` 缺失时有明确 fail-fast 或修复指引，不靠人工记忆补文件
@@ -26,8 +30,8 @@
 - 若继续施工，优先选择：
   - 继续观察 `minimalist.service` 24 小时日志；2026-04-28 08:34 CST 已确认 UI/geodata 资源复制后最近启动窗口不再出现启动下载错误，当前 warn/error 计数仍来自切换早期历史窗口。
   - `runtime-audit` 收口已完成：当前已把 24 小时粗粒度 `warn/error` 计数拆成可区分“历史窗口 / 当前窗口 / 致命缺口”的信号。
-  - 下一闭环做 runtime asset 自检：在 `setup` / `start` / `restart` / `healthcheck` 关键链路里明确检查 `Country.mmdb`、`GeoSite.dat`、`ui/` 是否齐备，缺失时给出一致的运维级报错。
-  - 再做 reboot / restart smoke runbook：把宿主机 reboot、服务 restart、规则重下发、controller 恢复和路由状态复核固定成一套可重复验证步骤。
+  - 按新的 runbook 实际执行一轮 service restart smoke，并把结果回写 `docs/STATUS.md`。
+  - 再按同一 runbook 执行一轮 host reboot smoke，并确认 `minimalist.service`、controller、rule table 与 DNS 路径都自动恢复。
   - 最后才回头补 `internal/app` / `core-upgrade-alpha` 的剩余低覆盖尾分支；稳定性闭环优先级高于继续追 coverage。
 - 旧 `/etc/mihomo`、`mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager` 已清理；下一步不再围绕旧服务回滚路径推进。
 - 保持 README / flows 描述 Go 版 `minimalist` 目标真相；STATUS / NEXT_STEP 记录 live host 已切换完成。

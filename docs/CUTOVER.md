@@ -78,6 +78,58 @@ ip route show table 233
 - `fwmark 0x2333 lookup 233` 与 table `233` 存在
 - 控制面、DNS、TProxy 端口健康检查通过
 
+## Restart / Reboot Smoke
+
+这是当前推荐的最短运维复核步骤，不替代 cutover，只用于日常确认“服务重启后仍然是稳定旁路由”。
+
+### service restart smoke
+
+```bash
+sudo /usr/local/bin/minimalist verify-runtime-assets
+sudo systemctl restart minimalist.service
+systemctl is-active minimalist.service
+systemctl is-enabled minimalist.service
+sudo /usr/local/bin/minimalist healthcheck
+sudo /usr/local/bin/minimalist runtime-audit
+ip rule show
+ip route show table 233
+```
+
+期望结果：
+
+- `verify-runtime-assets` 成功返回
+- `minimalist.service` 为 `active`
+- `minimalist.service` 为 `enabled`
+- controller 可达
+- `runtime-audit` 无新的 fatal gap
+- `fwmark 0x2333 lookup 233` 与 table `233` 仍在
+
+### host reboot smoke
+
+```bash
+sudo reboot
+```
+
+重连后执行：
+
+```bash
+systemctl is-active minimalist.service
+systemctl is-enabled minimalist.service
+sudo /usr/local/bin/minimalist verify-runtime-assets
+sudo /usr/local/bin/minimalist healthcheck
+sudo /usr/local/bin/minimalist runtime-audit
+ip rule show
+ip route show table 233
+```
+
+期望结果：
+
+- `minimalist.service` 自动恢复到 `active/enabled`
+- runtime assets 完整
+- controller 可达
+- `runtime-audit` 没有新的 fatal gap
+- `MIHOMO_*` 规则和 route table 仍由 Go 版管理
+
 ## 回滚步骤
 
 如果 Go 版验证失败，先停 Go 版服务，再恢复旧服务：

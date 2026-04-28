@@ -289,7 +289,7 @@ func TestRunRulesRepoRequiresSubcommand(t *testing.T) {
 
 func TestRunNodesUsageErrorThroughRun(t *testing.T) {
 	err := Run([]string{"nodes"})
-	if err == nil || !strings.Contains(err.Error(), "usage: minimalist nodes list|rename|enable|disable|remove ...") {
+	if err == nil || !strings.Contains(err.Error(), "usage: minimalist nodes list|test|rename|enable|disable|remove ...") {
 		t.Fatalf("expected nodes usage error, got %v", err)
 	}
 }
@@ -475,7 +475,7 @@ func TestRunNodesUsageAndIndexErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{nil, "usage: minimalist nodes list|rename|enable|disable|remove ..."},
+		{nil, "usage: minimalist nodes list|test|rename|enable|disable|remove ..."},
 		{[]string{"rename", "1"}, "usage: minimalist nodes rename <index> <new-name>"},
 		{[]string{"enable"}, "usage: minimalist nodes enable|disable <index>"},
 		{[]string{"disable", "bad"}, `strconv.Atoi: parsing "bad"`},
@@ -690,6 +690,7 @@ func TestRunHelpPrintsUsage(t *testing.T) {
 	for _, needle := range []string{
 		"minimalist commands:",
 		"minimalist core-upgrade-alpha",
+		"minimalist verify-runtime-assets",
 		"minimalist rules-repo summary|entries|find|add|remove|remove-index",
 	} {
 		if !strings.Contains(output, needle) {
@@ -869,9 +870,47 @@ func TestRunDispatchesNodesList(t *testing.T) {
 	}
 }
 
+func TestRunWithAppDispatchesNodesTest(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#run-node-test")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	a.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Path != "/proxies/run-node-test/delay" {
+				t.Fatalf("unexpected controller path: %s", req.URL.Path)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"delay":12}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+	if err := runWithApp([]string{"nodes", "test"}, a, false); err != nil {
+		t.Fatalf("run nodes test: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "run-node-test\t12ms") {
+		t.Fatalf("unexpected nodes test output:\n%s", stdout.String())
+	}
+}
+
 func TestRunWithAppDispatchesNodeManagementSubcommands(t *testing.T) {
 	a, stdout := newCLIApp(t)
 	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#managed-node")
+	a.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.Path != "/proxies/managed-renamed/delay" {
+				t.Fatalf("unexpected controller path: %s", req.URL.Path)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"delay":8}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
 	if err := runWithApp([]string{"nodes", "rename", "1", "managed-renamed"}, a, false); err != nil {
 		t.Fatalf("rename node through dispatcher: %v", err)
 	}
@@ -887,6 +926,9 @@ func TestRunWithAppDispatchesNodeManagementSubcommands(t *testing.T) {
 	}
 	if err := runWithApp([]string{"nodes", "disable", "1"}, a, false); err != nil {
 		t.Fatalf("disable node through dispatcher: %v", err)
+	}
+	if err := runWithApp([]string{"nodes", "test"}, a, false); err != nil {
+		t.Fatalf("test node through dispatcher: %v", err)
 	}
 	if err := runWithApp([]string{"nodes", "remove", "1"}, a, false); err != nil {
 		t.Fatalf("remove node through dispatcher: %v", err)

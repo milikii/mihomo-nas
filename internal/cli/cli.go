@@ -81,11 +81,13 @@ func runWithApp(args []string, a *app.App, tty bool) error {
 
 func runNodes(a *app.App, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: minimalist nodes list|rename|enable|disable|remove ...")
+		return errors.New("usage: minimalist nodes list|test|rename|enable|disable|remove ...")
 	}
 	switch args[0] {
 	case "list":
 		return a.ListNodes()
+	case "test":
+		return a.TestNodes()
 	case "rename":
 		if len(args) < 3 {
 			return errors.New("usage: minimalist nodes rename <index> <new-name>")
@@ -251,12 +253,13 @@ func printUsage() {
   minimalist core-upgrade-alpha
   minimalist start|stop|restart
   minimalist status|show-secret|healthcheck|runtime-audit
+  minimalist verify-runtime-assets
   minimalist cutover-preflight
   minimalist cutover-plan
   minimalist import-links
   minimalist router-wizard
   minimalist apply-rules|clear-rules
-  minimalist nodes list|rename|enable|disable|remove
+  minimalist nodes list|test|rename|enable|disable|remove
   minimalist subscriptions list|add|enable|disable|remove|update
   minimalist rules list|add|remove
   minimalist acl list|add|remove
