@@ -1088,7 +1088,7 @@ func (a *App) hasReadyProviders(st state.State) bool {
 		if !sub.Enabled {
 			continue
 		}
-		if info, err := os.Stat(a.Paths.SubscriptionFile(sub.ID)); err == nil && info.Size() > 0 {
+		if a.subscriptionCacheReady(sub.ID) {
 			return true
 		}
 	}
@@ -1119,12 +1119,20 @@ func (a *App) subscriptionCounts(st state.State) (enabled int, total int, ready 
 	for _, sub := range st.Subscriptions {
 		if sub.Enabled {
 			enabled++
-			if info, err := os.Stat(a.Paths.SubscriptionFile(sub.ID)); err == nil && info.Size() > 0 {
+			if a.subscriptionCacheReady(sub.ID) {
 				ready++
 			}
 		}
 	}
 	return
+}
+
+func (a *App) subscriptionCacheReady(subscriptionID string) bool {
+	body, err := os.ReadFile(a.Paths.SubscriptionFile(subscriptionID))
+	if err != nil {
+		return false
+	}
+	return provider.HasSupportedSubscriptionURI(string(body))
 }
 
 func (a *App) currentMode(cfg config.Config) (string, string) {

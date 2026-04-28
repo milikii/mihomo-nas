@@ -219,6 +219,15 @@ func ScanURIRows(text string) []ScanRow {
 	return rows
 }
 
+func HasSupportedSubscriptionURI(text string) bool {
+	for _, row := range ScanURIRows(text) {
+		if row.Supported == "1" {
+			return true
+		}
+	}
+	return false
+}
+
 func ScanURIRow(uri string) ScanRow {
 	info, err := parseURIInfo(uri)
 	scheme := uriScheme(uri)

@@ -412,6 +412,21 @@ func TestHasReadyProvidersTreatsEnabledManualNodeAsReadyAndIgnoresEmptyCache(t *
 	}
 }
 
+func TestHasReadyProvidersIgnoresUnsupportedSubscriptionCache(t *testing.T) {
+	app, _ := newTestApp(t)
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{ID: "unsupported-sub", Enabled: true}}
+	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(app.Paths.SubscriptionFile("unsupported-sub"), []byte("ssh://unsupported.example.com\n"), 0o640); err != nil {
+		t.Fatalf("write unsupported subscription cache: %v", err)
+	}
+	if app.hasReadyProviders(st) {
+		t.Fatalf("expected unsupported subscription cache to be ignored")
+	}
+}
+
 func TestRemoveCommandsRejectOutOfRangeIndexes(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.RemoveNode(1); err == nil || !strings.Contains(err.Error(), "node index out of range") {

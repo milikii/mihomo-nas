@@ -198,6 +198,18 @@ func TestDecodeSubscriptionLinesReturnsNilForBlankInput(t *testing.T) {
 	}
 }
 
+func TestHasSupportedSubscriptionURI(t *testing.T) {
+	if !HasSupportedSubscriptionURI("trojan://password@example.org:443?security=tls#ready\n") {
+		t.Fatalf("expected supported uri cache to be ready")
+	}
+	if HasSupportedSubscriptionURI("ssh://unsupported.example.com\n") {
+		t.Fatalf("expected unsupported uri cache to be ignored")
+	}
+	if HasSupportedSubscriptionURI(" \n\t") {
+		t.Fatalf("expected blank cache to be ignored")
+	}
+}
+
 func TestAppendImportedNodesDeduplicatesByBaseKeyAndRenamesConflicts(t *testing.T) {
 	existing := []state.Node{{
 		ID:         "1",
