@@ -39,6 +39,7 @@
 - 2026-04-28 本次继续按质量硬化主线补了 `Setup` root guard、`Status` ensureAll 失败传播、`ImportLinks` / `RouterWizard` / `UpdateSubscriptions` 的真相写回失败路径，以及 `Menu -> nodes/network/rules/service/audit` 的主分发链路；全量 `go test ./...` 继续通过，`internal/app` 包覆盖率进一步提升到 97.1%。
 - 2026-04-28 本次继续连续十轮 focused hardening：补上 `nodesMenu -> TestNodes`、`subscriptions/network/service/audit` 的 invalid-choice retry、`rulesAndACLMenu -> List ACL`、`hasReadyProviders` 手动节点与空缓存边界、controller `mode` 缺失键分支、订阅更新的非法 URL 与缓存写入失败记录，以及 `ensureAll` 的 rules-repo 初始化失败传播；当前 `internal/app` 包覆盖率已提升到 97.8%，`subscriptionsMenu` / `networkMenu` / `serviceMenu` / `auditMenu` / `ensureAll` / `hasReadyProviders` 已到 100%。
 - 2026-04-28 本次新增 `core-upgrade-alpha` 内核升级闭环，已覆盖官方 alpha release 筛选、按发布时间选择、按当前架构匹配、amd64 CPU level 不猜测、下载解压、原子替换、重启失败保留备份，以及 CLI 分发与 usage 输出。
+- 2026-04-28 本次再连续十轮质量硬化：修复 `menu -> ImportLinks` / `networkMenu -> RouterWizard` 共享 stdin 缓冲读取、索引输入空回车误命中 `1`、`controllerRequest` 的 path/空白归一化、unsupported subscription cache 的 readiness 误判，以及 `core-upgrade-alpha` 的空 payload、stderr 版本回退与 GitHub release API 错误详情；新增 `internal/app` / `internal/runtime` / `internal/provider` focused tests 后，`internal/app` 当前覆盖率提升到 93.3%。
 
 ## 本机真实验证结论
 
@@ -60,6 +61,7 @@
 - 2026-04-28 本次最新十轮 focused tests 完成后再次复验：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./internal/app -coverprofile=/tmp/minimalist-app.cover` 与 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过；`internal/app` 当前覆盖率为 97.8%。
 - 2026-04-28 `core-upgrade-alpha` 闭环复验：CLI focused test、alpha core focused app test、全量 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...` 与 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过。
 - 2026-04-28 本轮连续十个最小闭环继续收口 `internal/app` 与 `core-upgrade-alpha`：补上 `controllerRuntimeSummary` / `controllerConfigMode` 的 HTTP 失败判定、`testNodeDelay` 的缺失/负值 delay 保护、`restartMinimalistServiceAfterCoreUpgrade` 的 active 状态校验、`releaseIsNewer` 的自然排序，以及 nodes / subscriptions / network / rules 菜单索引校验；当前 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...` 与 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 已通过，`internal/app` 当前覆盖率为 93.2%。
+- 2026-04-28 本次最新十轮硬化后的复验：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./internal/app -coverprofile=/tmp/minimalist-app.cover`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过；`internal/app` 当前覆盖率为 93.3%。
 
 ## 当前风险与限制
 
