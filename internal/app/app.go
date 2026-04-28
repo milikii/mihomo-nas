@@ -1331,17 +1331,29 @@ func (a *App) nodesMenu(reader *bufio.Reader) error {
 		case "3":
 			return a.TestNodes()
 		case "4":
-			index, _ := strconv.Atoi(promptString(reader, a.Stdout, "节点 ID", "1"))
+			index, err := promptIndex(reader, a.Stdout, "节点 ID")
+			if err != nil {
+				return err
+			}
 			name := promptString(reader, a.Stdout, "新名称", "")
 			return a.RenameNode(index, name)
 		case "5":
-			index, _ := strconv.Atoi(promptString(reader, a.Stdout, "节点 ID", "1"))
+			index, err := promptIndex(reader, a.Stdout, "节点 ID")
+			if err != nil {
+				return err
+			}
 			return a.SetNodeEnabled(index, true)
 		case "6":
-			index, _ := strconv.Atoi(promptString(reader, a.Stdout, "节点 ID", "1"))
+			index, err := promptIndex(reader, a.Stdout, "节点 ID")
+			if err != nil {
+				return err
+			}
 			return a.SetNodeEnabled(index, false)
 		case "7":
-			index, _ := strconv.Atoi(promptString(reader, a.Stdout, "节点 ID", "1"))
+			index, err := promptIndex(reader, a.Stdout, "节点 ID")
+			if err != nil {
+				return err
+			}
 			return a.RemoveNode(index)
 		case "0":
 			return nil
@@ -1618,6 +1630,15 @@ func promptString(reader *bufio.Reader, out io.Writer, label, current string) st
 		return current
 	}
 	return line
+}
+
+func promptIndex(reader *bufio.Reader, out io.Writer, label string) (int, error) {
+	value := promptString(reader, out, label, "1")
+	index, err := strconv.Atoi(value)
+	if err != nil || index <= 0 {
+		return 0, fmt.Errorf("invalid %s: %q", label, value)
+	}
+	return index, nil
 }
 
 func promptBool(reader *bufio.Reader, out io.Writer, label string, current bool) bool {

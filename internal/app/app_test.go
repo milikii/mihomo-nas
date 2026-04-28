@@ -2152,6 +2152,15 @@ func TestNodesMenuReturnsMutationErrors(t *testing.T) {
 	}
 }
 
+func TestNodesMenuRejectsInvalidNodeID(t *testing.T) {
+	app, _ := newTestApp(t)
+	reader := bufio.NewReader(strings.NewReader("5\nabc\n"))
+	err := app.nodesMenu(reader)
+	if err == nil || !strings.Contains(err.Error(), "invalid 节点 ID") {
+		t.Fatalf("expected invalid node id error, got %v", err)
+	}
+}
+
 func TestNodesMenuDispatchesListNodes(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#listed-node\n")
