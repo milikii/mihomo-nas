@@ -4885,6 +4885,26 @@ func TestRouterWizardPersistsUpdatedConfig(t *testing.T) {
 	}
 }
 
+func TestRouterWizardReturnsConfigSaveError(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = &readerWithAfter{
+		data: strings.Repeat("\n", 14),
+		after: func() {
+			if err := os.Remove(app.Paths.ConfigPath()); err != nil {
+				t.Fatalf("remove config file: %v", err)
+			}
+			if err := os.MkdirAll(app.Paths.ConfigPath(), 0o755); err != nil {
+				t.Fatalf("mkdir blocking config path: %v", err)
+			}
+		},
+	}
+
+	err := app.RouterWizard()
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected config save error, got %v", err)
+	}
+}
+
 func TestRenderConfigIncludesSubscriptionProviderAfterUpdate(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Client = &http.Client{
