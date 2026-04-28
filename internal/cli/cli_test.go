@@ -14,6 +14,7 @@ import (
 	"minimalist/internal/config"
 	"minimalist/internal/rulesrepo"
 	"minimalist/internal/runtime"
+	"minimalist/internal/state"
 	"minimalist/internal/system"
 )
 
@@ -502,6 +503,35 @@ func TestRunSubscriptionsAddDisableAndRemove(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "" {
 		t.Fatalf("expected empty subscription list, got:\n%s", stdout.String())
+	}
+}
+
+func TestRunSubscriptionsUpdateRefreshesEnabledEntries(t *testing.T) {
+	a, _ := newCLIApp(t)
+	if err := runSubscriptions(a, []string{"add", "cli-update", "https://subscription.example.com/cli-update.txt"}); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	a.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.String() != "https://subscription.example.com/cli-update.txt" {
+				t.Fatalf("unexpected subscription fetch: %s", req.URL.String())
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader("trojan://password@example.org:443?security=tls#cli-sub-node\n")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+	if err := runSubscriptions(a, []string{"update"}); err != nil {
+		t.Fatalf("update subscriptions: %v", err)
+	}
+	st, err := state.Load(a.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if st.Subscriptions[0].Enumeration.LastCount != 1 || len(st.Nodes) != 1 || st.Nodes[0].Name != "cli-sub-node" {
+		t.Fatalf("unexpected subscription update state: %+v", st)
 	}
 }
 
