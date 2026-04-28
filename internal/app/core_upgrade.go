@@ -1,8 +1,13 @@
 package app
 
 import (
+	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -170,4 +175,61 @@ func releaseIsNewer(left, right githubRelease) bool {
 		return left.TagName > right.TagName
 	}
 	return left.Name > right.Name
+}
+
+func (a *App) downloadReleaseAsset(asset githubReleaseAsset) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, asset.BrowserDownloadURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := a.httpClient().Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("http %d", resp.StatusCode)
+	}
+	if !strings.HasSuffix(strings.ToLower(asset.Name), ".gz") {
+		return "", fmt.Errorf("unsupported asset format: %s", asset.Name)
+	}
+
+	tmpParent := filepath.Dir(a.Paths.BinPath)
+	if err := os.MkdirAll(tmpParent, 0o755); err != nil {
+		return "", err
+	}
+	tmpDir, err := os.MkdirTemp(tmpParent, ".mihomo-core-*")
+	if err != nil {
+		return "", err
+	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = os.RemoveAll(tmpDir)
+		}
+	}()
+
+	zr, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	defer zr.Close()
+	body, err := io.ReadAll(zr)
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(tmpDir, "mihomo-core")
+	if err := os.WriteFile(candidate, body, 0o755); err != nil {
+		return "", err
+	}
+	complete = true
+	return candidate, nil
+}
+
+func (a *App) readBinaryVersion(path string) (string, error) {
+	stdout, _, err := a.Runner.Output(path, "-v")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(stdout), nil
 }

@@ -1,6 +1,11 @@
 package app
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -192,6 +197,110 @@ func TestSelectLatestAlphaAssetRejectsUnsupportedArch(t *testing.T) {
 	_, _, err := selectLatestAlphaAsset(releases, "linux", "mips64")
 	if err == nil || !strings.Contains(err.Error(), "unsupported linux arch") {
 		t.Fatalf("expected unsupported arch error, got %v", err)
+	}
+}
+
+func TestDownloadReleaseAssetWritesExecutableCandidate(t *testing.T) {
+	app, _ := newTestApp(t)
+	var requested string
+	payload := []byte("#!/bin/sh\nexit 0\n")
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requested = req.URL.String()
+			var body bytes.Buffer
+			zw := gzip.NewWriter(&body)
+			if _, err := zw.Write(payload); err != nil {
+				t.Fatalf("gzip write: %v", err)
+			}
+			if err := zw.Close(); err != nil {
+				t.Fatalf("gzip close: %v", err)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(body.Bytes())),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	candidate, err := app.downloadReleaseAsset(githubReleaseAsset{
+		Name:               "mihomo-linux-amd64-v1.19.23.gz",
+		BrowserDownloadURL: "https://example.com/mihomo.gz",
+	})
+	if err != nil {
+		t.Fatalf("download release asset: %v", err)
+	}
+	if requested != "https://example.com/mihomo.gz" {
+		t.Fatalf("unexpected asset url: %s", requested)
+	}
+	body, err := os.ReadFile(candidate)
+	if err != nil {
+		t.Fatalf("read candidate: %v", err)
+	}
+	if !bytes.Equal(body, payload) {
+		t.Fatalf("expected ungzipped payload %q, got %q", payload, body)
+	}
+	info, err := os.Stat(candidate)
+	if err != nil {
+		t.Fatalf("stat candidate: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatalf("expected non-empty candidate")
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Fatalf("expected candidate to be executable, mode=%v", info.Mode())
+	}
+}
+
+func TestReadBinaryVersionUsesCandidatePath(t *testing.T) {
+	app, _ := newTestApp(t)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		outputFn: func(name string, args ...string) (string, string, error) {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			return "Mihomo Meta alpha-c59c99a\n", "", nil
+		},
+	}
+
+	version, err := app.readBinaryVersion("/tmp/mihomo-core")
+	if err != nil {
+		t.Fatalf("read binary version: %v", err)
+	}
+	if version != "Mihomo Meta alpha-c59c99a" {
+		t.Fatalf("unexpected version: %q", version)
+	}
+	if !hasRecordedCall(calls, "/tmp/mihomo-core", "-v") {
+		t.Fatalf("expected version command call, got %#v", calls)
+	}
+}
+
+func TestDownloadReleaseAssetRejectsHTTPFailures(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		want   string
+	}{
+		{name: "client error", status: http.StatusNotFound, want: "http 404"},
+		{name: "server error", status: http.StatusBadGateway, want: "http 502"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app, _ := newTestApp(t)
+			app.Client = &http.Client{
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					return textResponse(tc.status, http.StatusText(tc.status)), nil
+				}),
+			}
+
+			_, err := app.downloadReleaseAsset(githubReleaseAsset{
+				Name:               "mihomo-linux-amd64-v1.19.23.gz",
+				BrowserDownloadURL: "https://example.com/mihomo.gz",
+			})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %s failure, got %v", tc.want, err)
+			}
+		})
 	}
 }
 
