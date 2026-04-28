@@ -1803,6 +1803,23 @@ func TestAuditMenuDispatchesCutoverChecks(t *testing.T) {
 	}
 }
 
+func TestAuditMenuRetriesAfterInvalidChoice(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.auditMenu(bufio.NewReader(strings.NewReader("x\n3\n"))); err != nil {
+		t.Fatalf("audit menu retry preflight: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	for _, needle := range []string{
+		"无效选择",
+		"3) Cutover 检查",
+		"cutover-preflight:",
+	} {
+		if !strings.Contains(output, needle) {
+			t.Fatalf("missing %q in audit menu output:\n%s", needle, output)
+		}
+	}
+}
+
 func TestAuditMenuDispatchesHealthcheck(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Client = &http.Client{
