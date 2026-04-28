@@ -1752,6 +1752,27 @@ func TestActiveProvidersIgnoresDisabledAndEmptySubscriptionCaches(t *testing.T) 
 	}
 }
 
+func TestActiveProvidersIgnoresUnsupportedSubscriptionCaches(t *testing.T) {
+	paths := Paths{RuntimeDir: t.TempDir()}
+	if err := os.MkdirAll(paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("sub-unsupported"), []byte("ssh://unsupported.example.com\n"), 0o640); err != nil {
+		t.Fatalf("write unsupported subscription cache: %v", err)
+	}
+
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{ID: "sub-unsupported", Enabled: true}}
+
+	names, subs, manualCount := activeProviders(paths, st)
+	if manualCount != 0 {
+		t.Fatalf("expected no active manual provider, got %d", manualCount)
+	}
+	if len(names) != 0 || len(subs) != 0 {
+		t.Fatalf("expected unsupported subscription cache to be ignored, got names=%#v subs=%#v", names, subs)
+	}
+}
+
 func TestGetenvFallsBackOnEmptyValue(t *testing.T) {
 	t.Setenv("MINIMALIST_TEST_ENV", "")
 	if got := getenv("MINIMALIST_TEST_ENV", "fallback"); got != "fallback" {

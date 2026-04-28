@@ -274,7 +274,8 @@ func activeProviders(paths Paths, st state.State) ([]string, []string, int) {
 		if !sub.Enabled {
 			continue
 		}
-		if info, err := os.Stat(paths.SubscriptionFile(sub.ID)); err == nil && info.Size() > 0 {
+		body, err := os.ReadFile(paths.SubscriptionFile(sub.ID))
+		if err == nil && provider.HasSupportedSubscriptionURI(string(body)) {
 			subs = append(subs, sub.ID)
 			names = append(names, paths.SubscriptionProviderName(sub.ID))
 		}
