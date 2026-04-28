@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"minimalist/internal/config"
 	"minimalist/internal/rulesrepo"
@@ -1303,6 +1304,33 @@ func TestUpdateSubscriptionsSkipsDisabledSubscriptions(t *testing.T) {
 	}
 	if _, err := os.Stat(app.Paths.SubscriptionFile(st.Subscriptions[0].ID)); !os.IsNotExist(err) {
 		t.Fatalf("disabled subscription should not create cache file, stat err=%v", err)
+	}
+}
+
+func TestUpdateSubscriptionsWithOnlyDisabledSubscriptionsDoesNotRewriteState(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.AddSubscription("disabled-sub", "https://subscription.example.com/disabled-only.txt", false); err != nil {
+		t.Fatalf("add disabled subscription: %v", err)
+	}
+	oldTime := time.Unix(1, 0)
+	if err := os.Chtimes(app.Paths.StatePath(), oldTime, oldTime); err != nil {
+		t.Fatalf("set state modtime: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			t.Fatalf("disabled subscription should not be fetched: %s", req.URL.String())
+			return nil, nil
+		}),
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions: %v", err)
+	}
+	info, err := os.Stat(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("stat state: %v", err)
+	}
+	if !info.ModTime().Equal(oldTime) {
+		t.Fatalf("expected state file modtime to remain unchanged, got %v", info.ModTime())
 	}
 }
 
@@ -5402,6 +5430,66 @@ func TestApplyRulesProgramsBypassAndDNSOutputRules(t *testing.T) {
 	}
 }
 
+func TestApplyRulesIgnoresBlankBypassEntries(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	cfg, err := config.Ensure(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	cfg.Network.ProxyHostOutput = true
+	cfg.Network.Bypass.DstCIDRs = []string{"", "8.8.8.0/24"}
+	cfg.Network.Bypass.SrcCIDRs = []string{"", "192.168.50.0/24"}
+	cfg.Network.Bypass.UIDs = []string{"", "1000"}
+	if err := config.Save(app.Paths.ConfigPath(), cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "systemctl" && len(args) >= 2 && (args[0] == "is-active" || args[0] == "is-enabled") {
+				return errors.New("inactive")
+			}
+			if name == "iptables" {
+				for _, arg := range args {
+					if arg == "-C" || arg == "-S" {
+						return errors.New("missing")
+					}
+					if arg == "" {
+						return errors.New("blank iptables arg")
+					}
+				}
+			}
+			if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+				return errors.New("missing")
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+	if err := app.ApplyRules(); err != nil {
+		t.Fatalf("apply rules: %v", err)
+	}
+	for _, expect := range []struct {
+		name string
+		args []string
+	}{
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-A", "MIHOMO_PRE_HANDLE", "-d", "8.8.8.0/24", "-j", "RETURN"}},
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-A", "MIHOMO_PRE_HANDLE", "-s", "192.168.50.0/24", "-j", "RETURN"}},
+		{"iptables", []string{"-w", "5", "-t", "mangle", "-A", "MIHOMO_OUT", "-m", "owner", "--uid-owner", "1000", "-j", "RETURN"}},
+	} {
+		if !hasRecordedCall(calls, expect.name, expect.args...) {
+			t.Fatalf("missing apply call %s %#v in %#v", expect.name, expect.args, calls)
+		}
+	}
+}
+
 func TestApplyRulesProgramsDNSHijackForUDPAndTCP(t *testing.T) {
 	app := newTestAppWithEnabledManualNode(t)
 	oldGeteuid := geteuid
@@ -5908,6 +5996,40 @@ func TestUpdateSubscriptionsWritesCacheAndNodes(t *testing.T) {
 	}
 	if !strings.Contains(string(cacheBody), "trojan://password@example.org:443?security=tls#sub-node") {
 		t.Fatalf("unexpected provider cache:\n%s", string(cacheBody))
+	}
+}
+
+func TestUpdateSubscriptionsCountsUnsupportedRowsButOnlyImportsSupportedNodes(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.AddSubscription("mixed-sub", "https://subscription.example.com/mixed.txt", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body := strings.Join([]string{
+				"trojan://password@example.org:443?security=tls#supported-node",
+				"socks5://proxy.example.com:1080#unsupported-node",
+			}, "\n") + "\n"
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	sub := st.Subscriptions[0]
+	if sub.Enumeration.LastCount != 1 || sub.Cache.LastSuccessAt == "" || sub.Cache.LastError != "" {
+		t.Fatalf("unexpected subscription state after mixed update: %+v", sub)
+	}
+	if len(st.Nodes) != 1 || st.Nodes[0].Name != "supported-node" || st.Nodes[0].Source.Kind != "subscription" {
+		t.Fatalf("expected only supported subscription node, got %+v", st.Nodes)
 	}
 }
 
