@@ -605,6 +605,28 @@ func TestTestNodesReportsDelayForEnabledNodes(t *testing.T) {
 	}
 }
 
+func TestTestNodesReportsControllerErrorsPerNode(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#error-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusBadGateway, `{"error":"bad gateway"}`), nil
+		}),
+	}
+	if err := app.TestNodes(); err != nil {
+		t.Fatalf("test nodes: %v", err)
+	}
+	if output := app.Stdout.(*bytes.Buffer).String(); !strings.Contains(output, "error-node\tERROR\thttp 502") {
+		t.Fatalf("unexpected controller error output:\n%s", output)
+	}
+}
+
 func TestRemoveNodeRejectsReferencedManualNode(t *testing.T) {
 	for _, tc := range []struct {
 		name string
