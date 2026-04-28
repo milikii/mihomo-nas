@@ -12,6 +12,18 @@ import (
 	"minimalist/internal/state"
 )
 
+func assertOrderedSubstrings(t *testing.T, text string, needles []string) {
+	t.Helper()
+	offset := 0
+	for _, needle := range needles {
+		idx := strings.Index(text[offset:], needle)
+		if idx < 0 {
+			t.Fatalf("missing ordered snippet %q in:\n%s", needle, text)
+		}
+		offset += idx + len(needle)
+	}
+}
+
 func TestEnsureLayoutCreatesAllExpectedDirectories(t *testing.T) {
 	root := t.TempDir()
 	paths := Paths{
@@ -682,6 +694,45 @@ func TestBuildRuntimeConfigIncludesDNSDefaults(t *testing.T) {
 		"  direct-nameserver-follow-policy: true",
 		`    - "*.lan"`,
 		`    - "connectivitycheck.gstatic.com"`,
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
+func TestBuildRuntimeConfigLocksMatureDNSBaselineContract(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+
+	assertOrderedSubstrings(t, text, []string{
+		"dns:\n",
+		"  enable: true\n  listen: 0.0.0.0:1053\n",
+		"  use-hosts: true\n  use-system-hosts: true\n  cache-algorithm: arc\n  respect-rules: false\n  prefer-h3: false\n",
+		"  enhanced-mode: fake-ip\n  fake-ip-range: 198.18.0.1/16\n  fake-ip-filter-mode: blacklist\n",
+		"  default-nameserver:\n    - 223.5.5.5\n    - 119.29.29.29\n",
+		"  nameserver-policy:\n",
+		"  nameserver:\n    - https://cloudflare-dns.com/dns-query#RULES\n    - https://dns.google/dns-query#RULES\n",
+		"  fallback: []\n  fallback-filter:\n    geoip: false\n",
+		"  direct-nameserver:\n    - https://dns.alidns.com/dns-query\n    - https://doh.pub/dns-query\n",
+		"  direct-nameserver-follow-policy: true\n  proxy-server-nameserver:\n    - 223.5.5.5\n    - 119.29.29.29\n",
+	})
+
+	for _, needle := range []string{
+		`    - "*.lan"`,
+		`    - "*.local"`,
+		`    - "+.arpa"`,
+		`    - "+.stun.*.*"`,
+		`    "geosite:private,cn":`,
+		`    "+.arpa":`,
 	} {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in runtime config:\n%s", needle, text)

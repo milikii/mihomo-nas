@@ -4,9 +4,26 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestDefaultUsesPR2SafeNetworkPosture(t *testing.T) {
+	cfg := Default()
+	if !cfg.Network.DNSHijackEnabled {
+		t.Fatalf("expected dns hijack enabled by default")
+	}
+	if cfg.Network.ProxyHostOutput {
+		t.Fatalf("expected proxy host output disabled by default")
+	}
+	if !reflect.DeepEqual(cfg.Network.ProxyIngressInterfaces, []string{"bridge1"}) {
+		t.Fatalf("unexpected proxy ingress interfaces: %#v", cfg.Network.ProxyIngressInterfaces)
+	}
+	if !reflect.DeepEqual(cfg.Network.DNSHijackInterfaces, []string{"bridge1"}) {
+		t.Fatalf("unexpected dns hijack interfaces: %#v", cfg.Network.DNSHijackInterfaces)
+	}
+}
 
 func TestEnsureAndLoadRoundTrip(t *testing.T) {
 	dir := t.TempDir()
