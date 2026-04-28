@@ -81,6 +81,9 @@ func LoadManifest(path string) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	if strings.TrimSpace(string(raw)) == "" {
+		return Manifest{}, fmt.Errorf("empty manifest: %s", path)
+	}
 	var m Manifest
 	if err := yaml.Unmarshal(raw, &m); err != nil {
 		return Manifest{}, fmt.Errorf("parse manifest: %w", err)

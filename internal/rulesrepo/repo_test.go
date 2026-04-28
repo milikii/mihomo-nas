@@ -65,6 +65,17 @@ func TestLoadManifestAndReadEntriesValidateInputs(t *testing.T) {
 	}
 }
 
+func TestLoadManifestTreatsWhitespaceOnlyFileAsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "manifest.yaml")
+	if err := os.WriteFile(manifest, []byte(" \n\t"), 0o640); err != nil {
+		t.Fatalf("write whitespace manifest: %v", err)
+	}
+	if _, err := LoadManifest(manifest); err == nil || !strings.Contains(err.Error(), "empty manifest") {
+		t.Fatalf("expected empty manifest error, got %v", err)
+	}
+}
+
 func TestCopyTreeAndRenderRejectUnsupportedManifestEntries(t *testing.T) {
 	dir := t.TempDir()
 	if err := copyTree("assets/missing", filepath.Join(dir, "dst")); err == nil {
