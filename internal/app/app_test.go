@@ -46,6 +46,14 @@ func (e errorReadCloser) Close() error {
 	return nil
 }
 
+type errorReader struct {
+	err error
+}
+
+func (e errorReader) Read([]byte) (int, error) {
+	return 0, e.err
+}
+
 func textResponse(status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
@@ -146,6 +154,51 @@ func TestInstallSelfFailsWhenRulesRepoParentIsFile(t *testing.T) {
 	err := app.InstallSelf()
 	if err == nil || (!strings.Contains(err.Error(), "not a directory") && !strings.Contains(err.Error(), "file exists")) {
 		t.Fatalf("expected rules repo init failure, got %v", err)
+	}
+}
+
+func TestInstallSelfSurfacesBlockedPathTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		block func(app *App) error
+		want  string
+	}{
+		{
+			name: "config-file-directory",
+			block: func(app *App) error {
+				return os.MkdirAll(app.Paths.ConfigPath(), 0o755)
+			},
+			want: "is a directory",
+		},
+		{
+			name: "state-file-directory",
+			block: func(app *App) error {
+				return os.MkdirAll(app.Paths.StatePath(), 0o755)
+			},
+			want: "is a directory",
+		},
+		{
+			name: "rules-repo-manifest-directory",
+			block: func(app *App) error {
+				return os.MkdirAll(app.Paths.RulesRepoPath(), 0o755)
+			},
+			want: "manifest path is directory",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, _ := newTestApp(t)
+			oldGeteuid := geteuid
+			geteuid = func() int { return 0 }
+			defer func() { geteuid = oldGeteuid }()
+
+			if err := tc.block(app); err != nil {
+				t.Fatalf("prepare blocked path: %v", err)
+			}
+			err := app.InstallSelf()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected install self error %q, got %v", tc.want, err)
+			}
+		})
 	}
 }
 
@@ -322,8 +375,12 @@ func TestRemoveCommandsRejectOutOfRangeIndexes(t *testing.T) {
 	}
 }
 
-func TestReadOnlyCommandsReturnEnsureAllErrors(t *testing.T) {
+func TestCommandsReturnEnsureAllErrors(t *testing.T) {
 	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
 	if err := os.WriteFile(app.Paths.ConfigDir, []byte("blocked"), 0o640); err != nil {
 		t.Fatalf("write blocking config dir: %v", err)
 	}
@@ -337,6 +394,34 @@ func TestReadOnlyCommandsReturnEnsureAllErrors(t *testing.T) {
 		{"list-subscriptions", app.ListSubscriptions},
 		{"show-secret", app.ShowSecret},
 		{"healthcheck", app.Healthcheck},
+		{"render-config", app.RenderConfig},
+		{"import-links", app.ImportLinks},
+		{"router-wizard", app.RouterWizard},
+		{"runtime-audit", app.RuntimeAudit},
+		{"test-nodes", app.TestNodes},
+		{"setup", app.Setup},
+		{"start", app.Start},
+		{"restart", app.Restart},
+		{"apply-rules", app.ApplyRules},
+		{"rules-repo-summary", app.RulesRepoSummary},
+		{"rules-repo-entries", func() error { return app.RulesRepoEntries("pt", "") }},
+		{"rules-repo-find", func() error { return app.RulesRepoFind("codex") }},
+		{"rules-repo-add", func() error { return app.RulesRepoAdd("pt", "codex.example.com") }},
+		{"rules-repo-remove", func() error { return app.RulesRepoRemove("pt", "codex.example.com") }},
+		{"rules-repo-remove-index", func() error { return app.RulesRepoRemoveIndex("pt", 1) }},
+		{"nodes-list", app.ListNodes},
+		{"nodes-rename", func() error { return app.RenameNode(1, "blocked") }},
+		{"nodes-enable", func() error { return app.SetNodeEnabled(1, true) }},
+		{"nodes-remove", func() error { return app.RemoveNode(1) }},
+		{"rules-list", func() error { return app.ListRules(false) }},
+		{"rules-add", func() error { return app.AddRule(false, "domain", "example.com", "DIRECT") }},
+		{"rules-remove", func() error { return app.RemoveRule(false, 1) }},
+		{"subscriptions-add", func() error {
+			return app.AddSubscription("blocked", "https://subscription.example.com/blocked.txt", true)
+		}},
+		{"subscriptions-toggle", func() error { return app.SetSubscriptionEnabled(1, true) }},
+		{"subscriptions-remove", func() error { return app.RemoveSubscription(1) }},
+		{"subscriptions-update", app.UpdateSubscriptions},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1055,6 +1140,42 @@ func TestImportLinksReportsUnsupportedOnlyAndMixedSkippedInputs(t *testing.T) {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in import output:\n%s", needle, output)
 		}
+	}
+}
+
+func TestImportLinksSurfacesReaderError(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = errorReader{err: errors.New("stdin read failed")}
+	err := app.ImportLinks()
+	if err == nil || !strings.Contains(err.Error(), "stdin read failed") {
+		t.Fatalf("expected reader error, got %v", err)
+	}
+}
+
+func TestRenderConfigRejectsInvalidRuleTargets(t *testing.T) {
+	app, _ := newTestApp(t)
+	cfg, err := config.Ensure(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("ensure config: %v", err)
+	}
+	st := state.Empty()
+	st.Nodes = []state.Node{{
+		ID:         "node-1",
+		Name:       "manual-node",
+		Enabled:    true,
+		URI:        "trojan://password@example.org:443#manual-node",
+		ImportedAt: state.NowISO(),
+		Source:     state.Source{Kind: "manual"},
+	}}
+	st.Rules = []state.Rule{{ID: "rule-1", Kind: "domain", Pattern: "example.com", Target: "ghost"}}
+	if err := state.Save(app.Paths.StatePath(), st); err != nil {
+		t.Fatalf("save invalid state: %v", err)
+	}
+	if err := app.RenderConfig(); err == nil || !strings.Contains(err.Error(), "无效规则目标: ghost") {
+		t.Fatalf("expected invalid rule target error, got %v", err)
+	}
+	if cfg.Controller.Secret == "" {
+		t.Fatalf("expected config secret to be initialized")
 	}
 }
 
@@ -5411,6 +5532,283 @@ func TestApplyRulesPropagatesOutputJumpFailure(t *testing.T) {
 	}
 	if strings.Contains(app.Stdout.(*bytes.Buffer).String(), "已应用路由规则") {
 		t.Fatalf("did not expect success output after OUTPUT jump failure:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
+func TestApplyRulesPropagatesChainCreationAndIngressFailures(t *testing.T) {
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	tests := []struct {
+		name   string
+		chain  string
+		fail   func([]string) bool
+		want   string
+		config func(*config.Config)
+	}{
+		{
+			name:  "pre-handle-chain",
+			chain: "MIHOMO_PRE_HANDLE",
+			want:  "create failed",
+		},
+		{
+			name:  "out-chain",
+			chain: "MIHOMO_OUT",
+			want:  "create failed",
+		},
+		{
+			name:  "dns-chain",
+			chain: "MIHOMO_DNS",
+			want:  "create failed",
+		},
+		{
+			name:  "dns-handle-chain",
+			chain: "MIHOMO_DNS_HANDLE",
+			want:  "create failed",
+		},
+		{
+			name: "ingress-jump",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_PRE", "-i", "bridge1", "-j", "MIHOMO_PRE_HANDLE")
+			},
+			want: "ingress jump failed",
+		},
+		{
+			name: "return-after-ingress",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_PRE", "-j", "RETURN")
+			},
+			want: "return append failed",
+		},
+		{
+			name: "tproxy-tcp",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_PRE_HANDLE", "-p", "tcp", "-j", "TPROXY")
+			},
+			want: "tproxy tcp failed",
+		},
+		{
+			name: "out-root-return",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_OUT", "-m", "owner", "--uid-owner", "root", "-j", "RETURN")
+			},
+			want: "root return failed",
+		},
+		{
+			name: "out-conntrack-return",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_OUT", "-m", "conntrack", "--ctdir", "REPLY", "-j", "RETURN")
+			},
+			want: "conntrack return failed",
+		},
+		{
+			name: "mark-tcp",
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_OUT", "-p", "tcp", "-j", "MARK", "--set-mark", "9011")
+			},
+			want: "mark tcp failed",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := newTestAppWithEnabledManualNode(t)
+			cfg, err := config.Ensure(app.Paths.ConfigPath())
+			if err != nil {
+				t.Fatalf("ensure config: %v", err)
+			}
+			if tc.config != nil {
+				tc.config(&cfg)
+				if err := config.Save(app.Paths.ConfigPath(), cfg); err != nil {
+					t.Fatalf("save config: %v", err)
+				}
+			}
+			app.Runner = fakeRunner{
+				runFn: func(name string, args ...string) error {
+					if name == "systemctl" && len(args) >= 2 && (args[0] == "is-active" || args[0] == "is-enabled") {
+						return errors.New("inactive")
+					}
+					if name == "iptables" && tc.fail != nil && tc.fail(args) {
+						return errors.New(tc.want)
+					}
+					if name == "iptables" && tc.chain != "" && hasArgSequence(args, "-S", tc.chain) {
+						return errors.New("missing")
+					}
+					if name == "iptables" && tc.chain != "" && hasArgSequence(args, "-N", tc.chain) {
+						return errors.New("create failed")
+					}
+					if name == "iptables" {
+						for _, arg := range args {
+							if arg == "-C" || arg == "-S" {
+								return errors.New("missing")
+							}
+						}
+					}
+					if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+						return errors.New("missing")
+					}
+					return nil
+				},
+			}
+			err = app.ApplyRules()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+		})
+	}
+}
+
+func TestApplyRulesPropagatesBypassAndDNSFailures(t *testing.T) {
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	tests := []struct {
+		name   string
+		fail   func([]string) bool
+		want   string
+		config func(*config.Config)
+	}{
+		{
+			name: "dst-cidr",
+			config: func(cfg *config.Config) {
+				cfg.Network.Bypass.DstCIDRs = []string{"8.8.8.0/24"}
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_PRE_HANDLE", "-d", "8.8.8.0/24", "-j", "RETURN")
+			},
+			want: "dst bypass failed",
+		},
+		{
+			name: "src-cidr",
+			config: func(cfg *config.Config) {
+				cfg.Network.Bypass.SrcCIDRs = []string{"192.168.50.0/24"}
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_PRE_HANDLE", "-s", "192.168.50.0/24", "-j", "RETURN")
+			},
+			want: "src bypass failed",
+		},
+		{
+			name: "container-bypass",
+			config: func(cfg *config.Config) {
+				cfg.Network.Bypass.ContainerNames = []string{"alpha"}
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_PRE_HANDLE", "-s", "172.18.0.2/32", "-j", "RETURN")
+			},
+			want: "container bypass failed",
+		},
+		{
+			name: "uid-bypass",
+			config: func(cfg *config.Config) {
+				cfg.Network.Bypass.UIDs = []string{"1000"}
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_OUT", "-m", "owner", "--uid-owner", "1000", "-j", "RETURN")
+			},
+			want: "uid bypass failed",
+		},
+		{
+			name: "dns-interface",
+			config: func(cfg *config.Config) {
+				cfg.Network.DNSHijackEnabled = true
+				cfg.Network.DNSHijackInterfaces = []string{"bridge1"}
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_DNS", "-i", "bridge1", "-j", "MIHOMO_DNS_HANDLE")
+			},
+			want: "dns interface failed",
+		},
+		{
+			name: "dns-return",
+			config: func(cfg *config.Config) {
+				cfg.Network.DNSHijackEnabled = true
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "MIHOMO_DNS", "-j", "RETURN")
+			},
+			want: "dns return failed",
+		},
+		{
+			name: "prerouting-jump",
+			config: func(cfg *config.Config) {
+				cfg.Network.DNSHijackEnabled = true
+			},
+			fail: func(args []string) bool {
+				return hasArgSequence(args, "-A", "PREROUTING", "-j", "MIHOMO_PRE")
+			},
+			want: "prerouting jump failed",
+		},
+		{
+			name: "delete-ip-rule",
+			fail: func(args []string) bool { return false },
+			want: "rule delete failed",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := newTestAppWithEnabledManualNode(t)
+			cfg, err := config.Ensure(app.Paths.ConfigPath())
+			if err != nil {
+				t.Fatalf("ensure config: %v", err)
+			}
+			if tc.config != nil {
+				tc.config(&cfg)
+				if err := config.Save(app.Paths.ConfigPath(), cfg); err != nil {
+					t.Fatalf("save config: %v", err)
+				}
+			}
+			app.Runner = fakeRunner{
+				runFn: func(name string, args ...string) error {
+					if name == "systemctl" && len(args) >= 2 && (args[0] == "is-active" || args[0] == "is-enabled") {
+						return errors.New("inactive")
+					}
+					if name == "iptables" && tc.fail != nil && tc.fail(args) {
+						return errors.New(tc.want)
+					}
+					if name == "iptables" {
+						for _, arg := range args {
+							if arg == "-C" || arg == "-S" {
+								return errors.New("missing")
+							}
+						}
+					}
+					if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "route" && args[2] == "replace" {
+						if tc.name == "delete-ip-rule" {
+							return nil
+						}
+						return errors.New("route replace failed")
+					}
+					if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "add" {
+						if tc.name == "delete-ip-rule" {
+							return nil
+						}
+						return errors.New("rule add failed")
+					}
+					if name == "ip" && len(args) >= 4 && args[0] == "-4" && args[1] == "rule" && args[2] == "del" {
+						if tc.name == "delete-ip-rule" {
+							return errors.New("rule delete failed")
+						}
+						return errors.New("missing")
+					}
+					return nil
+				},
+				outputFn: func(name string, args ...string) (string, string, error) {
+					if name == "docker" && len(args) >= 2 && args[1] == "alpha" {
+						return "172.18.0.2\n", "", nil
+					}
+					if name == "ip" && len(args) >= 3 && args[0] == "-4" && args[1] == "rule" && args[2] == "show" && tc.name == "delete-ip-rule" {
+						return "100: from all fwmark 0x2333 lookup 233\n", "", nil
+					}
+					return "", "", nil
+				},
+			}
+			err = app.ApplyRules()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q, got %v", tc.want, err)
+			}
+		})
 	}
 }
 
