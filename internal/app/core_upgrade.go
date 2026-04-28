@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 const mihomoReleasesAPI = "https://api.github.com/repos/MetaCubeX/mihomo/releases"
 
 type githubRelease struct {
-	TagName    string               `json:"tag_name"`
-	Name       string               `json:"name"`
-	Prerelease bool                 `json:"prerelease"`
-	Assets     []githubReleaseAsset `json:"assets"`
+	TagName     string               `json:"tag_name"`
+	Name        string               `json:"name"`
+	Prerelease  bool                 `json:"prerelease"`
+	PublishedAt time.Time            `json:"published_at"`
+	Assets      []githubReleaseAsset `json:"assets"`
 }
 
 type githubReleaseAsset struct {
@@ -44,25 +46,19 @@ func selectLatestAlphaAsset(releases []githubRelease, goos, goarch string) (gith
 	}
 
 	assetPrefix := "mihomo-linux-" + arch + "-"
-	for _, release := range releases {
-		if !release.Prerelease {
-			continue
-		}
-		label := strings.ToLower(release.TagName + " " + release.Name)
-		if !strings.Contains(label, "alpha") {
-			continue
-		}
-		asset, err := selectLinuxReleaseAsset(release.Assets, goarch, assetPrefix)
-		if err == nil {
-			return release, asset, nil
-		}
+	release, err := latestAlphaRelease(releases)
+	if err != nil {
+		return githubRelease{}, githubReleaseAsset{}, err
+	}
+
+	asset, err := selectLinuxReleaseAsset(release.Assets, goarch, assetPrefix)
+	if err != nil {
 		if errors.Is(err, errNoMatchingLinuxAsset) {
-			continue
+			return githubRelease{}, githubReleaseAsset{}, fmt.Errorf("latest alpha release %s has no matching asset for %s/%s", release.TagName, goos, goarch)
 		}
 		return githubRelease{}, githubReleaseAsset{}, fmt.Errorf("select asset for release %s: %w", release.TagName, err)
 	}
-
-	return githubRelease{}, githubReleaseAsset{}, fmt.Errorf("no matching alpha asset for %s/%s", goos, goarch)
+	return release, asset, nil
 }
 
 func selectLinuxReleaseAsset(assets []githubReleaseAsset, goarch, assetPrefix string) (githubReleaseAsset, error) {
@@ -122,4 +118,43 @@ func joinAssetNames(assets []githubReleaseAsset) string {
 	}
 	slices.Sort(names)
 	return strings.Join(names, ", ")
+}
+
+func latestAlphaRelease(releases []githubRelease) (githubRelease, error) {
+	var latest githubRelease
+	found := false
+	for _, release := range releases {
+		if !isAlphaPrerelease(release) {
+			continue
+		}
+		if !found || releaseIsNewer(release, latest) {
+			latest = release
+			found = true
+		}
+	}
+	if !found {
+		return githubRelease{}, fmt.Errorf("no alpha prerelease found")
+	}
+	return latest, nil
+}
+
+func isAlphaPrerelease(release githubRelease) bool {
+	if !release.Prerelease {
+		return false
+	}
+	label := strings.ToLower(release.TagName + " " + release.Name)
+	return strings.Contains(label, "alpha")
+}
+
+func releaseIsNewer(left, right githubRelease) bool {
+	if left.PublishedAt.After(right.PublishedAt) {
+		return true
+	}
+	if left.PublishedAt.Before(right.PublishedAt) {
+		return false
+	}
+	if left.TagName != right.TagName {
+		return left.TagName > right.TagName
+	}
+	return left.Name > right.Name
 }

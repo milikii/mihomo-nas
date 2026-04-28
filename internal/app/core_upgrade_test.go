@@ -3,32 +3,36 @@ package app
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSelectLatestAlphaAssetChoosesLatestMatchingAlphaRelease(t *testing.T) {
 	releases := []githubRelease{
 		{
-			TagName:    "v1.19.24-alpha-2",
-			Name:       "v1.19.24 alpha 2",
-			Prerelease: true,
-			Assets: []githubReleaseAsset{
-				{Name: "mihomo-linux-arm64-v1.19.24.gz", BrowserDownloadURL: "https://example.com/newest.gz"},
-			},
-		},
-		{
-			TagName:    "v1.19.23",
-			Name:       "v1.19.23",
-			Prerelease: false,
+			TagName:     "v1.19.23",
+			Name:        "v1.19.23",
+			Prerelease:  false,
+			PublishedAt: mustParseRFC3339(t, "2026-04-25T10:00:00Z"),
 			Assets: []githubReleaseAsset{
 				{Name: "mihomo-linux-arm64-v1.19.23.gz", BrowserDownloadURL: "https://example.com/stable.gz"},
 			},
 		},
 		{
-			TagName:    "v1.19.22-alpha-1",
-			Name:       "v1.19.22 alpha 1",
-			Prerelease: true,
+			TagName:     "v1.19.22-alpha-1",
+			Name:        "v1.19.22 alpha 1",
+			Prerelease:  true,
+			PublishedAt: mustParseRFC3339(t, "2026-04-22T10:00:00Z"),
 			Assets: []githubReleaseAsset{
 				{Name: "mihomo-linux-arm64-v1.19.22.gz", BrowserDownloadURL: "https://example.com/older.gz"},
+			},
+		},
+		{
+			TagName:     "v1.19.24-alpha-2",
+			Name:        "v1.19.24 alpha 2",
+			Prerelease:  true,
+			PublishedAt: mustParseRFC3339(t, "2026-04-24T10:00:00Z"),
+			Assets: []githubReleaseAsset{
+				{Name: "mihomo-linux-arm64-v1.19.24.gz", BrowserDownloadURL: "https://example.com/newest.gz"},
 			},
 		},
 	}
@@ -130,4 +134,13 @@ func TestSelectLatestAlphaAssetRejectsUnsupportedArch(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unsupported linux arch") {
 		t.Fatalf("expected unsupported arch error, got %v", err)
 	}
+}
+
+func mustParseRFC3339(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("parse time %q: %v", value, err)
+	}
+	return parsed
 }
