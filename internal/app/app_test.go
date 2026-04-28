@@ -1585,6 +1585,24 @@ func TestNodesMenuDispatchesListNodes(t *testing.T) {
 	}
 }
 
+func TestNodesMenuDispatchesImportLinks(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#imported-via-menu\n")
+	if err := app.nodesMenu(bufio.NewReader(strings.NewReader("2\n"))); err != nil {
+		t.Fatalf("nodes menu import: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Nodes) != 1 || st.Nodes[0].Name != "imported-via-menu" {
+		t.Fatalf("expected imported node from menu, got %+v", st.Nodes)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "2) 导入节点") {
+		t.Fatalf("expected nodes menu output:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestNodesMenuEnablesAndDisablesManualNode(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#toggle-node\n")
