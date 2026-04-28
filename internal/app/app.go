@@ -1137,6 +1137,9 @@ func (a *App) controllerRuntimeSummary(cfg config.Config) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("http %d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err

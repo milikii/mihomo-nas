@@ -4784,6 +4784,19 @@ func TestControllerRuntimeSummaryReturnsBodyReadError(t *testing.T) {
 	}
 }
 
+func TestControllerRuntimeSummaryRejectsHTTPFailure(t *testing.T) {
+	app, _ := newTestApp(t)
+	cfg := config.Default()
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusBadGateway, "bad gateway"), nil
+		}),
+	}
+	if _, err := app.controllerRuntimeSummary(cfg); err == nil || !strings.Contains(err.Error(), "http 502") {
+		t.Fatalf("expected http status error, got %v", err)
+	}
+}
+
 func TestControllerConfigModeFallsBackToLoopbackAndUsesSecret(t *testing.T) {
 	app, _ := newTestApp(t)
 	cfg, err := config.Ensure(app.Paths.ConfigPath())
