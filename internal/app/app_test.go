@@ -55,6 +55,26 @@ func (e errorReader) Read([]byte) (int, error) {
 	return 0, e.err
 }
 
+type readerWithAfter struct {
+	data   string
+	offset int
+	done   bool
+	after  func()
+}
+
+func (r *readerWithAfter) Read(p []byte) (int, error) {
+	if r.offset >= len(r.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data[r.offset:])
+	r.offset += n
+	if r.offset >= len(r.data) && !r.done && r.after != nil {
+		r.done = true
+		r.after()
+	}
+	return n, nil
+}
+
 func textResponse(status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
@@ -1150,6 +1170,26 @@ func TestImportLinksSurfacesReaderError(t *testing.T) {
 	err := app.ImportLinks()
 	if err == nil || !strings.Contains(err.Error(), "stdin read failed") {
 		t.Fatalf("expected reader error, got %v", err)
+	}
+}
+
+func TestImportLinksReturnsStateSaveError(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = &readerWithAfter{
+		data: "trojan://password@example.org:443?security=tls#import-save-error\n",
+		after: func() {
+			if err := os.Remove(app.Paths.StatePath()); err != nil {
+				t.Fatalf("remove state file: %v", err)
+			}
+			if err := os.MkdirAll(app.Paths.StatePath(), 0o755); err != nil {
+				t.Fatalf("mkdir blocking state path: %v", err)
+			}
+		},
+	}
+
+	err := app.ImportLinks()
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected state save error, got %v", err)
 	}
 }
 
