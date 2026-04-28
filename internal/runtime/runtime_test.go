@@ -303,6 +303,57 @@ func TestRenderFilesWritesDirectOnlyRuntimeConfigWithoutActiveProviders(t *testi
 	}
 }
 
+func TestRenderFilesIncludesOnlyReadySubscriptionProviders(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{
+		ConfigDir:   filepath.Join(root, "etc"),
+		DataDir:     filepath.Join(root, "var"),
+		RuntimeDir:  filepath.Join(root, "runtime"),
+		InstallDir:  filepath.Join(root, "install"),
+		BinPath:     filepath.Join(root, "bin", "minimalist"),
+		ServiceUnit: filepath.Join(root, "systemd", "minimalist.service"),
+		SysctlPath:  filepath.Join(root, "sysctl", "99-minimalist-router.conf"),
+	}
+	if err := rulesrepo.InitDefaultRepo(filepath.Dir(paths.RulesRepoPath())); err != nil {
+		t.Fatalf("init rules repo: %v", err)
+	}
+	if err := EnsureLayout(paths); err != nil {
+		t.Fatalf("ensure layout: %v", err)
+	}
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{
+		{ID: "ready-sub", Name: "ready", Enabled: true},
+		{ID: "empty-sub", Name: "empty", Enabled: true},
+		{ID: "disabled-sub", Name: "disabled", Enabled: false},
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("ready-sub"), []byte("trojan://password@example.org:443?security=tls#ready\n"), 0o640); err != nil {
+		t.Fatalf("write ready subscription cache: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("empty-sub"), nil, 0o640); err != nil {
+		t.Fatalf("write empty subscription cache: %v", err)
+	}
+	if err := os.WriteFile(paths.SubscriptionFile("disabled-sub"), []byte("trojan://password@example.org:443?security=tls#disabled\n"), 0o640); err != nil {
+		t.Fatalf("write disabled subscription cache: %v", err)
+	}
+	if err := RenderFiles(paths, config.Default(), st); err != nil {
+		t.Fatalf("render files: %v", err)
+	}
+	body, err := os.ReadFile(paths.RuntimeConfig())
+	if err != nil {
+		t.Fatalf("read runtime config: %v", err)
+	}
+	text := string(body)
+	if !strings.Contains(text, "subscription-ready:\n") {
+		t.Fatalf("expected ready subscription provider in runtime config:\n%s", text)
+	}
+	if strings.Contains(text, "subscription-empty:\n") || strings.Contains(text, "subscription-disabled:\n") {
+		t.Fatalf("did not expect empty or disabled subscription providers:\n%s", text)
+	}
+	if !strings.Contains(text, "./proxy_providers/subscriptions/ready-sub.txt") {
+		t.Fatalf("expected ready subscription path in runtime config:\n%s", text)
+	}
+}
+
 func TestRenderFilesReturnsErrorForInvalidRulesRepo(t *testing.T) {
 	root := t.TempDir()
 	paths := Paths{
