@@ -2231,6 +2231,18 @@ func TestDeleteIPRuleReturnsDeleteErrorWhenRuleIsPresent(t *testing.T) {
 	}
 }
 
+func TestSetupReturnsRootErrorWhenNotRoot(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 1000 }
+	defer func() { geteuid = oldGeteuid }()
+
+	err := app.Setup()
+	if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+		t.Fatalf("expected root error, got %v", err)
+	}
+}
+
 func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
