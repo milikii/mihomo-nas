@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestDefaultUsesPR2SafeNetworkPosture(t *testing.T) {
+func TestDefaultUsesSafeNetworkPosture(t *testing.T) {
 	cfg := Default()
 	if !cfg.Network.DNSHijackEnabled {
 		t.Fatalf("expected dns hijack enabled by default")

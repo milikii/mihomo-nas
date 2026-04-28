@@ -6516,12 +6516,21 @@ func TestApplyRulesDefaultConfigProgramsLANDNSHijackWithoutHostOutputJump(t *tes
 		{"iptables", []string{"-w", "5", "-t", "nat", "-A", "MIHOMO_DNS_HANDLE", "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "1053"}},
 		{"iptables", []string{"-w", "5", "-t", "nat", "-A", "PREROUTING", "-j", "MIHOMO_DNS"}},
 	} {
-		if !hasRecordedCall(calls, expect.name, expect.args...) {
+		matched := false
+		for _, call := range calls {
+			if call.name == expect.name && hasArgSequence(call.args, expect.args...) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
 			t.Fatalf("missing default dns contract call %s %#v in %#v", expect.name, expect.args, calls)
 		}
 	}
-	if hasRecordedCall(calls, "iptables", "-w", "5", "-t", "mangle", "-A", "OUTPUT", "-j", "MIHOMO_OUT") {
-		t.Fatalf("did not expect host OUTPUT jump under default config: %#v", calls)
+	for _, call := range calls {
+		if call.name == "iptables" && hasArgSequence(call.args, "-w", "5", "-t", "mangle", "-A", "OUTPUT", "-j", "MIHOMO_OUT") {
+			t.Fatalf("did not expect host OUTPUT jump under default config: %#v", calls)
+		}
 	}
 }
 
