@@ -85,10 +85,10 @@ ip route show table 233
 ### service restart smoke
 
 ```bash
-sudo /usr/local/bin/minimalist verify-runtime-assets
 sudo systemctl restart minimalist.service
 systemctl is-active minimalist.service
 systemctl is-enabled minimalist.service
+sudo /usr/local/bin/minimalist verify-runtime-assets
 sudo /usr/local/bin/minimalist healthcheck
 sudo /usr/local/bin/minimalist runtime-audit
 iptables -t mangle -S
