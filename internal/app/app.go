@@ -282,7 +282,7 @@ func (a *App) RuntimeAudit() error {
 	fmt.Fprintf(a.Stdout, "alerts-24h: warn=%d error=%d\n", warn24h, err24h)
 	fmt.Fprintf(a.Stdout, "alerts-recent: warn=%d error=%d\n", recentWarn, recentErr)
 	manualNodesEnabled := a.hasEnabledManualNodes(st)
-	fmt.Fprintf(a.Stdout, "manual-nodes-ready=%t\n", manualNodesEnabled)
+	fmt.Fprintf(a.Stdout, "enabled-manual-nodes=%t\n", manualNodesEnabled)
 	cutoverStatus := a.cutoverPreflightStatus()
 	a.printCutoverPreflightStatus(cutoverStatus)
 	fatalGaps := make([]string, 0, 2)

@@ -972,15 +972,19 @@ func uniqueName(existing []string, preferred string) string {
 	if preferred == "" {
 		preferred = "node"
 	}
-	if !slices.Contains(existing, preferred) {
+	if !slices.Contains(existing, preferred) && !isReservedProviderName(preferred) {
 		return preferred
 	}
 	for idx := 2; ; idx++ {
 		candidate := fmt.Sprintf("%s-%d", preferred, idx)
-		if !slices.Contains(existing, candidate) {
+		if !slices.Contains(existing, candidate) && !isReservedProviderName(candidate) {
 			return candidate
 		}
 	}
+}
+
+func isReservedProviderName(name string) bool {
+	return name == "DIRECT" || name == "PROXY" || name == "REJECT" || name == "AUTO"
 }
 
 func newProviderID() string {

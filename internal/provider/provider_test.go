@@ -279,6 +279,24 @@ func TestAppendImportedNodesSkipsUnsupportedRowsAndAutoNamesBlankNodes(t *testin
 	}
 }
 
+func TestAppendImportedNodesAvoidsReservedBuiltinNames(t *testing.T) {
+	rows := []ScanRow{{
+		URI:       "trojan://password@example.org:443?security=tls#reserved",
+		Name:      "DIRECT",
+		Supported: "1",
+	}}
+	nodes := AppendImportedNodes(nil, rows, "manual", "", true)
+	if len(nodes) != 1 {
+		t.Fatalf("expected one appended node, got %#v", nodes)
+	}
+	if nodes[0].Name == "DIRECT" || nodes[0].Name == "PROXY" || nodes[0].Name == "REJECT" || nodes[0].Name == "AUTO" {
+		t.Fatalf("expected reserved builtin name to be avoided, got %q", nodes[0].Name)
+	}
+	if nodes[0].Name != "DIRECT-2" {
+		t.Fatalf("expected reserved name to be rewritten predictably, got %q", nodes[0].Name)
+	}
+}
+
 func TestURIBaseKeyIgnoresVMessPSField(t *testing.T) {
 	makeVMess := func(name string) string {
 		payload, err := json.Marshal(map[string]any{

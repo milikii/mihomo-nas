@@ -3727,7 +3727,7 @@ func TestRuntimeAuditCountsAlertsAndReportsRuntimeSummary(t *testing.T) {
 		"服务状态: active=true enabled=true",
 		"alerts-24h: warn=1 error=1",
 		"alerts-recent: warn=1 error=1",
-		"manual-nodes-ready=false",
+		"enabled-manual-nodes=false",
 		"runtime: Mihomo Meta v1.0.1",
 		"fatal-gaps=0",
 	} {
@@ -3867,7 +3867,7 @@ func TestRuntimeAuditKeepsLocalSummaryWhenJournalctlFails(t *testing.T) {
 		"服务状态: active=true enabled=true",
 		"alerts-24h: warn=0 error=0",
 		"alerts-recent: warn=0 error=0",
-		"manual-nodes-ready=false",
+		"enabled-manual-nodes=false",
 		"cutover-preflight:",
 		"fatal-gaps=1",
 		"fatal-gap: controller-unreachable",
