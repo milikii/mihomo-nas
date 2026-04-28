@@ -98,7 +98,7 @@ func newCLIApp(t *testing.T) (*app.App, *bytes.Buffer) {
 	t.Helper()
 	root := t.TempDir()
 	stdout := &bytes.Buffer{}
-	return &app.App{
+	a := &app.App{
 		Paths: runtime.Paths{
 			ConfigDir:   filepath.Join(root, "etc"),
 			DataDir:     filepath.Join(root, "var"),
@@ -111,7 +111,22 @@ func newCLIApp(t *testing.T) (*app.App, *bytes.Buffer) {
 		Runner: system.CommandRunner(noopRunner{}),
 		Stdout: stdout,
 		Stderr: &bytes.Buffer{},
-	}, stdout
+	}
+	mustSeedCLIRuntimeAssets(t, a.Paths)
+	return a, stdout
+}
+
+func mustSeedCLIRuntimeAssets(t *testing.T, paths runtime.Paths) {
+	t.Helper()
+	if err := os.MkdirAll(paths.UIPath(), 0o755); err != nil {
+		t.Fatalf("mkdir runtime ui: %v", err)
+	}
+	if err := os.WriteFile(paths.CountryMMDBPath(), []byte("mmdb"), 0o640); err != nil {
+		t.Fatalf("write runtime mmdb: %v", err)
+	}
+	if err := os.WriteFile(paths.GeoSitePath(), []byte("geosite"), 0o640); err != nil {
+		t.Fatalf("write runtime geosite: %v", err)
+	}
 }
 
 func hasRecordedRunnerCall(calls []recordedCommand, name string, want ...string) bool {
@@ -168,6 +183,15 @@ func setCLIPathsEnv(t *testing.T) {
 	t.Setenv("MINIMALIST_BIN_PATH", filepath.Join(root, "bin", "minimalist"))
 	t.Setenv("MINIMALIST_SERVICE_UNIT", filepath.Join(root, "systemd", "minimalist.service"))
 	t.Setenv("MINIMALIST_SYSCTL_PATH", filepath.Join(root, "sysctl", "99-minimalist-router.conf"))
+	if err := os.MkdirAll(filepath.Join(root, "runtime", "ui"), 0o755); err != nil {
+		t.Fatalf("mkdir runtime ui: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "runtime", "Country.mmdb"), []byte("mmdb"), 0o640); err != nil {
+		t.Fatalf("write runtime mmdb: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "runtime", "GeoSite.dat"), []byte("geosite"), 0o640); err != nil {
+		t.Fatalf("write runtime geosite: %v", err)
+	}
 }
 
 func captureStdout(t *testing.T, fn func()) string {
@@ -765,6 +789,13 @@ func TestRunDispatchesHealthcheckThroughRun(t *testing.T) {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in healthcheck output:\n%s", needle, output)
 		}
+	}
+}
+
+func TestRunDispatchesVerifyRuntimeAssetsThroughRun(t *testing.T) {
+	setCLIPathsEnv(t)
+	if err := Run([]string{"verify-runtime-assets"}); err != nil {
+		t.Fatalf("run verify-runtime-assets: %v", err)
 	}
 }
 

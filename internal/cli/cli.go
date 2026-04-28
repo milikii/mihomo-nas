@@ -47,6 +47,8 @@ func runWithApp(args []string, a *app.App, tty bool) error {
 		return a.Healthcheck()
 	case "runtime-audit":
 		return a.RuntimeAudit()
+	case "verify-runtime-assets":
+		return a.VerifyRuntimeAssets()
 	case "cutover-preflight":
 		return a.CutoverPreflight()
 	case "cutover-plan":

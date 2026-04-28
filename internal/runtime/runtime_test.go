@@ -1264,6 +1264,7 @@ func TestBuildServiceUnitIncludesLifecycleCommands(t *testing.T) {
 	cfg := config.Default()
 	unit := BuildServiceUnit(paths, cfg)
 	for _, needle := range []string{
+		"ExecStartPre=+" + paths.BinPath + " verify-runtime-assets\n",
 		"ExecStartPre=+" + paths.BinPath + " apply-rules\n",
 		"ExecStart=" + cfg.Install.CoreBin + " -d " + paths.RuntimeDir + "\n",
 		"ExecReload=+" + paths.BinPath + " apply-rules\n",

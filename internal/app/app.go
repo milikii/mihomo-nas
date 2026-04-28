@@ -124,6 +124,9 @@ func (a *App) Setup() error {
 	if err := runtime.RenderFiles(a.Paths, cfg, st); err != nil {
 		return err
 	}
+	if err := a.ensureRuntimeAssetsReady(); err != nil {
+		return err
+	}
 	if err := os.WriteFile(a.Paths.ServiceUnit, []byte(runtime.BuildServiceUnit(a.Paths, cfg)), 0o644); err != nil {
 		return err
 	}
@@ -163,6 +166,10 @@ func (a *App) RenderConfig() error {
 	return nil
 }
 
+func (a *App) VerifyRuntimeAssets() error {
+	return a.ensureRuntimeAssetsReady()
+}
+
 func (a *App) Start() error {
 	if err := a.requireRoot(); err != nil {
 		return err
@@ -171,6 +178,9 @@ func (a *App) Start() error {
 		return err
 	}
 	if err := a.RenderConfig(); err != nil {
+		return err
+	}
+	if err := a.ensureRuntimeAssetsReady(); err != nil {
 		return err
 	}
 	return a.Runner.Run("systemctl", "enable", "--now", "minimalist.service")
@@ -191,6 +201,9 @@ func (a *App) Restart() error {
 		return err
 	}
 	if err := a.RenderConfig(); err != nil {
+		return err
+	}
+	if err := a.ensureRuntimeAssetsReady(); err != nil {
 		return err
 	}
 	return a.Runner.Run("systemctl", "restart", "minimalist.service")
@@ -230,6 +243,9 @@ func (a *App) ShowSecret() error {
 }
 
 func (a *App) Healthcheck() error {
+	if err := a.ensureRuntimeAssetsReady(); err != nil {
+		return err
+	}
 	cfg, _, err := a.ensureAll()
 	if err != nil {
 		return err
@@ -265,6 +281,10 @@ func (a *App) RuntimeAudit() error {
 	fatalGaps := make([]string, 0, 2)
 	if !cutoverStatus.Ready() {
 		fatalGaps = append(fatalGaps, "cutover-not-ready")
+	}
+	if err := a.ensureRuntimeAssetsReady(); err != nil {
+		fatalGaps = append(fatalGaps, "runtime-assets-missing")
+		fmt.Fprintf(a.Stdout, "runtime-assets: %v\n", err)
 	}
 	if summary, err := a.controllerRuntimeSummary(cfg); err == nil {
 		fmt.Fprintf(a.Stdout, "runtime: %s\n", summary)
@@ -1087,6 +1107,18 @@ func (a *App) ensureAll() (config.Config, state.State, error) {
 		return config.Config{}, state.State{}, err
 	}
 	return cfg, st, nil
+}
+
+func (a *App) ensureRuntimeAssetsReady() error {
+	missing := runtime.MissingRuntimeAssets(a.Paths)
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"missing runtime assets: %s; preseed them under %s",
+		strings.Join(missing, ", "),
+		a.Paths.RuntimeDir,
+	)
 }
 
 func (a *App) requireRoot() error {

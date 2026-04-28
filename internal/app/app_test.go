@@ -614,6 +614,7 @@ func newTestApp(t *testing.T) (*App, string) {
 		Stdout: &bytes.Buffer{},
 		Stderr: &bytes.Buffer{},
 	}
+	mustSeedRuntimeAssets(t, app.Paths)
 	return app, root
 }
 
@@ -628,6 +629,32 @@ func newTestAppWithEnabledManualNode(t *testing.T) *App {
 		t.Fatalf("enable node: %v", err)
 	}
 	return app
+}
+
+func mustSeedRuntimeAssets(t *testing.T, paths runtime.Paths) {
+	t.Helper()
+	if err := os.MkdirAll(paths.UIPath(), 0o755); err != nil {
+		t.Fatalf("mkdir runtime ui: %v", err)
+	}
+	if err := os.WriteFile(paths.CountryMMDBPath(), []byte("mmdb"), 0o640); err != nil {
+		t.Fatalf("write runtime mmdb: %v", err)
+	}
+	if err := os.WriteFile(paths.GeoSitePath(), []byte("geosite"), 0o640); err != nil {
+		t.Fatalf("write runtime geosite: %v", err)
+	}
+}
+
+func mustRemoveRuntimeAssets(t *testing.T, paths runtime.Paths) {
+	t.Helper()
+	for _, path := range []string{
+		paths.CountryMMDBPath(),
+		paths.GeoSitePath(),
+		paths.UIPath(),
+	} {
+		if err := os.RemoveAll(path); err != nil {
+			t.Fatalf("remove runtime asset %s: %v", path, err)
+		}
+	}
 }
 
 func hasRecordedCall(calls []commandCall, name string, want ...string) bool {
@@ -2947,6 +2974,9 @@ func TestSetupPropagatesRenderFilesRulesRepoError(t *testing.T) {
 
 func TestSetupSurfaceEnsureAllFailureWhenRuntimeLayoutBlocked(t *testing.T) {
 	app, _ := newTestApp(t)
+	if err := os.RemoveAll(app.Paths.RuntimeDir); err != nil {
+		t.Fatalf("remove runtime dir: %v", err)
+	}
 	if err := os.WriteFile(app.Paths.RuntimeDir, []byte("blocked"), 0o640); err != nil {
 		t.Fatalf("write blocking runtime dir: %v", err)
 	}
@@ -3198,6 +3228,29 @@ func TestStartReturnsRootErrorWhenNotRoot(t *testing.T) {
 	err := app.Start()
 	if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
 		t.Fatalf("expected root error, got %v", err)
+	}
+}
+
+func TestStartFailsWhenRuntimeAssetsMissingWithoutSystemctlCall(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	mustRemoveRuntimeAssets(t, app.Paths)
+	var calls []commandCall
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			return "", "", nil
+		},
+	}
+
+	err := app.Start()
+	if err == nil || !strings.Contains(err.Error(), "missing runtime assets") {
+		t.Fatalf("expected missing runtime assets error, got %v", err)
+	}
+	if hasRecordedCall(calls, "systemctl", "enable", "--now", "minimalist.service") {
+		t.Fatalf("did not expect systemctl call when assets are missing, calls=%#v", calls)
 	}
 }
 
@@ -3511,6 +3564,16 @@ func TestHealthcheckReportsControllerErrorWhenUnavailable(t *testing.T) {
 	}
 }
 
+func TestHealthcheckReportsMissingRuntimeAssets(t *testing.T) {
+	app, _ := newTestApp(t)
+	mustRemoveRuntimeAssets(t, app.Paths)
+
+	err := app.Healthcheck()
+	if err == nil || !strings.Contains(err.Error(), "missing runtime assets") {
+		t.Fatalf("expected missing runtime assets error, got %v", err)
+	}
+}
+
 func TestRuntimeAuditCountsAlertsAndReportsRuntimeSummary(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Runner = fakeRunner{
@@ -3604,6 +3667,33 @@ func TestRuntimeAuditSeparatesHistoricalRecentAndFatalSignals(t *testing.T) {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in runtime audit output:\n%s", needle, output)
 		}
+	}
+}
+
+func TestRuntimeAuditReportsMissingRuntimeAssetsAsFatalGap(t *testing.T) {
+	app, _ := newTestApp(t)
+	mustRemoveRuntimeAssets(t, app.Paths)
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			if name == "systemctl" && len(args) >= 2 {
+				return nil
+			}
+			return nil
+		},
+		outputFn: func(name string, args ...string) (string, string, error) {
+			if name == "journalctl" {
+				return "", "", nil
+			}
+			return "", "", errors.New("unavailable")
+		},
+	}
+
+	if err := app.RuntimeAudit(); err != nil {
+		t.Fatalf("runtime audit: %v", err)
+	}
+	output := app.Stdout.(*bytes.Buffer).String()
+	if !strings.Contains(output, "fatal-gap: runtime-assets-missing") {
+		t.Fatalf("expected runtime asset fatal gap, output=\n%s", output)
 	}
 }
 

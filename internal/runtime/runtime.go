@@ -325,6 +325,7 @@ ConditionPathExists=%s
 Type=simple
 User=root
 Group=root
+ExecStartPre=+%s verify-runtime-assets
 ExecStartPre=+%s apply-rules
 ExecStart=%s -d %s
 ExecReload=+%s apply-rules
@@ -342,7 +343,7 @@ ReadWritePaths=%s
 
 [Install]
 WantedBy=multi-user.target
-`, paths.RuntimeConfig(), paths.BinPath, cfg.Install.CoreBin, paths.RuntimeDir, paths.BinPath, paths.BinPath, paths.RuntimeDir)
+`, paths.RuntimeConfig(), paths.BinPath, paths.BinPath, cfg.Install.CoreBin, paths.RuntimeDir, paths.BinPath, paths.BinPath, paths.RuntimeDir)
 }
 
 func BuildSysctl(cfg config.Config) string {
