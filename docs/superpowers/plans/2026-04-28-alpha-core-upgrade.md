@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 为 `minimalist` 增加一个显式命令，从官方 `MetaCubeX/mihomo` GitHub releases 列表中选择最新 alpha prerelease，下载匹配架构的 `mihomo-core` Linux 资产，原子替换本机 `install.core_bin`，并自动重启 `minimalist.service`。
+**Goal:** 为 `minimalist` 增加一个显式命令，从官方 `MetaCubeX/mihomo` GitHub releases 列表中选择最新 alpha prerelease；对无歧义 Linux 架构下载对应 `mihomo-core` 资产，对 `amd64` CPU level 变体明确拒绝，随后再原子替换本机 `install.core_bin` 并自动重启 `minimalist.service`。
 
 **Architecture:** 保持现有命令编排边界，把升级逻辑放到 `internal/app`，单独拆成聚焦文件 `internal/app/core_upgrade.go`，避免继续膨胀 [internal/app/app.go](/home/projects/minimalist/internal/app/app.go:1)。CLI 只做分发。测试继续沿用 `fakeRunner` 和自定义 `http.Client` 的模式，在 app 层覆盖发布选择、下载解包、版本校验、替换和重启失败传播。
 
@@ -38,36 +38,84 @@
 - [ ] **Step 1: 写发布发现与架构选择的失败测试**
 
 ```go
-func TestSelectLatestAlphaAssetChoosesFirstMatchingLinuxAsset(t *testing.T) {
+func TestSelectLatestAlphaAssetChoosesLatestMatchingAlphaRelease(t *testing.T) {
 	releases := []githubRelease{
+		{
+			TagName:    "v1.19.24-alpha-2",
+			Name:       "v1.19.24 alpha 2",
+			Prerelease: true,
+			Assets: []githubReleaseAsset{
+				{Name: "mihomo-linux-arm64-v1.19.24.gz", BrowserDownloadURL: "https://example.com/newest.gz"},
+			},
+		},
 		{
 			TagName:    "v1.19.23",
 			Name:       "v1.19.23",
 			Prerelease: false,
 			Assets: []githubReleaseAsset{
-				{Name: "mihomo-linux-amd64-v1.19.23.gz", BrowserDownloadURL: "https://example.com/stable.gz"},
+				{Name: "mihomo-linux-arm64-v1.19.23.gz", BrowserDownloadURL: "https://example.com/stable.gz"},
 			},
 		},
 		{
-			TagName:    "Prerelease-Alpha",
-			Name:       "Prerelease-Alpha",
+			TagName:    "v1.19.22-alpha-1",
+			Name:       "v1.19.22 alpha 1",
 			Prerelease: true,
 			Assets: []githubReleaseAsset{
-				{Name: "mihomo-darwin-amd64-v1.19.23.gz", BrowserDownloadURL: "https://example.com/darwin.gz"},
-				{Name: "mihomo-linux-amd64-v1.19.23.gz", BrowserDownloadURL: "https://example.com/linux.gz"},
+				{Name: "mihomo-linux-arm64-v1.19.22.gz", BrowserDownloadURL: "https://example.com/older.gz"},
 			},
 		},
 	}
 
-	release, asset, err := selectLatestAlphaAsset(releases, "linux", "amd64")
+	release, asset, err := selectLatestAlphaAsset(releases, "linux", "arm64")
 	if err != nil {
 		t.Fatalf("select latest alpha asset: %v", err)
 	}
-	if release.TagName != "Prerelease-Alpha" {
-		t.Fatalf("expected alpha release, got %+v", release)
+	if release.TagName != "v1.19.24-alpha-2" {
+		t.Fatalf("expected latest alpha release, got %+v", release)
 	}
-	if asset.Name != "mihomo-linux-amd64-v1.19.23.gz" {
-		t.Fatalf("expected linux amd64 asset, got %+v", asset)
+	if asset.Name != "mihomo-linux-arm64-v1.19.24.gz" {
+		t.Fatalf("expected latest linux arm64 asset, got %+v", asset)
+	}
+}
+
+func TestSelectLatestAlphaAssetChoosesArm64Asset(t *testing.T) {
+	releases := []githubRelease{
+		{
+			TagName:    "v1.19.23-alpha-1",
+			Name:       "v1.19.23 alpha 1",
+			Prerelease: true,
+			Assets: []githubReleaseAsset{
+				{Name: "mihomo-linux-arm64-v1.19.23.gz", BrowserDownloadURL: "https://example.com/linux-arm64.gz"},
+			},
+		},
+	}
+
+	_, asset, err := selectLatestAlphaAsset(releases, "linux", "arm64")
+	if err != nil {
+		t.Fatalf("select latest alpha arm64 asset: %v", err)
+	}
+	if asset.Name != "mihomo-linux-arm64-v1.19.23.gz" {
+		t.Fatalf("expected linux arm64 asset, got %+v", asset)
+	}
+}
+
+func TestSelectLatestAlphaAssetRejectsAMD64CPUVariants(t *testing.T) {
+	releases := []githubRelease{
+		{
+			TagName:    "v1.19.23-alpha-1",
+			Name:       "v1.19.23 alpha 1",
+			Prerelease: true,
+			Assets: []githubReleaseAsset{
+				{Name: "mihomo-linux-amd64-v3-v1.19.23.gz", BrowserDownloadURL: "https://example.com/v3.gz"},
+				{Name: "mihomo-linux-amd64-v1-v1.19.23.gz", BrowserDownloadURL: "https://example.com/v1.gz"},
+				{Name: "mihomo-linux-amd64-v2-v1.19.23.gz", BrowserDownloadURL: "https://example.com/v2.gz"},
+			},
+		},
+	}
+
+	_, _, err := selectLatestAlphaAsset(releases, "linux", "amd64")
+	if err == nil || !strings.Contains(err.Error(), "explicit amd64 cpu level") {
+		t.Fatalf("expected explicit cpu level error, got %v", err)
 	}
 }
 
@@ -112,8 +160,9 @@ FAIL	minimalist/internal/app [build failed]
 package app
 
 import (
+	"errors"
 	"fmt"
-	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -131,12 +180,14 @@ type githubReleaseAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+var errNoMatchingLinuxAsset = errors.New("no matching linux asset")
+
 func linuxAssetArch(goarch string) (string, error) {
 	switch goarch {
-	case "amd64":
-		return "amd64", nil
 	case "arm64":
 		return "arm64", nil
+	case "amd64":
+		return "amd64", nil
 	default:
 		return "", fmt.Errorf("unsupported linux arch: %s", goarch)
 	}
@@ -158,17 +209,73 @@ func selectLatestAlphaAsset(releases []githubRelease, goos, goarch string) (gith
 		if !strings.Contains(alphaLabel, "alpha") {
 			continue
 		}
-		for _, asset := range release.Assets {
-			if strings.Contains(asset.Name, "mihomo-linux-"+arch) && strings.HasSuffix(asset.Name, ".gz") {
-				return release, asset, nil
-			}
+		asset, err := selectLinuxReleaseAsset(release.Assets, goarch, "mihomo-linux-"+arch+"-")
+		if err == nil {
+			return release, asset, nil
 		}
+		if errors.Is(err, errNoMatchingLinuxAsset) {
+			continue
+		}
+		return githubRelease{}, githubReleaseAsset{}, err
 	}
 	return githubRelease{}, githubReleaseAsset{}, fmt.Errorf("no matching alpha asset for %s/%s", goos, goarch)
 }
 
-func currentGOOS() string   { return runtime.GOOS }
-func currentGOARCH() string { return runtime.GOARCH }
+func selectLinuxReleaseAsset(assets []githubReleaseAsset, goarch, assetPrefix string) (githubReleaseAsset, error) {
+	candidates := make([]githubReleaseAsset, 0)
+	for _, asset := range assets {
+		name := strings.ToLower(asset.Name)
+		if strings.HasPrefix(name, assetPrefix) && strings.HasSuffix(name, ".gz") {
+			candidates = append(candidates, asset)
+		}
+	}
+	if len(candidates) == 0 {
+		return githubReleaseAsset{}, errNoMatchingLinuxAsset
+	}
+	if goarch != "amd64" {
+		if len(candidates) == 1 {
+			return candidates[0], nil
+		}
+		return githubReleaseAsset{}, fmt.Errorf("ambiguous linux/%s assets: %s", goarch, joinAssetNames(candidates))
+	}
+
+	cpuLevel := make([]githubReleaseAsset, 0, len(candidates))
+	legacy := make([]githubReleaseAsset, 0, len(candidates))
+	for _, asset := range candidates {
+		if isAMD64CPULevelAsset(asset.Name, assetPrefix) {
+			cpuLevel = append(cpuLevel, asset)
+			continue
+		}
+		legacy = append(legacy, asset)
+	}
+	if len(cpuLevel) > 0 {
+		return githubReleaseAsset{}, fmt.Errorf("explicit amd64 cpu level required; candidates: %s", joinAssetNames(cpuLevel))
+	}
+	if len(legacy) == 1 {
+		return legacy[0], nil
+	}
+	if len(legacy) > 1 {
+		return githubReleaseAsset{}, fmt.Errorf("ambiguous linux/amd64 assets: %s", joinAssetNames(legacy))
+	}
+	return githubReleaseAsset{}, errNoMatchingLinuxAsset
+}
+
+func isAMD64CPULevelAsset(name, assetPrefix string) bool {
+	rest := strings.ToLower(strings.TrimPrefix(name, assetPrefix))
+	return strings.HasPrefix(rest, "compatible-") ||
+		strings.HasPrefix(rest, "v1-") ||
+		strings.HasPrefix(rest, "v2-") ||
+		strings.HasPrefix(rest, "v3-")
+}
+
+func joinAssetNames(assets []githubReleaseAsset) string {
+	names := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		names = append(names, asset.Name)
+	}
+	slices.Sort(names)
+	return strings.Join(names, ", ")
+}
 ```
 
 - [ ] **Step 4: 重新运行 focused test，确认选择逻辑通过**
@@ -397,6 +504,14 @@ func TestCoreUpgradeAlphaReplacesBinaryAndRestartsService(t *testing.T) {
 	oldGeteuid := geteuid
 	geteuid = func() int { return 0 }
 	defer func() { geteuid = oldGeteuid }()
+	oldCurrentGOOS := currentGOOS
+	oldCurrentGOARCH := currentGOARCH
+	currentGOOS = func() string { return "linux" }
+	currentGOARCH = func() string { return "arm64" }
+	defer func() {
+		currentGOOS = oldCurrentGOOS
+		currentGOARCH = oldCurrentGOARCH
+	}()
 
 	cfg, err := config.Ensure(app.Paths.ConfigPath())
 	if err != nil {
@@ -440,7 +555,7 @@ func TestCoreUpgradeAlphaReplacesBinaryAndRestartsService(t *testing.T) {
 	app.Client = &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			if req.URL.String() == mihomoReleasesAPI {
-				return textResponse(http.StatusOK, `[{"tag_name":"Prerelease-Alpha","name":"Prerelease-Alpha","prerelease":true,"assets":[{"name":"mihomo-linux-amd64-v1.19.23.gz","browser_download_url":"https://example.com/mihomo.gz"}]}]`), nil
+				return textResponse(http.StatusOK, `[{"tag_name":"Prerelease-Alpha","name":"Prerelease-Alpha","prerelease":true,"assets":[{"name":"mihomo-linux-arm64-v1.19.23.gz","browser_download_url":"https://example.com/mihomo.gz"}]}]`), nil
 			}
 			if req.URL.String() == "https://example.com/mihomo.gz" {
 				var body bytes.Buffer
@@ -481,6 +596,14 @@ func TestCoreUpgradeAlphaSurfacesRestartFailureWithLogs(t *testing.T) {
 	oldGeteuid := geteuid
 	geteuid = func() int { return 0 }
 	defer func() { geteuid = oldGeteuid }()
+	oldCurrentGOOS := currentGOOS
+	oldCurrentGOARCH := currentGOARCH
+	currentGOOS = func() string { return "linux" }
+	currentGOARCH = func() string { return "arm64" }
+	defer func() {
+		currentGOOS = oldCurrentGOOS
+		currentGOARCH = oldCurrentGOARCH
+	}()
 
 	cfg, err := config.Ensure(app.Paths.ConfigPath())
 	if err != nil {
@@ -520,7 +643,7 @@ func TestCoreUpgradeAlphaSurfacesRestartFailureWithLogs(t *testing.T) {
 	app.Client = &http.Client{
 		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			if req.URL.String() == mihomoReleasesAPI {
-				return textResponse(http.StatusOK, `[{"tag_name":"Prerelease-Alpha","name":"Prerelease-Alpha","prerelease":true,"assets":[{"name":"mihomo-linux-amd64-v1.19.23.gz","browser_download_url":"https://example.com/mihomo.gz"}]}]`), nil
+				return textResponse(http.StatusOK, `[{"tag_name":"Prerelease-Alpha","name":"Prerelease-Alpha","prerelease":true,"assets":[{"name":"mihomo-linux-arm64-v1.19.23.gz","browser_download_url":"https://example.com/mihomo.gz"}]}]`), nil
 			}
 			var body bytes.Buffer
 			zw := gzip.NewWriter(&body)
@@ -625,6 +748,9 @@ func (a *App) CoreUpgradeAlpha() error {
 	fmt.Fprintln(a.Stdout, "service restarted: minimalist.service")
 	return nil
 }
+
+var currentGOOS = func() string { return runtime.GOOS }
+var currentGOARCH = func() string { return runtime.GOARCH }
 
 func (a *App) fetchMihomoReleases() ([]githubRelease, error) {
 	req, err := http.NewRequest(http.MethodGet, mihomoReleasesAPI, nil)
@@ -823,6 +949,7 @@ git commit -m "docs: document alpha core upgrade"
 - Spec coverage:
   - 官方 `MetaCubeX/mihomo` releases 查询: Task 3
   - 最新 alpha prerelease 与架构资产选择: Task 1
+  - `amd64` CPU level 变体明确拒绝: Task 1
   - 下载、解包与版本校验: Task 2
   - 原子替换与自动重启: Task 3
   - CLI 分发与文档同步: Task 4
@@ -835,5 +962,6 @@ git commit -m "docs: document alpha core upgrade"
 ## Notes For Execution
 
 - 若官方 alpha 资产实际不是单纯 `.gz` 裸二进制，而是 `.tar.gz` 容器包，优先在 Task 2 的 focused tests 中先补一个真实结构样本，再最小扩展到 `tar.gz`，不要在实现前预埋多格式分支。
+- `amd64` 当前不会自动在 `compatible` / `v1` / `v2` / `v3` 变体间做选择；若后续要支持，先增加显式 CPU level 真相，再扩展实现。
 - 不要把该命令塞回 `setup`、`install-self` 或菜单；本计划明确保持显式命令边界。
 - 不要顺手加入回滚命令、stable 通道或自动定时升级。

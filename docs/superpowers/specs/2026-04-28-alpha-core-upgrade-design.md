@@ -47,7 +47,7 @@ sudo minimalist core-upgrade-alpha
 1. 读取当前配置，确定 `install.core_bin`
 2. 查询官方 GitHub releases API
 3. 从发布列表中选择最新 alpha 发布及当前机器架构对应的 Linux 资产
-4. 下载到目标目录临时文件
+4. 若资产选择无歧义，则下载到目标目录临时文件
 5. 完成解包与最小可执行校验
 6. 原子替换旧 `mihomo-core`
 7. 自动重启 `minimalist.service`
@@ -112,13 +112,15 @@ sudo minimalist core-upgrade-alpha
 
 建议最小支持：
 
-- `amd64`
 - `arm64`
+- `amd64`（仅在显式提供 CPU level 后继续）
 
 行为原则：
 
 - 只做明确映射，不做模糊猜测
 - 若当前架构没有可匹配资产，直接返回错误
+- `arm64` 在唯一匹配资产存在时可直接选中
+- `amd64` 若上游提供 `compatible` / `v1` / `v2` / `v3` 等 CPU level 变体，当前命令必须明确拒绝，不能猜测选择
 
 ### 3. 下载与解包
 
@@ -207,6 +209,7 @@ systemctl restart minimalist.service
 - release 数据格式异常
 - 最新 release 不是 alpha
 - 找不到匹配架构资产
+- `amd64` 资产需要 CPU level 但当前未显式提供
 - 下载失败
 - 解包失败
 - 版本校验失败
@@ -311,6 +314,7 @@ systemctl restart minimalist.service
 
 - GitHub API 或 release 命名规则变化会影响发现逻辑
 - 官方发布资产命名若变化，架构匹配逻辑需要随之调整
+- `amd64` 当前不会自动在 `compatible` / `v1` / `v2` / `v3` 间做选择；若后续需要支持，必须先引入显式 CPU level 真相
 - 自动重启意味着升级命令天然带有服务中断窗口
 - 本轮不做自动回滚，因此重启失败后需要人工处理
 - 本轮不保证所有 Linux 架构，超出映射范围的机器应明确失败
@@ -320,11 +324,12 @@ systemctl restart minimalist.service
 完成实现后，应满足以下条件：
 
 1. `minimalist core-upgrade-alpha` 可由 CLI 正确分发
-2. 能识别官方最新 alpha release 并选中匹配资产
-3. 在下载、解包、校验任一步骤失败时，不破坏旧 `mihomo-core`
-4. 成功替换后会自动重启 `minimalist.service`
-5. 文档同步更新为当前真相
-6. 相关 focused tests 通过
+2. 能识别官方最新 alpha release，并对无歧义架构选中匹配资产
+3. `amd64` 遇到 CPU level 变体时会明确拒绝并输出清晰错误
+4. 在下载、解包、校验任一步骤失败时，不破坏旧 `mihomo-core`
+5. 成功替换后会自动重启 `minimalist.service`
+6. 文档同步更新为当前真相
+7. 相关 focused tests 通过
 
 ## 结论
 
@@ -333,6 +338,7 @@ systemctl restart minimalist.service
 能力边界保持为：
 
 - 可以显式升级到最新 alpha
+- `amd64` 在未显式指定 CPU level 前不会自动升级
 - 自动重启服务使升级立即生效
 - 不提供通道切换
 - 不提供回滚
