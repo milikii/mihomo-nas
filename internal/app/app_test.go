@@ -1680,6 +1680,14 @@ func TestRulesAndACLMenuAddsRuleAndPromptStringKeepsDefaultOnBlankInput(t *testi
 	}
 }
 
+func TestPromptIndexRejectsBlankInput(t *testing.T) {
+	var out bytes.Buffer
+	_, err := promptIndex(bufio.NewReader(strings.NewReader("\n")), &out, "节点 ID")
+	if err == nil || !strings.Contains(err.Error(), "invalid 节点 ID") {
+		t.Fatalf("expected blank index to be rejected, got %v", err)
+	}
+}
+
 func TestRulesAndACLMenuRemovesRuleByIndex(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.AddRule(false, "domain", "menu.example.com", "DIRECT"); err != nil {

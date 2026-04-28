@@ -1661,7 +1661,9 @@ func promptString(reader *bufio.Reader, out io.Writer, label, current string) st
 }
 
 func promptIndex(reader *bufio.Reader, out io.Writer, label string) (int, error) {
-	value := promptString(reader, out, label, "1")
+	fmt.Fprintf(out, "%s: ", label)
+	line, _ := reader.ReadString('\n')
+	value := strings.TrimSpace(line)
 	index, err := strconv.Atoi(value)
 	if err != nil || index <= 0 {
 		return 0, fmt.Errorf("invalid %s: %q", label, value)
