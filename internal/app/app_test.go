@@ -1201,6 +1201,22 @@ func TestMenuDispatchesMainActionsAndIgnoresInvalidChoice(t *testing.T) {
 	}
 }
 
+func TestNodesMenuReturnsMutationErrors(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#menu-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	reader := bufio.NewReader(strings.NewReader("4\n1\n\n"))
+	err := app.nodesMenu(reader)
+	if err == nil || !strings.Contains(err.Error(), "node name is empty") {
+		t.Fatalf("expected rename validation error, got %v", err)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "4) 节点改名") {
+		t.Fatalf("expected nodes menu output, got:\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestSetNodeEnabledUpdatesManualNodesAndRejectsSubscriptionNodes(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#manual-node\n")
