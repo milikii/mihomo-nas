@@ -521,6 +521,27 @@ func TestDownloadReleaseAssetRejectsHTTPFailures(t *testing.T) {
 	}
 }
 
+func TestReleaseIsNewerUsesNaturalOrderingForEqualPublishedAt(t *testing.T) {
+	publishedAt := mustParseRFC3339(t, "2026-04-28T00:00:00Z")
+	newer := githubRelease{
+		TagName:     "v1.19.10-alpha-1",
+		Name:        "v1.19.10 alpha 1",
+		PublishedAt: publishedAt,
+	}
+	older := githubRelease{
+		TagName:     "v1.19.9-alpha-9",
+		Name:        "v1.19.9 alpha 9",
+		PublishedAt: publishedAt,
+	}
+
+	if !releaseIsNewer(newer, older) {
+		t.Fatalf("expected %s to be newer than %s", newer.TagName, older.TagName)
+	}
+	if releaseIsNewer(older, newer) {
+		t.Fatalf("did not expect %s to be newer than %s", older.TagName, newer.TagName)
+	}
+}
+
 func gzippedResponse(t *testing.T, payload []byte) *http.Response {
 	t.Helper()
 	var body bytes.Buffer

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const mihomoReleasesAPI = "https://api.github.com/repos/MetaCubeX/mihomo/releases"
@@ -294,10 +295,64 @@ func releaseIsNewer(left, right githubRelease) bool {
 	if left.PublishedAt.Before(right.PublishedAt) {
 		return false
 	}
-	if left.TagName != right.TagName {
-		return left.TagName > right.TagName
+	if cmp := naturalCompare(left.TagName, right.TagName); cmp != 0 {
+		return cmp > 0
 	}
-	return left.Name > right.Name
+	return naturalCompare(left.Name, right.Name) > 0
+}
+
+func naturalCompare(left, right string) int {
+	leftRunes := []rune(strings.ToLower(left))
+	rightRunes := []rune(strings.ToLower(right))
+	li, ri := 0, 0
+	for li < len(leftRunes) && ri < len(rightRunes) {
+		if unicode.IsDigit(leftRunes[li]) && unicode.IsDigit(rightRunes[ri]) {
+			leftStart := li
+			rightStart := ri
+			for li < len(leftRunes) && unicode.IsDigit(leftRunes[li]) {
+				li++
+			}
+			for ri < len(rightRunes) && unicode.IsDigit(rightRunes[ri]) {
+				ri++
+			}
+			leftDigits := strings.TrimLeft(string(leftRunes[leftStart:li]), "0")
+			rightDigits := strings.TrimLeft(string(rightRunes[rightStart:ri]), "0")
+			if leftDigits == "" {
+				leftDigits = "0"
+			}
+			if rightDigits == "" {
+				rightDigits = "0"
+			}
+			if len(leftDigits) != len(rightDigits) {
+				if len(leftDigits) > len(rightDigits) {
+					return 1
+				}
+				return -1
+			}
+			if leftDigits != rightDigits {
+				if leftDigits > rightDigits {
+					return 1
+				}
+				return -1
+			}
+			continue
+		}
+		if leftRunes[li] != rightRunes[ri] {
+			if leftRunes[li] > rightRunes[ri] {
+				return 1
+			}
+			return -1
+		}
+		li++
+		ri++
+	}
+	if len(leftRunes) == len(rightRunes) {
+		return 0
+	}
+	if len(leftRunes) > len(rightRunes) {
+		return 1
+	}
+	return -1
 }
 
 func (a *App) downloadReleaseAsset(asset githubReleaseAsset, coreBin string) (string, error) {
