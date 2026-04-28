@@ -177,11 +177,11 @@ func (a *App) Start() error {
 	if err := a.ensureCutoverReady(); err != nil {
 		return err
 	}
-	_, st, err := a.ensureAll()
+	hasEnabledManualNodes, err := a.hasEnabledManualNodesInPersistedState()
 	if err != nil {
 		return err
 	}
-	if !a.hasEnabledManualNodes(st) {
+	if !hasEnabledManualNodes {
 		return errors.New("没有启用的手动节点")
 	}
 	if err := a.RenderConfig(); err != nil {
@@ -282,7 +282,7 @@ func (a *App) RuntimeAudit() error {
 	fmt.Fprintf(a.Stdout, "alerts-24h: warn=%d error=%d\n", warn24h, err24h)
 	fmt.Fprintf(a.Stdout, "alerts-recent: warn=%d error=%d\n", recentWarn, recentErr)
 	manualNodesEnabled := a.hasEnabledManualNodes(st)
-	fmt.Fprintf(a.Stdout, "providers-ready=%t\n", manualNodesEnabled)
+	fmt.Fprintf(a.Stdout, "manual-nodes-ready=%t\n", manualNodesEnabled)
 	cutoverStatus := a.cutoverPreflightStatus()
 	a.printCutoverPreflightStatus(cutoverStatus)
 	fatalGaps := make([]string, 0, 2)
@@ -1162,10 +1162,21 @@ func (a *App) hasEnabledManualNodes(st state.State) bool {
 	return false
 }
 
+func (a *App) hasEnabledManualNodesInPersistedState() (bool, error) {
+	st, err := state.Load(a.Paths.StatePath())
+	if err == nil {
+		return a.hasEnabledManualNodes(st), nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 func (a *App) manualNodeCount(st state.State) int {
 	count := 0
 	for _, node := range st.Nodes {
-		if node.Source.Kind != "subscription" {
+		if node.Source.Kind == "manual" {
 			count++
 		}
 	}
@@ -1324,7 +1335,7 @@ func (a *App) readImportInputFrom(reader *bufio.Reader) (string, error) {
 func (a *App) validateRuleTargets(st state.State) error {
 	enabled := map[string]struct{}{}
 	for _, node := range st.Nodes {
-		if node.Enabled && node.Source.Kind != "subscription" {
+		if node.Enabled && node.Source.Kind == "manual" {
 			enabled[node.Name] = struct{}{}
 		}
 	}

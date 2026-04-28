@@ -3205,12 +3205,15 @@ func TestStartRejectsSubscriptionOnlyMainPathBeforeRenderingRuntimeArtifacts(t *
 	geteuid = func() int { return 0 }
 	defer func() { geteuid = oldGeteuid }()
 
-	if err := app.AddSubscription("start-sub", "https://subscription.example.com/start.txt", true); err != nil {
-		t.Fatalf("add subscription: %v", err)
-	}
-	st, err := state.Load(app.Paths.StatePath())
-	if err != nil {
-		t.Fatalf("load state: %v", err)
+	st := state.Empty()
+	st.Subscriptions = []state.Subscription{{
+		ID:      "start-sub",
+		Name:    "start-sub",
+		URL:     "https://subscription.example.com/start.txt",
+		Enabled: true,
+	}}
+	if err := state.Save(app.Paths.StatePath(), st); err != nil {
+		t.Fatalf("save subscription-only state: %v", err)
 	}
 	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
 		t.Fatalf("mkdir subscription dir: %v", err)
@@ -3241,7 +3244,7 @@ func TestStartRejectsSubscriptionOnlyMainPathBeforeRenderingRuntimeArtifacts(t *
 		},
 	}
 
-	err = app.Start()
+	err := app.Start()
 	if err == nil || !strings.Contains(err.Error(), "没有启用的手动节点") {
 		t.Fatalf("expected manual-node main-path guard, got %v", err)
 	}
@@ -3249,6 +3252,11 @@ func TestStartRejectsSubscriptionOnlyMainPathBeforeRenderingRuntimeArtifacts(t *
 		t.Fatalf("did not expect systemctl call for subscription-only main path, calls=%#v", calls)
 	}
 	assertOnlyCutoverPreflightCalls(t, calls)
+	for _, path := range []string{app.Paths.ConfigPath(), app.Paths.RulesRepoPath()} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("expected %s to remain absent, stat err=%v", path, err)
+		}
+	}
 	for path, want := range sentinels {
 		body, readErr := os.ReadFile(path)
 		if readErr != nil {
@@ -3719,7 +3727,7 @@ func TestRuntimeAuditCountsAlertsAndReportsRuntimeSummary(t *testing.T) {
 		"服务状态: active=true enabled=true",
 		"alerts-24h: warn=1 error=1",
 		"alerts-recent: warn=1 error=1",
-		"providers-ready=false",
+		"manual-nodes-ready=false",
 		"runtime: Mihomo Meta v1.0.1",
 		"fatal-gaps=0",
 	} {
@@ -3859,7 +3867,7 @@ func TestRuntimeAuditKeepsLocalSummaryWhenJournalctlFails(t *testing.T) {
 		"服务状态: active=true enabled=true",
 		"alerts-24h: warn=0 error=0",
 		"alerts-recent: warn=0 error=0",
-		"providers-ready=false",
+		"manual-nodes-ready=false",
 		"cutover-preflight:",
 		"fatal-gaps=1",
 		"fatal-gap: controller-unreachable",
