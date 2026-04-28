@@ -4885,6 +4885,18 @@ func TestMenuDispatchesNodesMenu(t *testing.T) {
 	}
 }
 
+func TestMenuDispatchesNetworkMenu(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("5\n3\n0\n")
+
+	if err := app.Menu(); err != nil {
+		t.Fatalf("menu: %v", err)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "规则仓库:") {
+		t.Fatalf("expected menu to dispatch rules repo summary, output=\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestRouterWizardPersistsUpdatedConfig(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader(strings.Join([]string{
