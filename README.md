@@ -55,6 +55,12 @@ sudo /usr/local/bin/minimalist setup
   - `proxy_providers/manual.txt`：仅包含启用的非订阅节点
   - `proxy_providers/subscriptions/*.txt`
   - `ruleset/*.rules`
+- `render-config` 生成的是成熟常规模板，再叠加个人规则分流：
+  - DNS / fake-ip / DoH / controller / profile 是稳定 baseline
+  - `ruleset/custom.rules` 与 `ruleset/acl.rules` 是你的个人分流层
+  - `ruleset/builtin.rules` 是仓库规则层
+  - 尾部默认规则顺序固定为 `PROCESS-NAME,mihomo,DIRECT`、`GEOIP,CN,DIRECT`、`MATCH,PROXY`
+- 默认宿主机直连，`proxy_host_output: false`，主线不默认接管宿主机流量
 
 当前 provider 输入支持 `vless://`、`trojan://`、`ss://`、`vmess://`。
 
@@ -85,6 +91,7 @@ sudo minimalist core-upgrade-alpha
 - provider 导入会按 `URIBaseKey` 去重，并为重名节点自动追加后缀
 - `runtime-audit` 当前会分开输出 `alerts-24h`、`alerts-recent` 与 `fatal-gaps`，用于区分历史噪音、当前异常和致命缺口
 - 从旧 `mihomo.service` 切到 Go 版前，先按 `docs/CUTOVER.md` 做人工 cutover 检查；当前本机旧服务资产已在切换验证后清理
+- 个人规则分流建议只写在 `ruleset/custom.rules` / `ruleset/acl.rules`，不要把它们混进仓库规则层
 
 ## 当前限制
 

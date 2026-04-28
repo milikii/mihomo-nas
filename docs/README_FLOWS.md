@@ -25,12 +25,15 @@
    - `/var/lib/minimalist/mihomo/proxy_providers/manual.txt`
    - `/var/lib/minimalist/mihomo/proxy_providers/subscriptions/*.txt`
    - `/var/lib/minimalist/mihomo/ruleset/*.rules`
+   - 规则层顺序固定为 `custom.rules` -> `acl.rules` -> `builtin.rules` -> 尾部默认规则
+   - baseline 模板固定，DNS / fake-ip / DoH / profile / controller 作为稳定骨架
 4. `minimalist.service` 通过 `mihomo-core` 读取运行目录启动
 5. `setup` 现在会显式返回 `sysctl -p`、`systemctl daemon-reload` 和 `systemctl enable --now` 的失败，不再假装部署成功
 
 补充当前真相：
 
 - `render-config` 是运行产物唯一生成入口；即使没有 provider，也会生成仅含 `DIRECT` 的 `PROXY` 组。
+- `render-config` 的规则层按固定顺序拼装：个人规则层（custom/ACL） -> 仓库规则层 -> 尾部默认兜底规则
 - DNS、controller、profile、proxy-groups、rules、provider health-check、service unit 与 sysctl 输出已经由 focused tests 固定。
 - 顶层 `minimalist rules|acl|subscriptions|rules-repo ...` 当前都直接分发到同一组底层 CLI helper。
 - `setup` / `start` / `restart` 的真实验证依赖 systemd；`apply-rules` / `clear-rules` 的真实验证依赖 `CAP_NET_ADMIN` 与可用 `iptables` / `ip rule`。
@@ -43,6 +46,7 @@
 - provider 导入当前会按 `URIBaseKey` 去重，并为重名节点自动加后缀
 - provider 命名当前优先使用 URI fragment 或 `vmess.ps`，协议不支持时会落到保守回退命名
 - ACL / 自定义规则只允许指向手动节点与内置目标
+- `ruleset/custom.rules` 和 `ruleset/acl.rules` 是个人分流层，`ruleset/builtin.rules` 是仓库规则层，尾部兜底规则固定不变
 
 ## 辅助入口
 
