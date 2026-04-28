@@ -4869,6 +4869,22 @@ func TestMenuDispatchesSubscriptionUpdate(t *testing.T) {
 	}
 }
 
+func TestMenuDispatchesNodesMenu(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#menu-node-list\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+
+	app.Stdin = strings.NewReader("3\n1\n0\n")
+	if err := app.Menu(); err != nil {
+		t.Fatalf("menu: %v", err)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "menu-node-list") {
+		t.Fatalf("expected menu to dispatch nodes list, output=\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestRouterWizardPersistsUpdatedConfig(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader(strings.Join([]string{
