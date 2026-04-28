@@ -780,6 +780,24 @@ func TestSubscriptionsMenuUpdateRefreshesEnabledSubscriptions(t *testing.T) {
 	}
 }
 
+func TestSubscriptionsMenuAddsSubscriptionFromPrompts(t *testing.T) {
+	app, _ := newTestApp(t)
+	reader := bufio.NewReader(strings.NewReader("2\nmenu-add\nhttps://subscription.example.com/menu-add.txt\n"))
+	if err := app.subscriptionsMenu(reader); err != nil {
+		t.Fatalf("subscriptions menu add: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(st.Subscriptions) != 1 {
+		t.Fatalf("expected one subscription, got %+v", st.Subscriptions)
+	}
+	if st.Subscriptions[0].Name != "menu-add" || st.Subscriptions[0].URL != "https://subscription.example.com/menu-add.txt" || !st.Subscriptions[0].Enabled {
+		t.Fatalf("unexpected subscription from menu add: %+v", st.Subscriptions[0])
+	}
+}
+
 func TestRulesRepoCommandsExposeAndMutateRepoState(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.RulesRepoAdd("fcm-site", "codex.example.com"); err != nil {
