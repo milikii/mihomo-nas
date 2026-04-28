@@ -121,6 +121,9 @@ func (a *App) Setup() error {
 	if err != nil {
 		return err
 	}
+	if err := a.validateRuleTargets(st); err != nil {
+		return err
+	}
 	if err := runtime.RenderFiles(a.Paths, cfg, st); err != nil {
 		return err
 	}
@@ -1365,7 +1368,7 @@ func (a *App) validateTargetValue(st state.State, target string) error {
 		return nil
 	}
 	for _, node := range st.Nodes {
-		if node.Name != target || node.Source.Kind == "subscription" {
+		if node.Name != target || node.Source.Kind != "manual" {
 			continue
 		}
 		if !node.Enabled {

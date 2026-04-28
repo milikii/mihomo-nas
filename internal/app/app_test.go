@@ -2804,6 +2804,32 @@ func TestSetupWithoutProvidersDoesNotEnableService(t *testing.T) {
 	}
 }
 
+func TestSetupRejectsInvalidPersistedRuleTarget(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#setup-invalid-target\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
+	if err := app.AddRule(false, "domain", "example.com", "setup-invalid-target"); err != nil {
+		t.Fatalf("add rule: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, false); err != nil {
+		t.Fatalf("disable node: %v", err)
+	}
+
+	err := app.Setup()
+	if err == nil || !strings.Contains(err.Error(), "无效规则目标") {
+		t.Fatalf("expected invalid rule target rejection, got %v", err)
+	}
+}
+
 func TestSetupWithProvidersEnablesService(t *testing.T) {
 	app, _ := newTestApp(t)
 	var calls []commandCall
