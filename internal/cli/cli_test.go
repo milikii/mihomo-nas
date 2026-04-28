@@ -807,6 +807,37 @@ func TestRunDispatchesNodesList(t *testing.T) {
 	}
 }
 
+func TestRunWithAppDispatchesNodeManagementSubcommands(t *testing.T) {
+	a, stdout := newCLIApp(t)
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#managed-node")
+	if err := runWithApp([]string{"nodes", "rename", "1", "managed-renamed"}, a, false); err != nil {
+		t.Fatalf("rename node through dispatcher: %v", err)
+	}
+	if err := runWithApp([]string{"nodes", "enable", "1"}, a, false); err != nil {
+		t.Fatalf("enable node through dispatcher: %v", err)
+	}
+	stdout.Reset()
+	if err := runWithApp([]string{"nodes", "list"}, a, false); err != nil {
+		t.Fatalf("list node through dispatcher: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "1\tmanaged-renamed\t1\tmanual") {
+		t.Fatalf("unexpected managed node after enable:\n%s", stdout.String())
+	}
+	if err := runWithApp([]string{"nodes", "disable", "1"}, a, false); err != nil {
+		t.Fatalf("disable node through dispatcher: %v", err)
+	}
+	if err := runWithApp([]string{"nodes", "remove", "1"}, a, false); err != nil {
+		t.Fatalf("remove node through dispatcher: %v", err)
+	}
+	stdout.Reset()
+	if err := runWithApp([]string{"nodes", "list"}, a, false); err != nil {
+		t.Fatalf("list nodes after remove through dispatcher: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "" {
+		t.Fatalf("expected empty node list after remove, got:\n%s", stdout.String())
+	}
+}
+
 func TestRunDispatchesRulesUnknownSubcommand(t *testing.T) {
 	setCLIPathsEnv(t)
 	err := Run([]string{"rules", "unknown"})
