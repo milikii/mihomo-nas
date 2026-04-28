@@ -139,8 +139,8 @@ func (a *App) Setup() error {
 	if err := a.Runner.Run("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
-	hasProviders := a.hasReadyProviders(st)
-	if hasProviders {
+	hasEnabledManualNodes := a.hasEnabledManualNodes(st)
+	if hasEnabledManualNodes {
 		if err := a.Runner.Run("systemctl", "enable", "--now", "minimalist.service"); err != nil {
 			return err
 		}
@@ -177,15 +177,15 @@ func (a *App) Start() error {
 	if err := a.ensureCutoverReady(); err != nil {
 		return err
 	}
-	if err := a.RenderConfig(); err != nil {
-		return err
-	}
 	_, st, err := a.ensureAll()
 	if err != nil {
 		return err
 	}
-	if !a.hasReadyProviders(st) {
+	if !a.hasEnabledManualNodes(st) {
 		return errors.New("没有启用的手动节点")
+	}
+	if err := a.RenderConfig(); err != nil {
+		return err
 	}
 	if err := a.ensureRuntimeAssetsReady(); err != nil {
 		return err
@@ -281,8 +281,8 @@ func (a *App) RuntimeAudit() error {
 	recentWarn, recentErr := a.journalAlertCounts("15 minutes ago")
 	fmt.Fprintf(a.Stdout, "alerts-24h: warn=%d error=%d\n", warn24h, err24h)
 	fmt.Fprintf(a.Stdout, "alerts-recent: warn=%d error=%d\n", recentWarn, recentErr)
-	providersReady := a.hasReadyProviders(st)
-	fmt.Fprintf(a.Stdout, "providers-ready=%t\n", providersReady)
+	manualNodesEnabled := a.hasEnabledManualNodes(st)
+	fmt.Fprintf(a.Stdout, "providers-ready=%t\n", manualNodesEnabled)
 	cutoverStatus := a.cutoverPreflightStatus()
 	a.printCutoverPreflightStatus(cutoverStatus)
 	fatalGaps := make([]string, 0, 2)
@@ -1153,13 +1153,9 @@ func (a *App) httpClient() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
-func (a *App) hasReadyProviders(st state.State) bool {
-	return a.hasEnabledManualNodes(st)
-}
-
 func (a *App) hasEnabledManualNodes(st state.State) bool {
 	for _, node := range st.Nodes {
-		if node.Enabled && node.Source.Kind != "subscription" {
+		if node.Enabled && node.Source.Kind == "manual" {
 			return true
 		}
 	}

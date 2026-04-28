@@ -1314,6 +1314,10 @@ func TestRunWithAppDispatchesStartPropagatesManifestError(t *testing.T) {
 	a, _ := newCLIApp(t)
 	var calls []recordedCommand
 	a.Runner = system.CommandRunner(recordingRunner{calls: &calls})
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#start-manifest-failure")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(a.Paths.RulesRepoPath()), 0o755); err != nil {
 		t.Fatalf("mkdir rules repo dir: %v", err)
 	}
@@ -1331,6 +1335,10 @@ func TestRunWithAppDispatchesStartPropagatesManualProviderFailure(t *testing.T) 
 	a, _ := newCLIApp(t)
 	var calls []recordedCommand
 	a.Runner = system.CommandRunner(recordingRunner{calls: &calls})
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#start-provider-failure")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
 	if err := os.MkdirAll(a.Paths.ManualProvider(), 0o755); err != nil {
 		t.Fatalf("mkdir blocking manual provider path: %v", err)
 	}
@@ -1345,6 +1353,10 @@ func TestRunWithAppDispatchesStartPropagatesRuntimeConfigFailure(t *testing.T) {
 	a, _ := newCLIApp(t)
 	var calls []recordedCommand
 	a.Runner = system.CommandRunner(recordingRunner{calls: &calls})
+	mustImportNode(t, a, "trojan://password@example.org:443?security=tls#start-runtime-config-failure")
+	if err := a.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable node: %v", err)
+	}
 	if err := os.MkdirAll(a.Paths.RuntimeConfig(), 0o755); err != nil {
 		t.Fatalf("mkdir blocking runtime config path: %v", err)
 	}

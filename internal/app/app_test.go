@@ -355,24 +355,15 @@ func TestTerminalHelpersReturnFalseForClosedFiles(t *testing.T) {
 	}
 }
 
-func TestHasReadyProvidersAndHTTPClientFallback(t *testing.T) {
+func TestHasEnabledManualNodesAndHTTPClientFallback(t *testing.T) {
 	app, _ := newTestApp(t)
 	st := state.Empty()
-	if app.hasReadyProviders(st) {
-		t.Fatalf("expected no ready providers in empty state")
+	if app.hasEnabledManualNodes(st) {
+		t.Fatalf("expected no enabled manual nodes in empty state")
 	}
 	st.Subscriptions = []state.Subscription{{ID: "sub-1", Enabled: true}}
-	if app.hasReadyProviders(st) {
-		t.Fatalf("expected no ready providers without cache file")
-	}
-	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
-		t.Fatalf("mkdir subscription dir: %v", err)
-	}
-	if err := os.WriteFile(app.Paths.SubscriptionFile("sub-1"), []byte("trojan://password@example.org:443\n"), 0o640); err != nil {
-		t.Fatalf("write subscription cache: %v", err)
-	}
-	if app.hasReadyProviders(st) {
-		t.Fatalf("expected subscription-only state to not count as ready main path")
+	if app.hasEnabledManualNodes(st) {
+		t.Fatalf("expected subscription-only state to not count as enabled manual nodes")
 	}
 	app.Client = nil
 	if client := app.httpClient(); client == nil {
@@ -380,7 +371,7 @@ func TestHasReadyProvidersAndHTTPClientFallback(t *testing.T) {
 	}
 }
 
-func TestHasReadyProvidersTreatsEnabledManualNodeAsReadyAndIgnoresEmptyCache(t *testing.T) {
+func TestHasEnabledManualNodesTreatsEnabledManualNodeAsReady(t *testing.T) {
 	app, _ := newTestApp(t)
 	st := state.Empty()
 	st.Nodes = []state.Node{{
@@ -389,41 +380,30 @@ func TestHasReadyProvidersTreatsEnabledManualNodeAsReadyAndIgnoresEmptyCache(t *
 		Enabled: true,
 		Source:  state.Source{Kind: "manual"},
 	}}
-	if !app.hasReadyProviders(st) {
-		t.Fatalf("expected enabled manual node to count as ready provider")
-	}
-
-	st = state.Empty()
-	st.Subscriptions = []state.Subscription{
-		{ID: "disabled-sub", Enabled: false},
-		{ID: "empty-sub", Enabled: true},
-	}
-	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
-		t.Fatalf("mkdir subscription dir: %v", err)
-	}
-	if err := os.WriteFile(app.Paths.SubscriptionFile("disabled-sub"), []byte("trojan://password@example.org:443\n"), 0o640); err != nil {
-		t.Fatalf("write disabled subscription cache: %v", err)
-	}
-	if err := os.WriteFile(app.Paths.SubscriptionFile("empty-sub"), nil, 0o640); err != nil {
-		t.Fatalf("write empty subscription cache: %v", err)
-	}
-	if app.hasReadyProviders(st) {
-		t.Fatalf("expected disabled or empty subscription caches to be ignored")
+	if !app.hasEnabledManualNodes(st) {
+		t.Fatalf("expected enabled manual node to count as ready")
 	}
 }
 
-func TestHasReadyProvidersIgnoresUnsupportedSubscriptionCache(t *testing.T) {
+func TestHasEnabledManualNodesIgnoresDisabledAndSubscriptionNodes(t *testing.T) {
 	app, _ := newTestApp(t)
 	st := state.Empty()
-	st.Subscriptions = []state.Subscription{{ID: "unsupported-sub", Enabled: true}}
-	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
-		t.Fatalf("mkdir subscription dir: %v", err)
+	st.Nodes = []state.Node{
+		{
+			ID:      "manual-disabled",
+			Name:    "manual-disabled",
+			Enabled: false,
+			Source:  state.Source{Kind: "manual"},
+		},
+		{
+			ID:      "subscription-enabled",
+			Name:    "subscription-enabled",
+			Enabled: true,
+			Source:  state.Source{Kind: "subscription", ID: "sub-1"},
+		},
 	}
-	if err := os.WriteFile(app.Paths.SubscriptionFile("unsupported-sub"), []byte("ssh://unsupported.example.com\n"), 0o640); err != nil {
-		t.Fatalf("write unsupported subscription cache: %v", err)
-	}
-	if app.hasReadyProviders(st) {
-		t.Fatalf("expected unsupported subscription cache to be ignored")
+	if app.hasEnabledManualNodes(st) {
+		t.Fatalf("expected only enabled manual nodes to count as ready")
 	}
 }
 
@@ -3219,7 +3199,7 @@ func TestStartRendersConfigAndEnablesService(t *testing.T) {
 	}
 }
 
-func TestStartRejectsSubscriptionOnlyMainPath(t *testing.T) {
+func TestStartRejectsSubscriptionOnlyMainPathBeforeRenderingRuntimeArtifacts(t *testing.T) {
 	app, _ := newTestApp(t)
 	oldGeteuid := geteuid
 	geteuid = func() int { return 0 }
@@ -3238,6 +3218,18 @@ func TestStartRejectsSubscriptionOnlyMainPath(t *testing.T) {
 	if err := os.WriteFile(app.Paths.SubscriptionFile(st.Subscriptions[0].ID), []byte("trojan://password@example.org:443?security=tls#cached\n"), 0o640); err != nil {
 		t.Fatalf("write subscription cache: %v", err)
 	}
+	sentinels := map[string]string{
+		app.Paths.RuntimeConfig():  "runtime-sentinel\n",
+		app.Paths.ManualProvider(): "manual-provider-sentinel\n",
+	}
+	for path, want := range sentinels {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir sentinel dir for %s: %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(want), 0o640); err != nil {
+			t.Fatalf("write sentinel %s: %v", path, err)
+		}
+	}
 	var calls []commandCall
 	app.Runner = fakeRunner{
 		runFn: func(name string, args ...string) error {
@@ -3255,6 +3247,16 @@ func TestStartRejectsSubscriptionOnlyMainPath(t *testing.T) {
 	}
 	if hasRecordedCall(calls, "systemctl", "enable", "--now", "minimalist.service") {
 		t.Fatalf("did not expect systemctl call for subscription-only main path, calls=%#v", calls)
+	}
+	assertOnlyCutoverPreflightCalls(t, calls)
+	for path, want := range sentinels {
+		body, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatalf("read sentinel %s: %v", path, readErr)
+		}
+		if string(body) != want {
+			t.Fatalf("expected %s to remain unchanged, got %q want %q", path, string(body), want)
+		}
 	}
 }
 
@@ -5296,11 +5298,11 @@ func TestControllerRequestTrimsHostAndSecret(t *testing.T) {
 	}
 }
 
-func TestAppProviderHelpersCountAndDetectReadyProvidersWithState(t *testing.T) {
+func TestAppHelperCountsTrackManualNodesAndSubscriptionReadiness(t *testing.T) {
 	app, _ := newTestApp(t)
 	st := state.Empty()
-	if app.hasReadyProviders(st) {
-		t.Fatalf("expected no ready providers in empty state")
+	if app.hasEnabledManualNodes(st) {
+		t.Fatalf("expected no enabled manual nodes in empty state")
 	}
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#helper-node\n")
 	if err := app.ImportLinks(); err != nil {
@@ -5329,8 +5331,8 @@ func TestAppProviderHelpersCountAndDetectReadyProvidersWithState(t *testing.T) {
 	if enabled != 1 || total != 1 || ready != 1 {
 		t.Fatalf("unexpected subscription counts: enabled=%d total=%d ready=%d", enabled, total, ready)
 	}
-	if !app.hasReadyProviders(st) {
-		t.Fatalf("expected ready providers")
+	if !app.hasEnabledManualNodes(st) {
+		t.Fatalf("expected enabled manual node")
 	}
 }
 
