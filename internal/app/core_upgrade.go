@@ -97,7 +97,12 @@ func (a *App) fetchMihomoReleases() ([]githubRelease, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("http %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		message := strings.TrimSpace(string(body))
+		if message == "" {
+			return nil, fmt.Errorf("http %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, message)
 	}
 	var releases []githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {

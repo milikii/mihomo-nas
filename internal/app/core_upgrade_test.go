@@ -311,6 +311,20 @@ func TestCoreUpgradeAlphaRequiresRoot(t *testing.T) {
 	}
 }
 
+func TestFetchMihomoReleasesIncludesHTTPResponseBody(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusForbidden, `{"message":"rate limit exceeded"}`), nil
+		}),
+	}
+
+	_, err := app.fetchMihomoReleases()
+	if err == nil || !strings.Contains(err.Error(), "rate limit exceeded") {
+		t.Fatalf("expected response body detail, got %v", err)
+	}
+}
+
 func TestCoreUpgradeAlphaReplacesBinaryAndRestartsService(t *testing.T) {
 	app, root := newTestApp(t)
 	oldGeteuid := geteuid
