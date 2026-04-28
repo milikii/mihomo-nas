@@ -6529,7 +6529,8 @@ func TestApplyRulesDefaultConfigProgramsLANDNSHijackWithoutHostOutputJump(t *tes
 	}
 	for _, call := range calls {
 		if call.name == "iptables" &&
-			hasArgSequence(call.args, "-w", "5", "-t", "mangle", "-A", "OUTPUT") &&
+			hasArgSequence(call.args, "-w", "5", "-t", "mangle") &&
+			(hasArgSequence(call.args, "-A", "OUTPUT") || hasArgSequence(call.args, "-I", "OUTPUT")) &&
 			hasArgSequence(call.args, "MIHOMO_OUT") {
 			t.Fatalf("did not expect host OUTPUT jump under default config: %#v", calls)
 		}
