@@ -665,6 +665,7 @@ func TestRunHelpPrintsUsage(t *testing.T) {
 	})
 	for _, needle := range []string{
 		"minimalist commands:",
+		"minimalist core-upgrade-alpha",
 		"minimalist rules-repo summary|entries|find|add|remove|remove-index",
 	} {
 		if !strings.Contains(output, needle) {
@@ -1138,6 +1139,25 @@ func TestRunWithAppOnTTYWithoutArgsEntersMenu(t *testing.T) {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in menu output:\n%s", needle, output)
 		}
+	}
+}
+
+func TestRunWithAppDispatchesCoreUpgradeAlpha(t *testing.T) {
+	a, _ := newCLIApp(t)
+	a.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, os.ErrNotExist
+		}),
+	}
+	err := runWithApp([]string{"core-upgrade-alpha"}, a, false)
+	if os.Geteuid() != 0 {
+		if err == nil || !strings.Contains(err.Error(), "请用 root 运行") {
+			t.Fatalf("expected root error, got %v", err)
+		}
+		return
+	}
+	if err == nil || !strings.Contains(err.Error(), os.ErrNotExist.Error()) {
+		t.Fatalf("expected injected client error, got %v", err)
 	}
 }
 

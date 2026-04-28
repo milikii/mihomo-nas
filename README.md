@@ -13,6 +13,7 @@
 ## 当前保留能力
 
 - 核心主路径：`install-self`、`setup`、`render-config`、`start` / `stop` / `restart`
+- 内核维护：`core-upgrade-alpha`（仅从官方 alpha release 单次升级 `mihomo-core`，成功替换后自动重启 `minimalist.service`）
 - 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`、`cutover-plan`
 - 交互入口：`menu`、`router-wizard`、`import-links`
 - 规则与订阅：`nodes`、`subscriptions`、`rules`、`acl`、`rules-repo`
@@ -69,6 +70,12 @@ sudo /usr/local/bin/minimalist setup
 8. `minimalist cutover-plan`
 9. `minimalist status`
 
+按需升级官方 alpha 内核：
+
+```bash
+sudo minimalist core-upgrade-alpha
+```
+
 补充当前行为：
 
 - `menu` 当前按运维任务分组：状态总览、部署/修复、节点管理、订阅管理、网络入口与规则仓库、规则与 ACL、服务管理、健康检查与审计
@@ -81,7 +88,7 @@ sudo /usr/local/bin/minimalist setup
 ## 当前限制
 
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移
-- 不保留 `alpha/stable` 核心通道切换、自动同步、自定义更新定时器等旧运维能力
+- 不保留 `alpha/stable` 核心通道切换、core 回滚、自动同步、自定义更新定时器等旧运维能力；`core-upgrade-alpha` 仅是显式单次官方 alpha 内核升级入口
 - `nas-single-lan-dualstack` 已不再进入当前产品边界
 - `setup` / `start` / `restart` 的真实验证需要 systemd 正常运行
 - `apply-rules` / `clear-rules` 的真实验证需要 `CAP_NET_ADMIN` 和可用的 `iptables` / `ip rule`

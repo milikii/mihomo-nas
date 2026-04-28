@@ -23,6 +23,7 @@
 当前保留命令：
 
 - 核心主路径：`install-self`、`setup`、`render-config`、`start`、`stop`、`restart`
+- 内核维护：`core-upgrade-alpha`（官方 alpha release 单次升级，成功替换后自动重启 `minimalist.service`）
 - 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`、`cutover-plan`
 - 交互与资源入口：`menu`、`router-wizard`、`import-links`
 - 规则与订阅：`nodes`、`subscriptions`、`rules`、`acl`、`rules-repo`
@@ -37,6 +38,7 @@
 - 2026-04-28 本轮又连续补了 `updateSubscriptions` 的 mixed/disabled 边界、`apply-rules` 的空 bypass 输入、菜单 `0` 返回、`config/state` 直写目录失败、`persistedSecretPresent` 解析回退、runtime ready-subscription provider 选择、rules-repo 嵌入资产落盘失败、provider 空名自动命名，以及 CLI `subscriptions update` 分发；当前 `internal/app` 包覆盖率已到 95.6%，`internal/config` 也提升到 94.3%。
 - 2026-04-28 本次继续按质量硬化主线补了 `Setup` root guard、`Status` ensureAll 失败传播、`ImportLinks` / `RouterWizard` / `UpdateSubscriptions` 的真相写回失败路径，以及 `Menu -> nodes/network/rules/service/audit` 的主分发链路；全量 `go test ./...` 继续通过，`internal/app` 包覆盖率进一步提升到 97.1%。
 - 2026-04-28 本次继续连续十轮 focused hardening：补上 `nodesMenu -> TestNodes`、`subscriptions/network/service/audit` 的 invalid-choice retry、`rulesAndACLMenu -> List ACL`、`hasReadyProviders` 手动节点与空缓存边界、controller `mode` 缺失键分支、订阅更新的非法 URL 与缓存写入失败记录，以及 `ensureAll` 的 rules-repo 初始化失败传播；当前 `internal/app` 包覆盖率已提升到 97.8%，`subscriptionsMenu` / `networkMenu` / `serviceMenu` / `auditMenu` / `ensureAll` / `hasReadyProviders` 已到 100%。
+- 2026-04-28 本次新增 `core-upgrade-alpha` 内核升级闭环，已覆盖官方 alpha release 筛选、按发布时间选择、按当前架构匹配、amd64 CPU level 不猜测、下载解压、原子替换、重启失败保留备份，以及 CLI 分发与 usage 输出。
 
 ## 本机真实验证结论
 
@@ -56,6 +58,7 @@
 - 本轮最终验证结果：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist`、`/usr/local/bin/minimalist runtime-audit`、`systemctl is-active minimalist.service`、`systemctl is-enabled minimalist.service`、`ip rule show`、`ip route show table 233` 全部通过；当前轮次新增的 `internal/app` focused tests 也已通过。
 - 2026-04-28 本次连续十轮硬化后的复验结果保持稳定：全量 `go test ./...` 与 build 继续通过，`runtime-audit` 仍显示 `providers-ready=true`、`cutover-ready=true`，当前 live 路由仍为 `fwmark 0x2333 lookup 233` 与 `local default dev lo scope host`。
 - 2026-04-28 本次最新十轮 focused tests 完成后再次复验：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./internal/app -coverprofile=/tmp/minimalist-app.cover` 与 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过；`internal/app` 当前覆盖率为 97.8%。
+- 2026-04-28 `core-upgrade-alpha` 闭环复验：CLI focused test、alpha core focused app test、全量 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...` 与 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过。
 
 ## 当前风险与限制
 
@@ -63,4 +66,4 @@
 - 当前 guard 只负责阻断误操作；仍不提供自动 cutover、自动回滚或旧配置迁移命令。
 - 旧服务资产已清理，后续不再依赖旧 `mihomo.service` 作为回滚路径。
 - 旧版本 `settings.env` / `router.env` / `state/*.json` 不兼容，不做迁移。
-- 不恢复 `alpha/stable` 核心通道切换、core 回滚、自动同步安装目录、自定义更新/重启定时器和 `external-controller-tls`。
+- 不恢复 `alpha/stable` 核心通道切换、core 回滚、自动同步安装目录、自定义更新/重启定时器和 `external-controller-tls`；`core-upgrade-alpha` 仅提供显式单次官方 alpha 内核升级，不提供 stable 通道或 rollback 命令。

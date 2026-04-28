@@ -31,6 +31,8 @@ func runWithApp(args []string, a *app.App, tty bool) error {
 		return a.Setup()
 	case "render-config":
 		return a.RenderConfig()
+	case "core-upgrade-alpha":
+		return a.CoreUpgradeAlpha()
 	case "start":
 		return a.Start()
 	case "stop":
@@ -244,6 +246,7 @@ func printUsage() {
   minimalist install-self
   minimalist setup
   minimalist render-config
+  minimalist core-upgrade-alpha
   minimalist start|stop|restart
   minimalist status|show-secret|healthcheck|runtime-audit
   minimalist cutover-preflight

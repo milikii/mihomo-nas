@@ -58,7 +58,7 @@
 - 本机 live install 已从旧 `mihomo.service` 切到 Go 版 `minimalist.service`
 - 旧状态中 4 个手动节点被导入 Go 版 state 并启用；旧 env/state 文件仍不作为 Go 版真相，也不做通用迁移
 - 为避免启动依赖外网下载，本机将旧 runtime 中已有的 geodata 与 UI 资源复制到 `/var/lib/minimalist/mihomo/`
-- 项目仍不新增自动 cutover、自动回滚、旧状态迁移、alpha/stable 通道切换或 core 回滚能力
+- 项目仍不新增自动 cutover、自动回滚、旧状态迁移、alpha/stable 通道切换或 core 回滚能力；后续只允许单一用途的官方 alpha 内核升级入口
 
 ## 2026-04-28 清理旧 `mihomo` 回滚入口
 
@@ -66,3 +66,11 @@
 - `/usr/local/bin/mihomo-core` 仍保留，继续作为 Go 版 `minimalist.service` 的底层内核运行
 - 旧 `mihomo.service` 快速回滚路径已移除；后续以 Go 版 `minimalist` 为唯一 live 管理入口
 - `cutover-plan` 在检测不到旧资产时应明确输出 legacy rollback unavailable，不再提示启用已删除的旧 service
+
+## 2026-04-28 官方 alpha 内核升级入口
+
+- `mihomo-core` 是独立底层内核，可以按官方 `MetaCubeX/mihomo` alpha release 单次升级，不与 `minimalist` 管理器发布节奏绑定
+- 新入口固定为 `minimalist core-upgrade-alpha`，不放入交互菜单，避免把一次性高风险维护动作伪装成日常菜单操作
+- 成功替换 `/usr/local/bin/mihomo-core` 后自动重启 `minimalist.service` 并检查 active 状态
+- `arm64` 直接匹配当前平台资产；`amd64` 不猜测 CPU level，遇到 `compatible` 或 `vN` 资产时要求后续显式策略
+- 不提供 stable 通道切换、自动定时更新或 rollback 命令
