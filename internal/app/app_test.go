@@ -2876,6 +2876,20 @@ func TestRestartReturnsRootErrorWhenNotRoot(t *testing.T) {
 	}
 }
 
+func TestStatusReturnsEnsureAllError(t *testing.T) {
+	app, _ := newTestApp(t)
+	oldGeteuid := geteuid
+	geteuid = func() int { return 0 }
+	defer func() { geteuid = oldGeteuid }()
+
+	if err := os.WriteFile(app.Paths.ConfigDir, []byte("blocked"), 0o640); err != nil {
+		t.Fatalf("write blocking config dir: %v", err)
+	}
+	if err := app.Status(); err == nil {
+		t.Fatalf("expected ensureAll error")
+	}
+}
+
 func TestStatusFallsBackToConfigModeAndReportsReadySubscriptions(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.AddSubscription("status-sub", "https://subscription.example.com/status.txt", true); err != nil {
