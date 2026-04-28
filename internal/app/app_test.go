@@ -4913,6 +4913,30 @@ func TestMenuDispatchesRulesAndACLMenu(t *testing.T) {
 	}
 }
 
+func TestMenuDispatchesServiceMenu(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("7\n4\n0\n")
+
+	if err := app.Menu(); err != nil {
+		t.Fatalf("menu: %v", err)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "项目: minimalist") {
+		t.Fatalf("expected menu to dispatch service status, output=\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
+func TestMenuDispatchesAuditMenu(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("8\n4\n0\n")
+
+	if err := app.Menu(); err != nil {
+		t.Fatalf("menu: %v", err)
+	}
+	if !strings.Contains(app.Stdout.(*bytes.Buffer).String(), "rollback:") {
+		t.Fatalf("expected menu to dispatch cutover plan, output=\n%s", app.Stdout.(*bytes.Buffer).String())
+	}
+}
+
 func TestRouterWizardPersistsUpdatedConfig(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader(strings.Join([]string{
