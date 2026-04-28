@@ -1508,6 +1508,64 @@ func TestUpdateSubscriptionsFailsWhenSubscriptionDirCannotBeCreated(t *testing.T
 	}
 }
 
+func TestUpdateSubscriptionsRecordsRequestBuildError(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.AddSubscription("bad-url", "://bad-url", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions with bad url: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if st.Subscriptions[0].Cache.LastAttemptAt == "" {
+		t.Fatalf("expected request attempt time to be recorded")
+	}
+	if !strings.Contains(st.Subscriptions[0].Cache.LastError, "missing protocol scheme") {
+		t.Fatalf("expected request build error recorded, got %+v", st.Subscriptions[0].Cache)
+	}
+	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "bad-url: parse") {
+		t.Fatalf("unexpected stderr after bad url:\n%s", app.Stderr.(*bytes.Buffer).String())
+	}
+}
+
+func TestUpdateSubscriptionsRecordsCacheWriteError(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := app.AddSubscription("write-blocked", "https://subscription.example.com/write-blocked.txt", true); err != nil {
+		t.Fatalf("add subscription: %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if err := os.MkdirAll(app.Paths.SubscriptionDir(), 0o755); err != nil {
+		t.Fatalf("mkdir subscription dir: %v", err)
+	}
+	if err := os.MkdirAll(app.Paths.SubscriptionFile(st.Subscriptions[0].ID), 0o755); err != nil {
+		t.Fatalf("block subscription cache path: %v", err)
+	}
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, "trojan://password@example.org:443?security=tls#write-blocked-node\n"), nil
+		}),
+	}
+	if err := app.UpdateSubscriptions(); err != nil {
+		t.Fatalf("update subscriptions with blocked cache path: %v", err)
+	}
+	st, err = state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("reload state: %v", err)
+	}
+	if !strings.Contains(st.Subscriptions[0].Cache.LastError, "is a directory") {
+		t.Fatalf("expected cache write error recorded, got %+v", st.Subscriptions[0].Cache)
+	}
+	if !strings.Contains(app.Stderr.(*bytes.Buffer).String(), "write-blocked:") {
+		t.Fatalf("unexpected stderr after cache write failure:\n%s", app.Stderr.(*bytes.Buffer).String())
+	}
+}
+
 func TestUpdateSubscriptionsReturnsStateSaveError(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.AddSubscription("save-blocked", "https://subscription.example.com/save-blocked.txt", true); err != nil {
