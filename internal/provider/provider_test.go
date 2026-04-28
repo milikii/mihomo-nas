@@ -189,6 +189,15 @@ func TestDecodeSubscriptionLinesFallsBackToRawPlainText(t *testing.T) {
 	}
 }
 
+func TestDecodeSubscriptionLinesReturnsNilForBlankInput(t *testing.T) {
+	if lines := DecodeSubscriptionLines(" \n\t\r\n "); lines != nil {
+		t.Fatalf("expected nil lines for blank input, got %#v", lines)
+	}
+	if uris := ScannableSubscriptionURIs(" \n\t\r\n "); len(uris) != 0 {
+		t.Fatalf("expected no scannable uris for blank input, got %#v", uris)
+	}
+}
+
 func TestAppendImportedNodesDeduplicatesByBaseKeyAndRenamesConflicts(t *testing.T) {
 	existing := []state.Node{{
 		ID:         "1",
