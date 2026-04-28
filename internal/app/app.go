@@ -1185,12 +1185,15 @@ func (a *App) testNodeDelay(cfg config.Config, name string) (int, error) {
 		return 0, fmt.Errorf("http %d", resp.StatusCode)
 	}
 	var payload struct {
-		Delay int `json:"delay"`
+		Delay *int `json:"delay"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return 0, err
 	}
-	return payload.Delay, nil
+	if payload.Delay == nil {
+		return 0, errors.New("missing delay")
+	}
+	return *payload.Delay, nil
 }
 
 func (a *App) controllerRequest(cfg config.Config, path string) (*http.Request, error) {
