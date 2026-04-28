@@ -13,7 +13,7 @@
 
 - 当前没有新的功能缺口；下一步优先做切换后观察与最小硬化，不扩协议、不恢复旧运维能力。
 - 若继续施工，优先选择：
-  - 观察 `minimalist.service` 24 小时日志，确认 UI/geodata 资源复制后不再出现启动下载错误。
+  - 继续观察 `minimalist.service` 24 小时日志；2026-04-28 08:34 CST 已确认 UI/geodata 资源复制后最近启动窗口不再出现启动下载错误，当前 warn/error 计数仍来自切换早期历史窗口。
   - 补一个 focused test 或文档说明，覆盖 geodata/UI 需要预置时的运维约束。
   - 复跑 `runtime-audit`，确认 warn/error 计数只剩历史窗口内记录。
 - 旧 `/etc/mihomo`、`mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager` 已清理；下一步不再围绕旧服务回滚路径推进。
