@@ -605,6 +605,20 @@ func TestTestNodesReportsDelayForEnabledNodes(t *testing.T) {
 	}
 }
 
+func TestTestNodesPrintsMessageWhenNoEnabledNodes(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#disabled-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.TestNodes(); err != nil {
+		t.Fatalf("test nodes: %v", err)
+	}
+	if output := app.Stdout.(*bytes.Buffer).String(); !strings.Contains(output, "暂无启用节点") {
+		t.Fatalf("unexpected no-enabled-node output:\n%s", output)
+	}
+}
+
 func TestTestNodesReportsControllerErrorsPerNode(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#error-node\n")
