@@ -112,7 +112,7 @@ func Ensure(path string) (Config, error) {
 	cfg, err := Load(path)
 	if err == nil {
 		raw, readErr := os.ReadFile(path)
-		if readErr == nil && !strings.Contains(string(raw), "secret:") && cfg.Controller.Secret != "" {
+		if readErr == nil && !persistedSecretPresent(raw) && cfg.Controller.Secret != "" {
 			if err := Save(path, cfg); err != nil {
 				return Config{}, err
 			}
@@ -150,6 +150,18 @@ func Save(path string, cfg Config) error {
 		return fmt.Errorf("encode config: %w", err)
 	}
 	return os.WriteFile(path, raw, 0o640)
+}
+
+func persistedSecretPresent(raw []byte) bool {
+	var snapshot struct {
+		Controller struct {
+			Secret string `yaml:"secret"`
+		} `yaml:"controller"`
+	}
+	if err := yaml.Unmarshal(raw, &snapshot); err != nil {
+		return strings.Contains(string(raw), "secret:")
+	}
+	return snapshot.Controller.Secret != ""
 }
 
 func randomSecret() string {
