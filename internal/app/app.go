@@ -1193,6 +1193,9 @@ func (a *App) testNodeDelay(cfg config.Config, name string) (int, error) {
 	if payload.Delay == nil {
 		return 0, errors.New("missing delay")
 	}
+	if *payload.Delay < 0 {
+		return 0, fmt.Errorf("invalid delay: %d", *payload.Delay)
+	}
 	return *payload.Delay, nil
 }
 

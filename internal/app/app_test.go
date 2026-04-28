@@ -863,6 +863,19 @@ func TestTestNodeDelayRejectsMissingDelayField(t *testing.T) {
 	}
 }
 
+func TestTestNodeDelayRejectsNegativeDelay(t *testing.T) {
+	app, _ := newTestApp(t)
+	cfg := config.Default()
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return textResponse(http.StatusOK, `{"delay":-1}`), nil
+		}),
+	}
+	if _, err := app.testNodeDelay(cfg, "delay-node"); err == nil || !strings.Contains(err.Error(), "invalid delay") {
+		t.Fatalf("expected invalid delay error, got %v", err)
+	}
+}
+
 func TestTestNodeDelayReturnsTransportError(t *testing.T) {
 	app, _ := newTestApp(t)
 	cfg := config.Default()
