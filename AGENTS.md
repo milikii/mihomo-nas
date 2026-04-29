@@ -1,137 +1,162 @@
-# AGENTS.md
+# AGENTS.md — minimalist
 
-本文件只定义当前仓库**长期有效**的执行规则。
-阶段性目标、优先级和当前主线一律写在 `docs/NEXT_STEP.md`，不要写死在这里。
-
----
-
-## 1. 权威顺序
-
-执行任何任务前，按以下顺序判断真相：
-
-1. `AGENTS.md`
-2. `docs/STATUS.md`
-3. `docs/NEXT_STEP.md`
-4. `docs/DECISIONS.md`
-5. `docs/ARCHITECTURE.md`
-6. 代码与测试真相
-
-若代码真相与文档冲突，先判断是否属于文档滞后；确认后优先修正文档。
+> 继承全局 AGENTS.md 所有规则。本文件仅补充项目特定约束。
+> 本文件与全局 AGENTS.md 冲突时，本文件优先。
 
 ---
 
-## 2. 仓库目标
+## 一、当前阶段 ← 每次推进前手动更新这一行
 
-本项目是运行在 **Debian NAS 宿主机** 上的 Go 版旁路由管理器，当前边界由 `docs/DECISIONS.md` 定义。
+**当前阶段：决策阶段 / 工具：Gstack /plan-eng-review**
 
-默认目标不是“多做功能”，而是：
-
-- 保持默认分支可构建、可测试
-- 保持 live host 变更可验证、可回滚、可追踪
-- 让文档持续反映当前真相
-
----
-
-## 3. 默认执行方式
-
-- 默认按 `docs/NEXT_STEP.md` 当前主线连续推进
-- 每轮只做一个最小闭环：实施 -> 验证 -> 必要文档同步 -> review diff -> commit
-- 不做无关重构，不顺手扩功能，不把阶段性目标写进 `AGENTS.md`
-- 若一轮结束后还有更保守、更小、可验证的下一步，继续推进
+```
+阶段选项（手动切换）：
+- 决策阶段   → Gstack /plan-ceo-review /plan-eng-review
+- 拆解阶段   → Superpowers /writing-plans
+- 执行阶段   → Superpowers /executing-plans   ← 编码时锁在这里
+- 排查阶段   → Superpowers /investigate
+- 收尾阶段   → Gstack /qa → Superpowers /ship
+```
 
 ---
 
-## 4. 稳定性优先级
+## 二、项目基本信息
 
-当任务涉及以下链路时，**实机稳定性优先于继续追 coverage**：
-
-- `setup`
-- `start` / `stop` / `restart`
-- `apply-rules` / `clear-rules`
-- `healthcheck`
-- `runtime-audit`
-- `cutover-preflight` / `cutover-plan`
-- `core-upgrade-alpha`
-- `/var/lib/minimalist/mihomo/` 下的 runtime assets
-
-对这类任务：
-
-- 先考虑 live host 风险，再考虑代码整洁度
-- 先做真实 smoke / systemd / controller / route 验证，再补 focused tests
-- 不允许“先改了再上机看看”
+```
+项目名：minimalist
+技术栈：Go 1.24、systemd、mihomo-core、iptables + TProxy、YAML/JSON
+部署目标：Debian NAS 单机旁路由宿主机（IPv4）
+仓库：git@github-mihomo-nas:milikii/minimalist.git
+```
 
 ---
 
-## 5. 验证要求
+## 三、必读文件清单（每轮执行前按序读取）
 
-- 能跑相关测试就先跑相关测试
-- 影响范围较大时，运行全量回归入口：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`
-- 涉及 service / routing / controller / runtime asset / upgrade 的改动，若本机环境可用，必须优先做真实验证
-- 若当前环境无法完成某项验证，必须明确说明缺口、影响和下一步
-- 没有最新验证证据，不宣称“已完成”或“已稳定”
+```
+docs/PRD.md            ← 需求源头（只读，执行中不得修改）
+docs/ARCHITECTURE.md   ← 架构决策（只读，执行中不得修改）
+docs/TASKS.md          ← 当前任务列表（执行时标记完成状态）
+docs/STATUS.md         ← 当前主线状态与实机验证结论
+docs/NEXT_STEP.md      ← 当前推荐闭环与退出条件
+docs/PROGRESS.md       ← 进度日志（每轮追加，不得覆盖历史）
+docs/BLOCKERS.md       ← 阻断问题（遇到时写入，停止并报告）
+docs/DECISIONS.md      ← 执行中遇到的新决策点记录
+```
 
----
-
-## 6. 边界变更规则
-
-以下变化默认不应直接落地，必须先明确影响，并同步 `docs/DECISIONS.md`：
-
-- 产品边界变化
-- 部署拓扑变化
-- 协议或真相边界变化
-- 升级策略变化
-- 回滚策略变化
-- 旧状态迁移兼容策略变化
-- Debian NAS / IPv4 / `iptables + TProxy` 之外的能力扩展
-
-若用户没有明确要求，不主动扩大这些边界。
+启动检查：若 `docs/PRD.md`、`docs/ARCHITECTURE.md`、`docs/TASKS.md`、`docs/STATUS.md`、`docs/NEXT_STEP.md`、`docs/DECISIONS.md` 缺失，停止执行并报告缺失文件，不得猜测内容继续推进。
+`docs/PROGRESS.md` 不存在时，创建并写入 "Round 0: 项目初始化" 后继续。
+`docs/BLOCKERS.md` 不存在时，创建空文件后继续。
 
 ---
 
-## 7. 文档同步规则
+## 四、执行循环协议（单轮标准流程）
 
-发生以下变化时，同步更新对应文档：
+每轮严格按以下顺序执行，不得跳步：
 
-- 当前状态变化 -> `docs/STATUS.md`
-- 当前主线/退出条件变化 -> `docs/NEXT_STEP.md`
-- 稳定决策变化 -> `docs/DECISIONS.md`
-- 结构与数据流变化 -> `docs/ARCHITECTURE.md`
+```
+STEP 1 [读取]
+  → 读 docs/PROGRESS.md 确认上一轮终止点
+  → 读 docs/TASKS.md 找到第一个未完成任务
+  → 读 docs/PRD.md 对齐当前目标
 
-要求：
+STEP 2 [规划]
+  → 列出本轮要完成的具体任务（最多 3 项）
+  → 确认每项任务与 PRD 有明确对应
 
-- `STATUS` 写当前真相，不写流水账
-- `NEXT_STEP` 写当前主线，不写长期宪法
-- `AGENTS.md` 只保留长期稳定规则
+STEP 3 [执行]
+  → 实现代码
+  → 所有新功能必须有对应测试
+  → 不允许出现 TODO / FIXME / placeholder 注释
+
+STEP 4 [验证]
+  → 运行测试：`env GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`
+  → 运行静态检查：`env GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go vet ./...`
+  → 运行格式检查：`gofmt -l cmd internal`（输出必须为空）
+  → 测试或 lint 失败时，本轮内修复，不得带着失败进入下一轮
+
+STEP 5 [提交]
+  → git add -A
+  → git commit -m "feat: [本轮完成内容的简洁描述]"
+  → 更新 docs/TASKS.md：已完成项打勾
+  → 追加 docs/PROGRESS.md（格式见下方）
+
+STEP 6 [继续]
+  → TASKS.md 还有未完成项 → 立即开始下一轮
+  → 全部完成 → 输出完成摘要，等待用户指令
+  → 不得询问用户，不得等待确认（blocker 除外）
+```
 
 ---
 
-## 8. Git 纪律
+## 五、PROGRESS.md 写入格式
 
-- 每个闭环尽量独立 commit
-- 未验证通过的改动，不伪装成完成态
-- push 前确认本地状态、分支状态和目标远端清晰
-- 不回滚用户未明确要求回滚的现有改动
-
----
-
-## 9. 会话落盘
-
-最近 3 轮会话摘要写入仓库根目录 `codex.md`：
-
-- 默认加入 `.gitignore`
-- 不提交 git
-- 只作为会话交接，不替代正式项目文档
-
-格式保持：
+每轮追加如下格式，不得覆盖历史：
 
 ```markdown
-## Round N
+## Round [N] — [YYYY-MM-DD HH:MM]
 
-### 🎯 任务
+### 完成
+- [具体完成项]
 
-### 🙋 用户
+### 测试状态
+- 通过: X / 总计: Y
 
-### 🤖 Codex
+### 遗留 / 下轮继续
+- [如有]
 
-### 🔜 下一步
+### 下轮目标
+- [明确的下一步]
+```
+
+---
+
+## 六、代码质量硬性要求
+
+```
+- 无任何硬编码密钥 / 密码（使用环境变量，写入 .env.example）
+- 无孤立未调用的函数 / 方法 / 变量
+- 无注释掉的废弃代码块
+- 每个导出函数 / 类型有符合 Go 习惯的 doc comment
+- 错误必须显式返回或处理，不允许静默吞错（明确忽略且有理由的除外）
+- 文件结构严格遵循 docs/ARCHITECTURE.md 中定义的目录规范
+- 不引入 ARCHITECTURE.md 未列出的新依赖
+```
+
+---
+
+## 七、禁止行为
+
+```
+✗ 不得在未完成当前任务时切换到其他任务
+✗ 不得推翻 ARCHITECTURE.md 中已锁定的架构决策
+✗ 不得修改已通过测试的代码（除非 PRD 明确要求）
+✗ 不得创建超出 PRD 范围的功能（即使你认为有用）
+✗ 不得在测试失败时执行 git commit
+✗ 不得省略 docs/PROGRESS.md 的更新
+✗ 不得静默跳过 blocker，必须记录并报告
+```
+
+---
+
+## 八、一键启动命令
+
+### 执行阶段（最常用）
+```
+codex "读取 AGENTS.md 和 docs/TASKS.md，从第一个未完成任务开始，按 AGENTS.md 执行循环协议连续推进，每轮完成后更新 docs/PROGRESS.md 和 docs/TASKS.md，全部任务完成后执行 git push origin main，中途不要停，不要询问确认"
+```
+
+### 接续上次进度
+```
+codex "读取 AGENTS.md 和 docs/PROGRESS.md，找到上次中断点，从 docs/TASKS.md 中第一个未完成项继续，执行到全部完成后 push"
+```
+
+### 遇到 blocker 排查
+```
+codex "读取 AGENTS.md 和 docs/BLOCKERS.md，针对记录的问题用 /investigate 模式排查，给出根因分析和修复方案，修复后验证通过再 commit"
+```
+
+### 收尾 QA 与发布
+```
+codex "读取 AGENTS.md，当前进入收尾阶段，运行完整测试套件，整理分支，执行 /ship 流程，最终 git push 并输出发布摘要"
 ```

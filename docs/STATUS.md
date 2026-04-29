@@ -73,6 +73,9 @@
 - 2026-04-28 本轮连续十个最小闭环继续收口 `internal/app` 与 `core-upgrade-alpha`：补上 `controllerRuntimeSummary` / `controllerConfigMode` 的 HTTP 失败判定、`testNodeDelay` 的缺失/负值 delay 保护、`restartMinimalistServiceAfterCoreUpgrade` 的 active 状态校验、`releaseIsNewer` 的自然排序，以及 nodes / subscriptions / network / rules 菜单索引校验；该轮 `go test ./...` 与 `go build ./cmd/minimalist` 已通过，`internal/app` 覆盖率快照为 93.2%。
 - 2026-04-28 本次最新十轮硬化后的复验：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./...`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./internal/app -coverprofile=/tmp/minimalist-app.cover`、`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go build -o /tmp/minimalist-build-check ./cmd/minimalist` 全部通过；该轮 `internal/app` 覆盖率快照为 93.3%。
 - 2026-04-28 本轮 `runtime-audit` 收口复验通过：`GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./internal/app -run 'TestRuntimeAudit|TestAuditMenuDispatchesRuntimeAudit' -count=1` 与 `GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache go test ./internal/app -count=1` 均通过；输出当前已包含 `alerts-24h`、`alerts-recent` 和 `fatal-gaps`。
+- 2026-04-29 本机已安装当前分支生成的 `/usr/local/bin/minimalist`，`--help` 已确认暴露 `verify-runtime-assets` 与 `nodes list|test|rename|enable|disable|remove`。
+- 2026-04-29 本机已完成 `service restart smoke`：`minimalist.service` 保持 `active/enabled`，`healthcheck` 返回 `{"meta":true,"version":"alpha-c59c99a"}`，`runtime-audit` 为 `fatal-gaps=0`，`MIHOMO_PRE` / `MIHOMO_DNS` 链、`fwmark 0x2333 lookup 233` 与 `table 233` 均保持存在。
+- 2026-04-29 本机已完成 `host reboot smoke`：重启后 `minimalist.service` 自动恢复到 `active/enabled`，controller 恢复可达，`runtime-audit` 继续为 `fatal-gaps=0`，`MIHOMO_PRE` / `MIHOMO_DNS` 链、`fwmark 0x2333 lookup 233` 与 `table 233` 继续存在；当前主线已从“代码面收口”进入“长时间观察”阶段。
 
 ## 当前风险与限制
 

@@ -8,13 +8,14 @@
   - DNS / host-safe 默认姿态已被 tests 固定
   - help / runbook 已补齐到当前运维真相，模板层次文档已在前一轮对齐
 - 单元与 focused 测试已经覆盖核心配置、状态、provider、rules-repo、runtime 渲染、app 命令编排、CLI 分发与多组失败路径；历史收口过程中曾多次拉升 `internal/app` / `internal/config` 覆盖率，但当前判断主线不再以覆盖率数字为目标。
+- 本机已完成 `service restart smoke` 与 `host reboot smoke`，`minimalist.service`、controller、iptables 链、`ip rule` 与 `table 233` 都在重启后恢复正常。
 - 这台 Debian NAS 已经是可用实机：`systemd`、`iptables`、`ip rule` 都是真实可达的。
 - 现网已经从旧 `mihomo.service` 切换到 Go 版 `minimalist.service`；旧服务当前 `inactive/disabled`，新服务 `active/enabled`。
 - 本轮全量 `go test ./...` 和 build 已通过；新增 `core-upgrade-alpha` focused app/CLI tests 也已通过。此前实机 `healthcheck` / `runtime-audit` / systemd / ip rule / route table smoke 已通过；十轮连续硬化后复验仍保持同样结果。
 
 ## 下一最小闭环
 
-- 当前没有新的主路径功能缺口；下一步优先做实机 restart / reboot smoke，不扩协议、不恢复旧运维能力。
+- 当前没有新的主路径功能缺口；下一步优先进入长时间观察窗口，不扩协议、不恢复旧运维能力。
 - 当前主线从“补剩余低覆盖率热点”切到“长期稳定运行达标口径”。判断标准不再是多几个 focused tests，而是：
   - `minimalist.service` 经过冷启动 / 重启 / 宿主机 reboot 后都能稳定回到 `active/enabled`
   - `/var/lib/minimalist/mihomo/` 的 `Country.mmdb`、`GeoSite.dat`、`ui/` 缺失时有明确 fail-fast 或修复指引，不靠人工记忆补文件
@@ -30,8 +31,8 @@
 - 若继续施工，优先选择：
   - 继续观察 `minimalist.service` 24 小时日志；2026-04-28 08:34 CST 已确认 UI/geodata 资源复制后最近启动窗口不再出现启动下载错误，当前 warn/error 计数仍来自切换早期历史窗口。
   - `runtime-audit` 收口已完成：当前已把 24 小时粗粒度 `warn/error` 计数拆成可区分“历史窗口 / 当前窗口 / 致命缺口”的信号。
-  - 按新的 runbook 实际执行一轮 service restart smoke，并把结果回写 `docs/STATUS.md`。
-  - 再按同一 runbook 执行一轮 host reboot smoke，并确认 `minimalist.service`、controller、iptables 规则、`ip rule` 与 route table 都自动恢复。
+  - 进入 24h-72h 观察窗口，重点看 `minimalist.service` 是否仍保持 `active/enabled`，以及 `runtime-audit` 是否持续为 `fatal-gaps=0`。
+  - 在下一次日常维护窗口复跑一次 `service restart smoke`，确认 `MIHOMO_PRE` / `MIHOMO_DNS` 链、`ip rule` 与 `table 233` 仍稳定恢复。
   - 最后才回头补 `internal/app` / `core-upgrade-alpha` 的剩余低覆盖尾分支；稳定性闭环优先级高于继续追 coverage。
 - 旧 `/etc/mihomo`、`mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager` 已清理；下一步不再围绕旧服务回滚路径推进。
 - 保持 README / flows 描述 Go 版 `minimalist` 目标真相；STATUS / NEXT_STEP 记录 live host 已切换完成。
