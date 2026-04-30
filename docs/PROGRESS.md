@@ -60,3 +60,20 @@
 
 ### 下轮目标
 - 若 7890 再次异常，优先检查 `PROXY.now`、节点 delay 和最近 5 分钟 journal。
+
+## Round 2 — 2026-05-01 01:24
+
+### 完成
+- 排查 Windows 客户端在 Tailscale / ZeroTier 常驻时访问 `192.168.2.220:7890` 代理握手被关闭的问题。
+- 确认服务端 `minimalist.service`、controller、`PROXY.now` 与 7890 监听均正常，失败形态符合 `lan-allowed-ips` 来源白名单拒绝。
+- 新增 `access.lan_allowed_cidrs`，让显式代理端口白名单可独立放行远程可信网段，不污染旁路由真实 `network.lan_cidrs`。
+- 实机 `/etc/minimalist/config.yaml` 已加入 `100.64.0.0/10` 与 `10.156.67.0/24`，并重新安装、渲染、重启服务。
+
+### 测试状态
+- 通过: focused runtime tests、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal`、Tailscale / ZeroTier 7890 HTTP smoke / 总计: 5 组
+
+### 遗留 / 下轮继续
+- Windows 客户端应优先使用 `100.118.67.82:7890` 或 `10.156.67.142:7890` 再复测。
+
+### 下轮目标
+- 若 Windows 仍失败，抓取 Windows `ipconfig` 与两条 `curl -v` 输出，对照 `lan-allowed-ips` 来源网段继续排查。

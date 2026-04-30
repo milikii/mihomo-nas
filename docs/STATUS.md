@@ -77,6 +77,7 @@
 - 2026-04-29 本机已完成 `service restart smoke`：`minimalist.service` 保持 `active/enabled`，`healthcheck` 返回 `{"meta":true,"version":"alpha-c59c99a"}`，`runtime-audit` 为 `fatal-gaps=0`，`MIHOMO_PRE` / `MIHOMO_DNS` 链、`fwmark 0x2333 lookup 233` 与 `table 233` 均保持存在。
 - 2026-04-29 本机已完成 `host reboot smoke`：重启后 `minimalist.service` 自动恢复到 `active/enabled`，controller 恢复可达，`runtime-audit` 继续为 `fatal-gaps=0`，`MIHOMO_PRE` / `MIHOMO_DNS` 链、`fwmark 0x2333 lookup 233` 与 `table 233` 继续存在；当前主线已从“代码面收口”进入“长时间观察”阶段。
 - 2026-04-30 修复 7890 代理端口可连接但被墙目标超时问题：根因是有可用 provider 时 `PROXY` 选择组默认顺序为 `DIRECT, AUTO`，服务重启后 `MATCH,PROXY` 默认回落直连；当前已改为 `AUTO, DIRECT`，并在实机上完成重新安装、渲染配置、重启服务与 HTTP / SOCKS5 7890 smoke。
+- 2026-05-01 修复 Tailscale / ZeroTier 常驻时 Windows 客户端访问 7890 被握手关闭的问题：新增 `access.lan_allowed_cidrs`，将显式代理端口访问白名单与旁路由真实 `network.lan_cidrs` 分离；实机配置当前放行 `192.168.2.0/24`、`100.64.0.0/10`、`10.156.67.0/24` 与 `127.0.0.0/8`，并已通过 `100.118.67.82:7890`、`10.156.67.142:7890` HTTP 代理 smoke。
 
 ## 当前风险与限制
 

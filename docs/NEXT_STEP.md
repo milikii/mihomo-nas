@@ -34,6 +34,7 @@
   - `runtime-audit` 收口已完成：当前已把 24 小时粗粒度 `warn/error` 计数拆成可区分“历史窗口 / 当前窗口 / 致命缺口”的信号。
   - 进入 24h-72h 观察窗口，重点看 `minimalist.service` 是否仍保持 `active/enabled`，以及 `runtime-audit` 是否持续为 `fatal-gaps=0`。
   - 若 7890 代理端口再出现“能连但目标超时”，先检查 `curl -H 'Authorization: Bearer ...' http://127.0.0.1:19090/proxies/PROXY` 中的 `now` 是否为 `AUTO`，再看最近 5 分钟 `journalctl -u minimalist.service` 是否有节点拨号超时。
+  - 若客户端启用 Tailscale / ZeroTier 后访问 7890 被关闭，先确认 `/var/lib/minimalist/mihomo/config.yaml` 的 `lan-allowed-ips` 包含对应虚拟网段；当前已放行 Tailscale `100.64.0.0/10` 与 ZeroTier `10.156.67.0/24`。
   - 在下一次日常维护窗口复跑一次 `service restart smoke`，确认 `MIHOMO_PRE` / `MIHOMO_DNS` 链、`ip rule` 与 `table 233` 仍稳定恢复。
   - 最后才回头补 `internal/app` / `core-upgrade-alpha` 的剩余低覆盖尾分支；稳定性闭环优先级高于继续追 coverage。
 - 旧 `/etc/mihomo`、`mihomo.service`、`/usr/local/bin/mihomo` 与 `/usr/local/lib/mihomo-manager` 已清理；下一步不再围绕旧服务回滚路径推进。

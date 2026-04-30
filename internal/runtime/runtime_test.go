@@ -1154,6 +1154,32 @@ func TestBuildRuntimeConfigIncludesLANAllowedIPs(t *testing.T) {
 	}
 }
 
+func TestBuildRuntimeConfigIncludesAccessLANAllowedCIDRs(t *testing.T) {
+	paths := Paths{
+		ConfigDir:  t.TempDir(),
+		DataDir:    t.TempDir(),
+		RuntimeDir: t.TempDir(),
+	}
+	cfg := config.Default()
+	cfg.Network.LANCIDRs = []string{"192.168.2.0/24"}
+	cfg.Access.LANAllowedCIDRs = []string{"100.64.0.0/10", "10.156.67.0/24"}
+	text, err := buildRuntimeConfig(paths, cfg, state.Empty(), nil)
+	if err != nil {
+		t.Fatalf("build runtime config: %v", err)
+	}
+	for _, needle := range []string{
+		"lan-allowed-ips:",
+		"  - 192.168.2.0/24\n",
+		"  - 100.64.0.0/10\n",
+		"  - 10.156.67.0/24\n",
+		"  - 127.0.0.0/8\n",
+	} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q in runtime config:\n%s", needle, text)
+		}
+	}
+}
+
 func TestBuildRuntimeConfigIncludesLANDisallowedIPsWhenConfigured(t *testing.T) {
 	paths := Paths{
 		ConfigDir:  t.TempDir(),

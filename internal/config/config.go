@@ -62,6 +62,7 @@ type Controller struct {
 }
 
 type Access struct {
+	LANAllowedCIDRs    []string `yaml:"lan_allowed_cidrs"`
 	LANDisallowedCIDRs []string `yaml:"lan_disallowed_cidrs"`
 	Authentication     []string `yaml:"authentication"`
 	SkipAuthPrefixes   []string `yaml:"skip_auth_prefixes"`

@@ -180,7 +180,10 @@ func buildRuntimeConfig(paths Paths, cfg config.Config, st state.State, builtin 
 	b.WriteString("allow-lan: true\n")
 	b.WriteString("bind-address: \"*\"\n")
 	b.WriteString("lan-allowed-ips:\n")
-	for _, cidr := range append(append([]string{}, cfg.Network.LANCIDRs...), "127.0.0.0/8") {
+	allowedCIDRs := append([]string{}, cfg.Network.LANCIDRs...)
+	allowedCIDRs = append(allowedCIDRs, cfg.Access.LANAllowedCIDRs...)
+	allowedCIDRs = append(allowedCIDRs, "127.0.0.0/8")
+	for _, cidr := range allowedCIDRs {
 		fmt.Fprintf(&b, "  - %s\n", cidr)
 	}
 	if len(cfg.Access.LANDisallowedCIDRs) > 0 {
