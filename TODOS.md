@@ -32,6 +32,39 @@
 3. **CLI all-in** — 删除 `menu`，所有动作做成更好的 `minimalist nodes enable 5` 式子命令；交互式只保留 `router-wizard` / `import-links`。低中风险，心智模型从"逛菜单"变成"敲命令"。
 4. **REPL** — `minimalist>` 单一交互入口，输入 `nodes`、`nodes 5 enable`、`status`。中风险，单点入口但学习成本介于菜单和 CLI 之间。
 
+### 参考实现（mihomo / sing-box 社区成熟 shell 项目）
+
+社区已经把这些痛迭代过很多年，下面这些项目的菜单 UX 模式可以直接借鉴，不需要从零设计：
+
+- **[233boy/sing-box](https://github.com/233boy/sing-box)** — 最被采纳的 sing-box 一键 + 管理脚本。短入口 `sb` + 短动词（`a/add`、`c/change`、`d/del`、`i/info`、`v/version`、`s/status`、`log`、`qr`、`url`）。同一脚本 = menu + 直接子命令双轨。
+- **[FranzKafkaYu/sing-box-yes](https://github.com/FranzKafkaYu/sing-box-yes)**（英文 fork：[MiSaturo/sing-box-yes-english](https://github.com/MiSaturo/sing-box-yes-english)） — 社区公认最干净的菜单脚本架构参考。
+- **[TheyCallMeSecond/sing-box-manager](https://github.com/TheyCallMeSecond/sing-box-manager)** — `/usr/local/bin/singbox` symlink 安装模式 + 多协议共存。
+- **[chise0713/sing-box-install](https://github.com/chise0713/sing-box-install)** — 纯 action/option 风格（无菜单）的反例，可作为 Approach C "CLI all-in" 的参考。
+- **[官方 sing-box.app/deb-install.sh](https://sing-box.sagernet.org/installation/package-manager/)** — 最简的 package manager 路径，分发参考。
+
+#### 直接戳中本项目痛点的模式
+
+下面表格把社区做法和 minimalist 当前实现对照（启动 `/design-consultation` 时直接拿来反推改造清单）：
+
+| 模式 | minimalist 当前 | 社区做法（233boy / sing-box-yes） | 借鉴成本 |
+|------|------|------|------|
+| 短入口别名 | `minimalist menu`（11 字符） | `sb`（2 字符），install-self 时多建一个 symlink | 极低（几行 Go） |
+| 双轨：menu + 短动词 | menu 和 CLI 是两套 | 同一脚本：`sb` 进菜单 / `sb a` 直接 add | 已有半套 CLI，加短别名映射即可 |
+| 操作后回菜单 | `case "1": return a.ListNodes()` 看完即退 | `action && show_menu` 链式回到菜单 | 改 nodesMenu/subscriptionsMenu 的 case 分支 |
+| 看 + 操作合并 | "看节点" / "启用节点" 是 4 个独立菜单项 | `i/info` 显示完后菜单仍在，可接着 `c/change` | 重构 nodesMenu 数据流 |
+| 顶部 status header | "状态总览" 是菜单选项 1 | 进 menu 第一行就是 service status / 节点数 / controller 状态 | 在 Menu() 循环顶部加一段 ensureAll + 渲染 |
+| 高风险动作二次确认 | 删除节点 / 删除订阅没有 confirm | 删除类强制 `confirm()` y/n（默认 n） | 加一个 promptConfirm helper |
+| 统一日志层级 | 散落的 `fmt.Fprintln` | `LOGD/LOGI/LOGE/LOGW` 分级 + 颜色 | 包一层 helper，逐步替换 |
+| 状态常量 | 散落字符串 | `readonly STATUS_RUNNING / STATUS_NOT_RUNNING / STATUS_NOT_INSTALL` | Go 这边用 const block 即可 |
+| 备份 + 滚动恢复 | `core-upgrade-alpha` 已有 | 升级前 backup config，失败回滚 | 已对齐，无需借鉴 |
+| GitHub API 取版本 | `core-upgrade-alpha` 已有 | tag_name 解析 + 架构匹配 | 已对齐，无需借鉴 |
+
+#### 关键洞察
+
+- **绝大多数痛可以用"短别名 + 操作后回菜单 + 顶部 status header"三件套消除**——这是 Approach A（最小修补）的核心组合，比 TUI 重写性价比高得多。
+- **真正需要 Approach B（TUI 重写）的只有"看节点列表里直接对节点 N 发命令"**——bubbletea 才有的列表内操作。如果接受"看完后菜单仍在 + 短命令"折中，A + 短别名可能就够了。
+- **Approach C（CLI all-in）社区里也有人在做**（chise0713），但主流仍是双轨。建议 **A + 短别名（双轨）** 作为下一轮 design-consultation 的默认推荐起点。
+
 ### 观察期内的 self-observation 任务（24-72h，可填）
 
 每次自己用 `minimalist menu` 或 CLI 时，记一条到下方"高频路径日志"：
