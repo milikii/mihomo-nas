@@ -157,3 +157,37 @@
 
 ### 下轮目标
 - 继续 v2 Phase 2，先做事务性的 `host-proxy status|enable|disable`。
+
+## Round 8 — 2026-05-01 18:34
+
+### 完成
+- 新增事务性 `host-proxy` CLI：`status|enable|disable`，默认确认，高风险失败时回滚 config truth。
+- `enable` 现在会先做 cutover preflight 和启用手动节点检查，不再裸跑 `save -> render -> apply`。
+- 补齐 `internal/app` 与 `internal/cli` focused tests，覆盖默认 off、配置 on、无手动节点拒绝、`ApplyRules` 失败回滚，以及 CLI help/dispatch。
+
+### 测试状态
+- 通过: focused `internal/app`、focused `internal/cli`、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal` / 总计: 5 组
+
+### 遗留 / 下轮继续
+- v2 Phase 2 还差 `RenderConfig` 失败回滚与 `ensureCutoverReady` 失败不改配置的 focused tests。
+- v2 Phase 3 `log` snapshot CLI 还没开始。
+
+### 下轮目标
+- 继续补齐 `host-proxy` 剩余失败路径测试，然后开始 `log` snapshot CLI。
+
+## Round 9 — 2026-05-01 18:52
+
+### 完成
+- 补齐 `host-proxy` 剩余失败路径：`ensureCutoverReady` 阻断时不改配置、`RenderConfig` 失败时至少回滚 config truth。
+- 新增 snapshot `log` CLI：支持 `log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]`，明确不做 `-f`。
+- 补齐 `Logs()` focused tests 和 CLI parser/help focused tests，全量回归继续通过。
+
+### 测试状态
+- 通过: focused `internal/app`、focused `internal/cli`、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal` / 总计: 5 组
+
+### 遗留 / 下轮继续
+- v2 还没做统一错误 contract 文案，也还没做 EOF-safe `readChoice()`。
+- `log` 的 timeout focused test 还没补。
+
+### 下轮目标
+- 继续收口 `readChoice()` 和统一错误 contract，或者把当前阶段代码先安装到 live 机器验证。

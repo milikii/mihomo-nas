@@ -146,52 +146,52 @@ Must not expand unless separately planned:
 
 #### Task 2.1: `SetHostProxy(enabled bool)`
 
-- [ ] 不再用 `save -> render -> apply` 裸串联
-- [ ] 先做 preflight
+- [x] 不再用 `save -> render -> apply` 裸串联
+- [x] 先做 preflight
   - cutover ready
   - enabled manual nodes present
-- [ ] 失败回滚配置真相
-- [ ] 成功后给明确验证输出
+- [x] 失败回滚配置真相
+- [x] 成功后给明确验证输出
 
 #### Task 2.2: CLI surface
 
-- [ ] 用统一动词体系：
+- [x] 用统一动词体系：
   - `host-proxy status`
   - `host-proxy enable`
   - `host-proxy disable`
-- [ ] `status` 只读
-- [ ] `enable/disable` 默认带确认
-- [ ] 文案必须包含回滚提示
+- [x] `status` 只读
+- [x] `enable/disable` 默认带确认
+- [x] 文案必须包含回滚提示
 
 #### Task 2.3: Required tests
 
-- [ ] `RenderConfig` 失败回滚
-- [ ] `ApplyRules` 失败回滚
-- [ ] `ensureCutoverReady` 失败时不改配置
-- [ ] 无启用手动节点时不改配置
+- [x] `RenderConfig` 失败回滚
+- [x] `ApplyRules` 失败回滚
+- [x] `ensureCutoverReady` 失败时不改配置
+- [x] 无启用手动节点时不改配置
 
 ### Revised Phase 3 — Safe Log Snapshot
 
 #### Task 3.1: Scope reduction
 
-- [ ] 删除首轮 `-f` 设计
-- [ ] 不扩 `internal/system` streaming API
+- [x] 删除首轮 `-f` 设计
+- [x] 不扩 `internal/system` streaming API
 
 #### Task 3.2: CLI contract
 
-- [ ] `log`
-- [ ] `log --lines 50`
-- [ ] `log --errors`
-- [ ] `log mihomo`
-- [ ] 可选：`log --since "15 minutes ago"`
+- [x] `log`
+- [x] `log --lines 50`
+- [x] `log --errors`
+- [x] `log mihomo`
+- [x] 可选：`log --since "15 minutes ago"`
 
 #### Task 3.3: Required tests
 
-- [ ] unknown arg
-- [ ] missing `journalctl`
+- [x] unknown arg
+- [x] missing `journalctl`
 - [ ] timeout
-- [ ] line count honored
-- [ ] `mihomo` target path
+- [x] line count honored
+- [x] `mihomo` target path
 
 ### Revised Phase 4 — Menu Loop Safety
 

@@ -65,6 +65,10 @@ func runWithApp(args []string, a *app.App, tty bool) error {
 		return runNodes(a, args[1:])
 	case "subscriptions":
 		return runSubscriptions(a, args[1:])
+	case "host-proxy":
+		return runHostProxy(a, args[1:])
+	case "log":
+		return runLog(a, args[1:])
 	case "rules":
 		return runRules(a, false, args[1:])
 	case "acl":
@@ -169,6 +173,53 @@ func toggleSubscription(a *app.App, args []string, enabled bool) error {
 	return a.SetSubscriptionEnabled(index, enabled)
 }
 
+func runHostProxy(a *app.App, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: minimalist host-proxy status|enable|disable")
+	}
+	switch args[0] {
+	case "status":
+		return a.HostProxyStatus()
+	case "enable":
+		return a.HostProxyEnable()
+	case "disable":
+		return a.HostProxyDisable()
+	default:
+		return fmt.Errorf("unknown host-proxy command: %s", args[0])
+	}
+}
+
+func runLog(a *app.App, args []string) error {
+	opts := app.LogOptions{}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "mihomo":
+			opts.Target = "mihomo"
+		case "--errors":
+			opts.Errors = true
+		case "-n", "--lines":
+			i++
+			if i >= len(args) {
+				return errors.New("usage: minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]")
+			}
+			lines, err := strconv.Atoi(args[i])
+			if err != nil {
+				return err
+			}
+			opts.Lines = lines
+		case "--since":
+			i++
+			if i >= len(args) {
+				return errors.New("usage: minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]")
+			}
+			opts.Since = args[i]
+		default:
+			return fmt.Errorf("unknown log argument: %q", args[i])
+		}
+	}
+	return a.Logs(opts)
+}
+
 func runRules(a *app.App, acl bool, args []string) error {
 	label := "rules"
 	if acl {
@@ -259,6 +310,8 @@ func printUsage() {
   minimalist import-links
   minimalist router-wizard
   minimalist apply-rules|clear-rules
+  minimalist host-proxy status|enable|disable
+  minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]
   minimalist nodes list|test|rename|enable|disable|remove
   minimalist rules list|add|remove
   minimalist acl list|add|remove

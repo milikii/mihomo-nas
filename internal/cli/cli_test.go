@@ -691,6 +691,8 @@ func TestRunHelpPrintsUsage(t *testing.T) {
 		"minimalist commands:",
 		"minimalist core-upgrade-alpha",
 		"  minimalist verify-runtime-assets\n",
+		"  minimalist host-proxy status|enable|disable\n",
+		"  minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]\n",
 		"  minimalist nodes list|test|rename|enable|disable|remove\n",
 		"enhancement commands:",
 		"  minimalist subscriptions list|add|enable|disable|remove|update\n",
@@ -986,6 +988,45 @@ func TestRunDispatchesSubscriptionsList(t *testing.T) {
 	})
 	if !strings.Contains(output, "1\trun-sub\thttps://subscription.example.com/run.txt\t1\t\t0\t") {
 		t.Fatalf("unexpected subscriptions list output:\n%s", output)
+	}
+}
+
+func TestRunDispatchesHostProxyStatus(t *testing.T) {
+	setCLIPathsEnv(t)
+	output := captureStdout(t, func() {
+		if err := Run([]string{"host-proxy", "status"}); err != nil {
+			t.Fatalf("run host-proxy status: %v", err)
+		}
+	})
+	if !strings.Contains(output, "宿主机流量接管: off") {
+		t.Fatalf("unexpected host-proxy status output:\n%s", output)
+	}
+}
+
+func TestRunDispatchesHostProxyUnknownSubcommand(t *testing.T) {
+	setCLIPathsEnv(t)
+	err := Run([]string{"host-proxy", "unknown"})
+	if err == nil || !strings.Contains(err.Error(), "unknown host-proxy command: unknown") {
+		t.Fatalf("expected host-proxy unknown subcommand error, got %v", err)
+	}
+}
+
+func TestRunLogParsesSnapshotFlags(t *testing.T) {
+	a, _ := newCLIApp(t)
+	if err := runLog(a, []string{"mihomo", "--errors", "-n", "20", "--since", "15m"}); err != nil {
+		t.Fatalf("run log: %v", err)
+	}
+	out := a.Stdout.(*bytes.Buffer).String()
+	if !strings.Contains(out, "journalctl") && out != "" {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestRunLogRejectsUnknownArg(t *testing.T) {
+	a, _ := newCLIApp(t)
+	err := runLog(a, []string{"--bad"})
+	if err == nil || !strings.Contains(err.Error(), `unknown log argument: "--bad"`) {
+		t.Fatalf("expected unknown arg error, got %v", err)
 	}
 }
 
@@ -1585,6 +1626,8 @@ func TestRunRulesAndSubscriptionsHelperUsageErrors(t *testing.T) {
 		{"runRules", func() error { return runRules(a, false, nil) }, "usage: minimalist rules list|add|remove ..."},
 		{"runRulesACL", func() error { return runRules(a, true, nil) }, "usage: minimalist acl list|add|remove ..."},
 		{"runSubscriptions", func() error { return runSubscriptions(a, nil) }, "usage: minimalist subscriptions list|add|enable|disable|remove|update ... (enhancement)"},
+		{"runHostProxy", func() error { return runHostProxy(a, nil) }, "usage: minimalist host-proxy status|enable|disable"},
+		{"runLog", func() error { return runLog(a, []string{"-n"}) }, "usage: minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]"},
 	} {
 		err := tc.fn()
 		if err == nil || !strings.Contains(err.Error(), tc.want) {

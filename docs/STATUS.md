@@ -22,13 +22,13 @@
 - 运行时配置、provider、rules、systemd unit 与 sysctl 文本生成：`internal/runtime`
 - 业务命令、菜单与 CLI 分发：`internal/app`、`internal/cli`
 - 外部命令封装：`internal/system`
-- `menu` 已按运维任务分组：状态总览、部署/修复、节点管理、订阅管理（增强项）、网络入口与规则仓库、规则与 ACL、服务管理、健康检查与审计
+- `menu` 当前已开始按 v2 重构：顶部增加 cheap status header，顶层第 1 项是“状态与诊断”，`Cutover` 独立成单独菜单；其余分组暂时仍沿用旧结构
 
 当前保留命令：
 
 - 核心主路径：`install-self`、`setup`、`render-config`、`start`、`stop`、`restart`
 - 内核维护：`core-upgrade-alpha`（官方 alpha release 单次升级，成功替换后自动重启 `minimalist.service`）
-- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`verify-runtime-assets`、`cutover-preflight`、`cutover-plan`
+- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`verify-runtime-assets`、`cutover-preflight`、`cutover-plan`、`host-proxy status|enable|disable`、`log`
 - 交互与资源入口：`menu`、`router-wizard`、`import-links`
 - 节点与规则：`nodes`、`rules`、`acl`、`rules-repo`
 - 增强项：`subscriptions`
@@ -83,6 +83,7 @@
 - 2026-05-01 `core-upgrade-alpha` 在替换内核后如果 `minimalist.service` 重启失败，会自动把 `.bak` 恢复回 `core_bin` 并再次重启服务；若恢复失败，会保留 `.bak` 并在错误中输出备份路径。
 - 2026-05-01 `core-upgrade-alpha` 支持显式 amd64 CPU-level 资产选择：通过 `install.core_amd64_cpu_level` 指定 `compatible` / `v1` / `v2` / `v3` 等变体；未配置时仍拒绝猜测。
 - 2026-05-01 默认规则仓库双份维护风险已收口：删除仓库根部 `rules-repo/default` 镜像样本，只保留 `internal/rulesrepo/assets/default` 作为内置默认规则仓库唯一源。
+- 2026-05-01 菜单重设计 v2 已落地第一批可执行项：cheap `statusSnapshot` header、独立“状态与诊断”入口、独立 `Cutover` 菜单、事务性 `host-proxy` CLI、snapshot `log` CLI。
 
 ## 当前风险与限制
 

@@ -14,7 +14,7 @@
 
 - 核心主路径：`install-self`、`setup`、`render-config`、`start` / `stop` / `restart`
 - 内核维护：`core-upgrade-alpha`（仅从官方 alpha release 单次升级 `mihomo-core`，成功替换后自动重启 `minimalist.service`；重启失败会自动恢复旧 core）
-- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`、`cutover-plan`
+- 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`、`cutover-plan`、`host-proxy status|enable|disable`、`log`
 - 交互入口：`menu`、`router-wizard`、`import-links`
 - 节点与规则：`nodes`、`rules`、`acl`、`rules-repo`
 - 增强项：`subscriptions`
