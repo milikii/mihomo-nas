@@ -477,20 +477,21 @@ func (a *App) Menu() error {
 		}
 	}
 	for {
-		fmt.Fprintln(a.Stdout, "1) 状态总览")
+		fmt.Fprintln(a.Stdout, a.renderStatusHeader())
+		fmt.Fprintln(a.Stdout, "1) 状态与诊断")
 		fmt.Fprintln(a.Stdout, "2) 部署/修复")
 		fmt.Fprintln(a.Stdout, "3) 节点管理")
 		fmt.Fprintln(a.Stdout, "4) 订阅管理（增强项）")
 		fmt.Fprintln(a.Stdout, "5) 网络入口与规则仓库")
 		fmt.Fprintln(a.Stdout, "6) 规则与 ACL")
 		fmt.Fprintln(a.Stdout, "7) 服务管理")
-		fmt.Fprintln(a.Stdout, "8) 健康检查与审计")
+		fmt.Fprintln(a.Stdout, "8) Cutover 检查")
 		fmt.Fprintln(a.Stdout, "0) 退出")
 		fmt.Fprint(a.Stdout, "> ")
 		line, _ := reader.ReadString('\n')
 		switch strings.TrimSpace(line) {
 		case "1":
-			report(a.Status())
+			report(a.auditMenu(reader))
 		case "2":
 			report(a.deployMenu(reader))
 		case "3":
@@ -504,7 +505,7 @@ func (a *App) Menu() error {
 		case "7":
 			report(a.serviceMenu(reader))
 		case "8":
-			report(a.auditMenu(reader))
+			report(a.cutoverMenu(reader))
 		case "0":
 			return nil
 		default:
@@ -1631,21 +1632,38 @@ func (a *App) serviceMenu(reader *bufio.Reader) error {
 
 func (a *App) auditMenu(reader *bufio.Reader) error {
 	for {
-		fmt.Fprintln(a.Stdout, "1) 健康检查")
-		fmt.Fprintln(a.Stdout, "2) 运行审计")
-		fmt.Fprintln(a.Stdout, "3) Cutover 检查")
-		fmt.Fprintln(a.Stdout, "4) Cutover 计划")
+		fmt.Fprintln(a.Stdout, "1) 查看状态")
+		fmt.Fprintln(a.Stdout, "2) 健康检查")
+		fmt.Fprintln(a.Stdout, "3) 运行审计")
 		fmt.Fprintln(a.Stdout, "0) 返回")
 		fmt.Fprint(a.Stdout, "> ")
 		line, _ := reader.ReadString('\n')
 		switch strings.TrimSpace(line) {
 		case "1":
-			return a.Healthcheck()
+			return a.Status()
 		case "2":
-			return a.RuntimeAudit()
+			return a.Healthcheck()
 		case "3":
+			return a.RuntimeAudit()
+		case "0":
+			return nil
+		default:
+			fmt.Fprintln(a.Stdout, "无效选择")
+		}
+	}
+}
+
+func (a *App) cutoverMenu(reader *bufio.Reader) error {
+	for {
+		fmt.Fprintln(a.Stdout, "1) Cutover 检查")
+		fmt.Fprintln(a.Stdout, "2) Cutover 计划")
+		fmt.Fprintln(a.Stdout, "0) 返回")
+		fmt.Fprint(a.Stdout, "> ")
+		line, _ := reader.ReadString('\n')
+		switch strings.TrimSpace(line) {
+		case "1":
 			return a.CutoverPreflight()
-		case "4":
+		case "2":
 			return a.CutoverPlan()
 		case "0":
 			return nil

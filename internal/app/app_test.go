@@ -2019,23 +2019,23 @@ func TestServiceMenuDispatchesStop(t *testing.T) {
 	}
 }
 
-func TestAuditMenuDispatchesCutoverChecks(t *testing.T) {
+func TestCutoverMenuDispatchesCutoverChecks(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Runner = fakeRunner{
 		runFn: func(name string, args ...string) error {
 			return errors.New("inactive")
 		},
 	}
-	if err := app.auditMenu(bufio.NewReader(strings.NewReader("3\n"))); err != nil {
-		t.Fatalf("audit menu preflight: %v", err)
+	if err := app.cutoverMenu(bufio.NewReader(strings.NewReader("1\n"))); err != nil {
+		t.Fatalf("cutover menu preflight: %v", err)
 	}
-	if err := app.auditMenu(bufio.NewReader(strings.NewReader("4\n"))); err != nil {
-		t.Fatalf("audit menu plan: %v", err)
+	if err := app.cutoverMenu(bufio.NewReader(strings.NewReader("2\n"))); err != nil {
+		t.Fatalf("cutover menu plan: %v", err)
 	}
 	output := app.Stdout.(*bytes.Buffer).String()
 	for _, needle := range []string{
-		"3) Cutover 检查",
-		"4) Cutover 计划",
+		"1) Cutover 检查",
+		"2) Cutover 计划",
 		"cutover-preflight:",
 		"cutover-plan: legacy_live=false minimalist_service_live=false cutover_ready=true",
 		"next-action: run-minimalist-setup",
@@ -2046,15 +2046,15 @@ func TestAuditMenuDispatchesCutoverChecks(t *testing.T) {
 	}
 }
 
-func TestAuditMenuRetriesAfterInvalidChoice(t *testing.T) {
+func TestCutoverMenuRetriesAfterInvalidChoice(t *testing.T) {
 	app, _ := newTestApp(t)
-	if err := app.auditMenu(bufio.NewReader(strings.NewReader("x\n3\n"))); err != nil {
-		t.Fatalf("audit menu retry preflight: %v", err)
+	if err := app.cutoverMenu(bufio.NewReader(strings.NewReader("x\n1\n"))); err != nil {
+		t.Fatalf("cutover menu retry preflight: %v", err)
 	}
 	output := app.Stdout.(*bytes.Buffer).String()
 	for _, needle := range []string{
 		"无效选择",
-		"3) Cutover 检查",
+		"1) Cutover 检查",
 		"cutover-preflight:",
 	} {
 		if !strings.Contains(output, needle) {
@@ -2073,12 +2073,13 @@ func TestAuditMenuDispatchesHealthcheck(t *testing.T) {
 			return textResponse(http.StatusOK, "Mihomo Meta v1.1.0\n"), nil
 		}),
 	}
-	if err := app.auditMenu(bufio.NewReader(strings.NewReader("1\n"))); err != nil {
+	if err := app.auditMenu(bufio.NewReader(strings.NewReader("2\n"))); err != nil {
 		t.Fatalf("audit menu healthcheck: %v", err)
 	}
 	output := app.Stdout.(*bytes.Buffer).String()
 	for _, needle := range []string{
-		"1) 健康检查",
+		"1) 查看状态",
+		"2) 健康检查",
 		"mixed-port=7890",
 		"Mihomo Meta v1.1.0",
 	} {
@@ -2117,12 +2118,12 @@ func TestAuditMenuDispatchesRuntimeAudit(t *testing.T) {
 			}
 		}),
 	}
-	if err := app.auditMenu(bufio.NewReader(strings.NewReader("2\n"))); err != nil {
+	if err := app.auditMenu(bufio.NewReader(strings.NewReader("3\n"))); err != nil {
 		t.Fatalf("audit menu runtime audit: %v", err)
 	}
 	output := app.Stdout.(*bytes.Buffer).String()
 	for _, needle := range []string{
-		"2) 运行审计",
+		"3) 运行审计",
 		"alerts-24h: warn=1 error=1",
 		"alerts-recent: warn=1 error=1",
 		"runtime: Mihomo Meta v1.1.1",
@@ -2147,6 +2148,7 @@ func TestMenusReturnNilOnZeroSelection(t *testing.T) {
 		{"rules-acl", app.rulesAndACLMenu},
 		{"service", app.serviceMenu},
 		{"audit", app.auditMenu},
+		{"cutover", app.cutoverMenu},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := tc.run(bufio.NewReader(strings.NewReader("0\n"))); err != nil {
@@ -2166,13 +2168,12 @@ func TestMenuDispatchesMainActionsAndIgnoresInvalidChoice(t *testing.T) {
 		"x",
 		"1",
 		"2",
+		"2",
 		"1",
 		"4",
 		"1",
 		"6",
 		"1",
-		"6",
-		"4",
 		"8",
 		"1",
 		"0",
@@ -2182,12 +2183,17 @@ func TestMenuDispatchesMainActionsAndIgnoresInvalidChoice(t *testing.T) {
 	}
 	output := app.Stdout.(*bytes.Buffer).String()
 	for _, needle := range []string{
+		"=== minimalist | 服务:",
 		"无效选择",
+		"1) 状态与诊断",
 		"部署完成，请先 import-links 并启用手动节点后再启动服务",
 		"4) 订阅管理（增强项）",
+		"2) 健康检查",
 		"1) 查看订阅",
 		"1) 查看自定义规则",
 		"mixed-port=7890",
+		"1) Cutover 检查",
+		"cutover-preflight:",
 	} {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in menu output:\n%s", needle, output)
@@ -5657,9 +5663,9 @@ func TestMenuDispatchesServiceMenu(t *testing.T) {
 	}
 }
 
-func TestMenuDispatchesAuditMenu(t *testing.T) {
+func TestMenuDispatchesCutoverMenu(t *testing.T) {
 	app, _ := newTestApp(t)
-	app.Stdin = strings.NewReader("8\n4\n0\n")
+	app.Stdin = strings.NewReader("8\n2\n0\n")
 
 	if err := app.Menu(); err != nil {
 		t.Fatalf("menu: %v", err)

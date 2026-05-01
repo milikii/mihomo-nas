@@ -125,21 +125,22 @@ Must not expand unless separately planned:
 
 #### Task 1.1: `statusSnapshot()` + header
 
-- [ ] 新增纯本地 snapshot helper
-- [ ] 禁止 header 走 controller HTTP
-- [ ] 新增 focused tests:
+- [x] 新增纯本地 snapshot helper
+- [x] 禁止 header 走 controller HTTP
+- [x] 新增 focused tests:
   - controller down 时 header 仍快速返回
   - unknown state 不伪装成 stopped
   - 0 个启用手动节点显示 `none`
+  - partial manual readiness 正确显示 `partial`
 
 #### Task 1.2: 独立 diagnostics surface
 
-- [ ] 保留一个明确入口，不让 header 替代诊断
-- [ ] 入口至少包含：
+- [x] 保留一个明确入口，不让 header 替代诊断
+- [x] 入口至少包含：
   - `status`
   - `healthcheck`
   - `runtime-audit`
-- [ ] 菜单文案用“状态与诊断”或“诊断”，不要只叫“日志”
+- [x] 菜单文案用“状态与诊断”或“诊断”，不要只叫“日志”
 
 ### Revised Phase 2 — Transactional Host Proxy
 

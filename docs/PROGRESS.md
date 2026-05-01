@@ -141,3 +141,19 @@
 
 ### 下轮目标
 - 进入收尾复查或按新指令继续。
+
+## Round 7 — 2026-05-01 18:16
+
+### 完成
+- 开始执行菜单重设计 v2 的第一段，只做 `statusSnapshot()` + 顶部 header + 独立“状态与诊断”入口，不碰 `host-proxy` 和 `log -f`。
+- 顶层菜单第 1 项从“状态总览”改成“状态与诊断”，新增 cheap header；第 8 项改为独立 `Cutover` 菜单，避免诊断入口被 header 吞掉。
+- 新增 `internal/app/header.go` 与 focused tests，锁定 header 不打 controller HTTP、服务 unknown fallback、manual node `partial` 状态，以及菜单分发到 diagnostics/cutover 的新路径。
+
+### 测试状态
+- 通过: focused `internal/app` tests、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal` / 总计: 4 组
+
+### 遗留 / 下轮继续
+- v2 Phase 2 还没开始：`host-proxy` 事务性 service、snapshot `log` CLI、统一错误 contract、EOF-safe `readChoice()` 还未实现。
+
+### 下轮目标
+- 继续 v2 Phase 2，先做事务性的 `host-proxy status|enable|disable`。
