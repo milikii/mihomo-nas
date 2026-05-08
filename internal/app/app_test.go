@@ -2475,6 +2475,68 @@ func TestSetNodeEnabledUpdatesManualNodesAndRejectsSubscriptionNodes(t *testing.
 	}
 }
 
+func TestSetNodeEnabledAppliesRuntimeWhenServiceActive(t *testing.T) {
+	app, _ := newTestApp(t)
+	calls := []commandCall{}
+	app.Runner = fakeRunner{
+		runFn: func(name string, args ...string) error {
+			calls = append(calls, commandCall{name: name, args: append([]string{}, args...)})
+			if name == "systemctl" && len(args) >= 3 && args[0] == "is-active" && args[2] == "mihomo.service" {
+				return errors.New("inactive")
+			}
+			if name == "systemctl" && len(args) >= 3 && args[0] == "is-enabled" && args[2] == "mihomo.service" {
+				return errors.New("disabled")
+			}
+			return nil
+		},
+	}
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#apply-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable manual node: %v", err)
+	}
+	body, err := os.ReadFile(app.Paths.ManualProvider())
+	if err != nil {
+		t.Fatalf("read manual provider: %v", err)
+	}
+	if !strings.Contains(string(body), "apply-node") {
+		t.Fatalf("expected enabled node rendered to manual provider:\n%s", string(body))
+	}
+	if !hasRecordedCall(calls, "systemctl", "restart", "minimalist.service") {
+		t.Fatalf("expected minimalist.service restart, got %+v", calls)
+	}
+	if output := app.Stdout.(*bytes.Buffer).String(); !strings.Contains(output, "节点变更已应用，服务已重启") {
+		t.Fatalf("expected runtime apply message, got:\n%s", output)
+	}
+}
+
+func TestSetNodeEnabledRejectsDisablingRuleTarget(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Stdin = strings.NewReader("trojan://password@example.org:443?security=tls#rule-node\n")
+	if err := app.ImportLinks(); err != nil {
+		t.Fatalf("import links: %v", err)
+	}
+	if err := app.SetNodeEnabled(1, true); err != nil {
+		t.Fatalf("enable manual node: %v", err)
+	}
+	if err := app.AddRule(false, "domain", "example.com", "rule-node"); err != nil {
+		t.Fatalf("add rule: %v", err)
+	}
+	err := app.SetNodeEnabled(1, false)
+	if err == nil || !strings.Contains(err.Error(), "node is referenced by rule") {
+		t.Fatalf("expected disable guard error, got %v", err)
+	}
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if !st.Nodes[0].Enabled {
+		t.Fatalf("expected node to stay enabled when referenced by a rule")
+	}
+}
+
 func TestNodeMutationCommandsRejectOutOfRangeIndexes(t *testing.T) {
 	app, _ := newTestApp(t)
 	if err := app.RenameNode(1, "missing"); err == nil || !strings.Contains(err.Error(), "node index out of range") {
@@ -2837,11 +2899,16 @@ func TestSetupRejectsInvalidPersistedRuleTarget(t *testing.T) {
 	if err := app.AddRule(false, "domain", "example.com", "setup-invalid-target"); err != nil {
 		t.Fatalf("add rule: %v", err)
 	}
-	if err := app.SetNodeEnabled(1, false); err != nil {
-		t.Fatalf("disable node: %v", err)
+	st, err := state.Load(app.Paths.StatePath())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	st.Nodes[0].Enabled = false
+	if err := state.Save(app.Paths.StatePath(), st); err != nil {
+		t.Fatalf("save invalid state: %v", err)
 	}
 
-	err := app.Setup()
+	err = app.Setup()
 	if err == nil || !strings.Contains(err.Error(), "无效规则目标") {
 		t.Fatalf("expected invalid rule target rejection, got %v", err)
 	}

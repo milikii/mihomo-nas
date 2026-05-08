@@ -583,7 +583,7 @@ func (a *App) TestNode(index int) error {
 }
 
 func (a *App) RenameNode(index int, newName string) error {
-	_, st, err := a.ensureAll()
+	cfg, st, err := a.ensureAll()
 	if err != nil {
 		return err
 	}
@@ -621,11 +621,17 @@ func (a *App) RenameNode(index int, newName string) error {
 			st.ACL[idx].Target = newName
 		}
 	}
-	return state.Save(a.Paths.StatePath(), st)
+	if err := state.Save(a.Paths.StatePath(), st); err != nil {
+		return err
+	}
+	if err := a.applyNodeRuntimeIfServiceActive(cfg, st); err != nil {
+		return fmt.Errorf("node state saved but runtime apply failed: %w", err)
+	}
+	return nil
 }
 
 func (a *App) SetNodeEnabled(index int, enabled bool) error {
-	_, st, err := a.ensureAll()
+	cfg, st, err := a.ensureAll()
 	if err != nil {
 		return err
 	}
@@ -636,12 +642,38 @@ func (a *App) SetNodeEnabled(index int, enabled bool) error {
 	if node.Source.Kind == "subscription" {
 		return errors.New("subscription node is provider-managed")
 	}
+	if !enabled && nodeReferencedByRule(st, node.Name) {
+		return errors.New("node is referenced by rule")
+	}
 	node.Enabled = enabled
-	return state.Save(a.Paths.StatePath(), st)
+	if err := a.validateRuleTargets(st); err != nil {
+		return err
+	}
+	if err := state.Save(a.Paths.StatePath(), st); err != nil {
+		return err
+	}
+	if err := a.applyNodeRuntimeIfServiceActive(cfg, st); err != nil {
+		return fmt.Errorf("node state saved but runtime apply failed: %w", err)
+	}
+	return nil
+}
+
+func nodeReferencedByRule(st state.State, name string) bool {
+	for _, rule := range st.Rules {
+		if rule.Target == name {
+			return true
+		}
+	}
+	for _, rule := range st.ACL {
+		if rule.Target == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) RemoveNode(index int) error {
-	_, st, err := a.ensureAll()
+	cfg, st, err := a.ensureAll()
 	if err != nil {
 		return err
 	}
@@ -653,19 +685,41 @@ func (a *App) RemoveNode(index int) error {
 	}
 	node := st.Nodes[index-1]
 	if node.Name != "DIRECT" && node.Name != "PROXY" && node.Name != "REJECT" && node.Name != "AUTO" {
-		for _, rule := range st.Rules {
-			if rule.Target == node.Name {
-				return errors.New("node is referenced by rule")
-			}
-		}
-		for _, rule := range st.ACL {
-			if rule.Target == node.Name {
-				return errors.New("node is referenced by rule")
-			}
+		if nodeReferencedByRule(st, node.Name) {
+			return errors.New("node is referenced by rule")
 		}
 	}
 	st.Nodes = append(st.Nodes[:index-1], st.Nodes[index:]...)
-	return state.Save(a.Paths.StatePath(), st)
+	if err := state.Save(a.Paths.StatePath(), st); err != nil {
+		return err
+	}
+	if err := a.applyNodeRuntimeIfServiceActive(cfg, st); err != nil {
+		return fmt.Errorf("node state saved but runtime apply failed: %w", err)
+	}
+	return nil
+}
+
+func (a *App) applyNodeRuntimeIfServiceActive(cfg config.Config, st state.State) error {
+	if !commandOK(a.Runner.Run("systemctl", "is-active", "--quiet", "minimalist.service")) {
+		return nil
+	}
+	if err := a.ensureCutoverReady(); err != nil {
+		return err
+	}
+	if err := a.validateRuleTargets(st); err != nil {
+		return err
+	}
+	if err := runtime.RenderFiles(a.Paths, cfg, st); err != nil {
+		return err
+	}
+	if err := a.ensureRuntimeAssetsReady(); err != nil {
+		return err
+	}
+	if err := a.Runner.Run("systemctl", "restart", "minimalist.service"); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.Stdout, "节点变更已应用，服务已重启")
+	return nil
 }
 
 func (a *App) ListRules(acl bool) error {

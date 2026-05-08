@@ -12,6 +12,7 @@
 - 当前代码默认姿态已被测试固定：`proxy_host_output: false`、LAN DNS hijack 打开、host OUTPUT 默认不接管。
 - 当前文档真相已补齐成熟模板层次：baseline 模板 -> 个人规则层（custom/ACL） -> 仓库规则层 -> 固定 tail。
 - 当前 CLI 已暴露 `minimalist nodes test`，`--help` 已显式列出 `verify-runtime-assets`；下一步是按 runbook 做实机 restart / reboot smoke。
+- 手动节点启用、禁用、改名、删除现在会在服务运行时自动重新渲染运行配置并重启 `minimalist.service`，避免 `state.json` 已更新但 Mihomo provider 仍是旧内容。
 
 ## 已完成能力
 
@@ -85,6 +86,7 @@
 - 2026-05-01 默认规则仓库双份维护风险已收口：删除仓库根部 `rules-repo/default` 镜像样本，只保留 `internal/rulesrepo/assets/default` 作为内置默认规则仓库唯一源。
 - 2026-05-01 菜单重设计 v2 已落地第一批可执行项：cheap `statusSnapshot` header、独立“状态与诊断”入口、独立 `Cutover` 菜单、事务性 `host-proxy` CLI、snapshot `log` CLI。
 - 2026-05-08 菜单重构继续收口：顶层改成节点/配置/规则/日志诊断/控制启停 5 类；节点管理支持常驻列表、按节点 ID 进入操作面板、单节点启停/改名/测速/确认删除；配置管理纳入 `host-proxy` 和订阅增强项，规则管理合并自定义规则、ACL 与规则仓库。
+- 2026-05-09 修复节点管理状态与运行时漂移：手动节点启停、改名、删除在服务运行时会保存状态后自动渲染 runtime 并重启服务；本机 GXP 三个节点由原先 runtime 缺失导致的 404，重启同步后均已测速通过。
 
 ## 当前风险与限制
 

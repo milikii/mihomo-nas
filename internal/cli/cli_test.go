@@ -20,7 +20,12 @@ import (
 
 type noopRunner struct{}
 
-func (noopRunner) Run(name string, args ...string) error { return nil }
+func (noopRunner) Run(name string, args ...string) error {
+	if name == "systemctl" && len(args) >= 1 && (args[0] == "is-active" || args[0] == "is-enabled") {
+		return os.ErrNotExist
+	}
+	return nil
+}
 
 func (noopRunner) Output(name string, args ...string) (string, string, error) {
 	return "", "", nil
@@ -59,6 +64,9 @@ type recordingRunner struct {
 
 func (r recordingRunner) Run(name string, args ...string) error {
 	*r.calls = append(*r.calls, recordedCommand{name: name, args: append([]string{}, args...)})
+	if name == "systemctl" && len(args) >= 1 && (args[0] == "is-active" || args[0] == "is-enabled") {
+		return os.ErrNotExist
+	}
 	if name == "iptables" {
 		return os.ErrNotExist
 	}

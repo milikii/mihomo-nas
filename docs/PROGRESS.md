@@ -241,3 +241,20 @@
 
 ### 下轮目标
 - 若需要继续优化，可做一次真实节点操作演练；默认不主动修改 live 节点状态。
+
+## Round 13 — 2026-05-09 00:38
+
+### 完成
+- 排查 GXP 节点测速全失败：根因是节点启用状态已写入 `state.json`，但 live `manual.txt` 和 Mihomo 运行时仍停留在旧 provider，导致 GXP 节点在 controller 中缺失并返回 404。
+- 修复手动节点启用、禁用、改名、删除后的运行时同步：服务运行中会自动重新渲染 runtime 并重启 `minimalist.service`。
+- 增加禁用被规则引用节点的前置保护，避免保存出规则目标指向 disabled node 的坏状态。
+- 实机执行 `minimalist restart` 并安装新二进制后复验：GXP 三个节点均已测速通过。
+
+### 测试状态
+- 通过: focused `internal/app` 节点变更测试、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal` / 总计: 4 组
+
+### 遗留 / 下轮继续
+- `GXPS-REALITY` 当前仍返回 503，日志显示 REALITY 认证失败；这不是 GXP 三节点的导入/运行时同步问题。
+
+### 下轮目标
+- 如需继续排查，单独检查 `GXPS-REALITY` 的 REALITY 参数或服务端状态。

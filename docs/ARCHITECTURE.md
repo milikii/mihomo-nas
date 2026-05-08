@@ -235,6 +235,8 @@ docs/...                            文档
 5. 以 `manual` source 写入 `state.json`
 6. 默认导入为禁用状态
 
+手动节点启用、禁用、改名、删除时，`state.json` 仍是状态真相；若 `minimalist.service` 当前正在运行，应用层会在保存状态后重新渲染运行时文件并重启服务，避免菜单状态与 Mihomo 实际加载的 provider 漂移。
+
 ### 6.3 订阅更新（增强项）
 
 `subscriptions update`
