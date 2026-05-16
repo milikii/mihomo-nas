@@ -15,7 +15,7 @@
 - 核心主路径：`install-self`、`setup`、`render-config`、`start` / `stop` / `restart`
 - 内核维护：`core-upgrade-alpha`（仅从官方 alpha release 单次升级 `mihomo-core`，成功替换后自动重启 `minimalist.service`；重启失败会自动恢复旧 core）
 - 运维查看：`status`、`show-secret`、`healthcheck`、`runtime-audit`、`cutover-preflight`、`cutover-plan`、`host-proxy status|enable|disable`、`log`
-- 交互入口：`menu`、`router-wizard`、`import-links`
+- 交互入口：`webui`、`menu`、`router-wizard`、`import-links`
 - 节点与规则：`nodes`、`rules`、`acl`、`rules-repo`
 - 增强项：`subscriptions`
 
@@ -82,8 +82,27 @@ sudo /usr/local/bin/minimalist setup
 sudo minimalist core-upgrade-alpha
 ```
 
+启动本机 Web 控制面：
+
+```bash
+minimalist webui
+```
+
+默认监听 `127.0.0.1:18080`，使用 `controller.secret` 作为 token。远程访问推荐 SSH 隧道：
+
+```bash
+ssh -L 18080:127.0.0.1:18080 user@nas-host
+```
+
+如果确实要暴露到 LAN，必须显式传入 `--allow-lan`，并使用不少于 16 字符且不是默认兜底值的 token：
+
+```bash
+minimalist webui --addr 0.0.0.0:18080 --token '<strong-token>' --allow-lan
+```
+
 补充当前行为：
 
+- `webui` 是内置的本机 Web 控制面，覆盖节点管理、配置管理、规则管理、日志诊断、控制启停和 `core-upgrade-alpha` 入口；它复用现有 app 方法，不重新实现 Mihomo Dashboard
 - `menu` 当前按 5 类高频任务分组：节点管理、配置管理、规则管理、日志与诊断、控制启停
 - 节点管理会常驻显示节点列表；输入节点 ID 进入单节点操作，可直接启用/禁用、改名、测试或确认删除
 - 配置管理包含 `router-wizard`、宿主机接管开关、订阅管理（增强项）、重新渲染配置和关键路径提示
@@ -95,6 +114,7 @@ sudo minimalist core-upgrade-alpha
 - 从旧 `mihomo.service` 切到 Go 版前，先按 `docs/CUTOVER.md` 做人工 cutover 检查；当前本机旧服务资产已在切换验证后清理
 - 个人规则分流建议只写在 `ruleset/custom.rules` / `ruleset/acl.rules`，不要把它们混进仓库规则层
 - `amd64` 主机执行 `core-upgrade-alpha` 时，如上游只提供 CPU-level 资产，需先显式配置 `install.core_amd64_cpu_level`，例如 `v3`；为空时命令会拒绝猜测
+- Web 控制面中的节点启停、改名、删除会沿用 CLI 语义：服务运行中会自动重新渲染 runtime 并重启 `minimalist.service`
 
 ## 当前限制
 

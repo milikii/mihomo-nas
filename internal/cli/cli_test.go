@@ -700,6 +700,7 @@ func TestRunHelpPrintsUsage(t *testing.T) {
 		"minimalist core-upgrade-alpha",
 		"  minimalist verify-runtime-assets\n",
 		"  minimalist host-proxy status|enable|disable\n",
+		"  minimalist webui [--addr host:port] [--token token] [--allow-lan]\n",
 		"  minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]\n",
 		"  minimalist nodes list|test|rename|enable|disable|remove\n",
 		"enhancement commands:",
@@ -709,6 +710,22 @@ func TestRunHelpPrintsUsage(t *testing.T) {
 		if !strings.Contains(output, needle) {
 			t.Fatalf("missing %q in help output:\n%s", needle, output)
 		}
+	}
+}
+
+func TestParseWebUIOptions(t *testing.T) {
+	opts, err := parseWebUIOptions([]string{"--addr", "0.0.0.0:18080", "--token", "0123456789abcdef", "--allow-lan"})
+	if err != nil {
+		t.Fatalf("parse webui options: %v", err)
+	}
+	if opts.Addr != "0.0.0.0:18080" || opts.Token != "0123456789abcdef" || !opts.AllowLAN {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	if _, err := parseWebUIOptions([]string{"--addr"}); err == nil || !strings.Contains(err.Error(), "usage: minimalist webui") {
+		t.Fatalf("expected missing addr usage error, got %v", err)
+	}
+	if _, err := parseWebUIOptions([]string{"--bad"}); err == nil || !strings.Contains(err.Error(), "unknown webui argument") {
+		t.Fatalf("expected unknown arg error, got %v", err)
 	}
 }
 

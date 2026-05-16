@@ -258,3 +258,20 @@
 
 ### 下轮目标
 - 如需继续排查，单独检查 `GXPS-REALITY` 的 REALITY 参数或服务端状态。
+
+## Round 14 — 2026-05-16 21:20
+
+### 完成
+- 新增内置 `minimalist webui`：默认 `127.0.0.1:18080`，token 保护，显式 `--allow-lan` 才允许 LAN 绑定。
+- WebUI 首版覆盖总览、节点管理、配置管理、规则管理、控制启停、日志诊断和 `core-upgrade-alpha`。
+- 补齐 WebUI API focused tests 与 CLI help/options tests，并用 Chromium headless 做首页 smoke。
+
+### 测试状态
+- 通过: `go test ./internal/app`、`go test ./internal/cli`、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal`、`node --check internal/app/webui_static/app.js`、Chromium headless smoke / 总计: 7 组
+
+### 遗留 / 下轮继续
+- WebUI 尚未在 live `/usr/local/bin/minimalist` 安装版本上做完整人工操作验收。
+- 不建议直接 LAN 暴露 WebUI；远程访问优先 SSH 隧道。
+
+### 下轮目标
+- 安装新二进制后执行 live WebUI smoke，先验证只读总览、节点列表、配置页和日志页，再决定是否测试会修改 live 状态的按钮。

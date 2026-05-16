@@ -67,6 +67,12 @@ func runWithApp(args []string, a *app.App, tty bool) error {
 		return runSubscriptions(a, args[1:])
 	case "host-proxy":
 		return runHostProxy(a, args[1:])
+	case "webui":
+		opts, err := parseWebUIOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		return a.WebUI(opts)
 	case "log":
 		return runLog(a, args[1:])
 	case "rules":
@@ -220,6 +226,31 @@ func runLog(a *app.App, args []string) error {
 	return a.Logs(opts)
 }
 
+func parseWebUIOptions(args []string) (app.WebUIOptions, error) {
+	opts := app.WebUIOptions{}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--addr":
+			i++
+			if i >= len(args) {
+				return opts, errors.New("usage: minimalist webui [--addr host:port] [--token token] [--allow-lan]")
+			}
+			opts.Addr = args[i]
+		case "--token":
+			i++
+			if i >= len(args) {
+				return opts, errors.New("usage: minimalist webui [--addr host:port] [--token token] [--allow-lan]")
+			}
+			opts.Token = args[i]
+		case "--allow-lan":
+			opts.AllowLAN = true
+		default:
+			return opts, fmt.Errorf("unknown webui argument: %q", args[i])
+		}
+	}
+	return opts, nil
+}
+
 func runRules(a *app.App, acl bool, args []string) error {
 	label := "rules"
 	if acl {
@@ -311,6 +342,7 @@ func printUsage() {
   minimalist router-wizard
   minimalist apply-rules|clear-rules
   minimalist host-proxy status|enable|disable
+  minimalist webui [--addr host:port] [--token token] [--allow-lan]
   minimalist log [mihomo] [--errors] [-n|--lines <count>] [--since <window>]
   minimalist nodes list|test|rename|enable|disable|remove
   minimalist rules list|add|remove

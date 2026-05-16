@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>minimalist 控制面</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="login" class="login-view">
+      <form id="login-form" class="login-panel">
+        <div class="brand">minimalist</div>
+        <h1>本机控制面</h1>
+        <label>
+          Token
+          <input id="login-token" type="password" autocomplete="current-password" />
+        </label>
+        <button type="submit">进入</button>
+        <p class="hint">启动命令会在终端输出 token。API 默认只接受同源请求。</p>
+      </form>
+    </div>
+
+    <div id="app" class="shell hidden">
+      <aside class="sidebar">
+        <div class="brand-row">
+          <div class="brand-mark">m</div>
+          <div>
+            <div class="brand-name">minimalist</div>
+            <div class="brand-sub">Debian NAS 控制面</div>
+          </div>
+        </div>
+        <nav class="nav">
+          <button data-view="overview" class="active">总览</button>
+          <button data-view="nodes">节点管理</button>
+          <button data-view="config">配置管理</button>
+          <button data-view="rules">规则管理</button>
+          <button data-view="service">控制启停</button>
+          <button data-view="logs">日志诊断</button>
+          <button data-view="core">核心升级</button>
+        </nav>
+        <button id="logout" class="ghost full">退出登录</button>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1 id="view-title">总览</h1>
+            <p id="view-subtitle">服务、节点和旁路由状态</p>
+          </div>
+          <button id="refresh" class="secondary">刷新</button>
+        </header>
+
+        <section id="notice" class="notice hidden"></section>
+
+        <section id="overview" class="view"></section>
+        <section id="nodes" class="view hidden"></section>
+        <section id="config" class="view hidden"></section>
+        <section id="rules" class="view hidden"></section>
+        <section id="service" class="view hidden"></section>
+        <section id="logs" class="view hidden"></section>
+        <section id="core" class="view hidden"></section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
