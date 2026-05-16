@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -92,11 +94,13 @@ func newWebUIHandler(app *App, token string) http.Handler {
 	mux.HandleFunc("/api/overview", server.auth(server.handleOverview))
 	mux.HandleFunc("/api/nodes", server.auth(server.handleNodes))
 	mux.HandleFunc("/api/nodes/import", server.auth(server.handleImportNodes))
+	mux.HandleFunc("/api/nodes/test", server.auth(server.handleTestNodes))
 	mux.HandleFunc("/api/nodes/", server.auth(server.handleNodeAction))
 	mux.HandleFunc("/api/rules", server.auth(server.handleRules))
 	mux.HandleFunc("/api/rules/", server.auth(server.handleRuleAction))
 	mux.HandleFunc("/api/subscriptions", server.auth(server.handleSubscriptions))
 	mux.HandleFunc("/api/subscriptions/", server.auth(server.handleSubscriptionAction))
+	mux.HandleFunc("/api/config/raw", server.auth(server.handleConfigRaw))
 	mux.HandleFunc("/api/config", server.auth(server.handleConfig))
 	mux.HandleFunc("/api/config/render", server.auth(server.handleRenderConfig))
 	mux.HandleFunc("/api/service/", server.auth(server.handleServiceAction))
@@ -223,6 +227,17 @@ func (s *webUIServer) handleImportNodes(w http.ResponseWriter, r *http.Request) 
 	}
 	output, err := s.runLocked(strings.NewReader(body.Links), func(app *App) error {
 		return app.importLinksWithReader(bufio.NewReader(strings.NewReader(body.Links)))
+	})
+	writeActionResponse(w, output, err)
+}
+
+func (s *webUIServer) handleTestNodes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	output, err := s.runLocked(nil, func(app *App) error {
+		return app.TestNodes()
 	})
 	writeActionResponse(w, output, err)
 }
@@ -372,6 +387,39 @@ func (s *webUIServer) handleSubscriptionAction(w http.ResponseWriter, r *http.Re
 		}
 	})
 	writeActionResponse(w, output, err)
+}
+
+func (s *webUIServer) handleConfigRaw(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if _, _, err := s.app.ensureAll(); err != nil {
+			writeError(w, err)
+			return
+		}
+		raw, err := os.ReadFile(s.app.Paths.ConfigPath())
+		if err != nil {
+			writeError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, webAPIResponse{OK: true, Data: map[string]any{
+			"path":    s.app.Paths.ConfigPath(),
+			"content": string(raw),
+		}})
+	case http.MethodPost:
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeError(w, err)
+			return
+		}
+		output, err := s.saveRawConfig(body.Content)
+		writeActionResponse(w, output, err)
+	default:
+		methodNotAllowed(w)
+	}
 }
 
 func (s *webUIServer) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -540,6 +588,29 @@ func (s *webUIServer) updateConfig(body webConfigUpdate) (string, error) {
 	})
 	output.WriteString(actionOutput)
 	return strings.TrimSpace(output.String()), err
+}
+
+func (s *webUIServer) saveRawConfig(content string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	if strings.TrimSpace(content) == "" {
+		return "", errors.New("config.yaml content is empty")
+	}
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	if _, err := config.Parse([]byte(content)); err != nil {
+		return "", err
+	}
+	path := s.app.Paths.ConfigPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(content), 0o640); err != nil {
+		return "", err
+	}
+	return "config.yaml 已保存。需要时执行重新渲染或重启服务。", nil
 }
 
 func (a *App) setHostProxyFromWeb(enabled bool) error {

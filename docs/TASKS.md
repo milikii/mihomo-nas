@@ -61,6 +61,9 @@
 - [x] 固定 WebUI 安全与回归测试
   说明：补 API token、节点导入/启用、配置保存、LAN 暴露保护和 CLI help 测试。
 
+- [x] 补齐 WebUI 节点测速与 raw config 编辑
+  说明：节点页提供单节点测速和全部启用节点测速结果面板；配置页可直接读取、编辑、保存 `/etc/minimalist/config.yaml`，保存前校验 YAML。
+
 ## 当前顺序
 
 1. 先钉死手动节点主路径

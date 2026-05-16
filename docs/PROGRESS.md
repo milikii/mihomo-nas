@@ -309,3 +309,20 @@
 
 ### 下轮目标
 - 如需重启后自动恢复 WebUI，补正式 `minimalist-webui.service` 安装/启用流程。
+
+## Round 17 — 2026-05-16 23:20
+
+### 完成
+- 排查用户反馈“节点管理没有测速、配置不能直接改 config.yaml”：确认单节点测速后端存在，但前端通用通知会在刷新时被清掉；配置页只有快捷字段，没有 raw 编辑器。
+- WebUI 节点页新增“测速全部启用节点”、单节点测速结果面板，并修复通用操作通知被刷新清除的问题。
+- WebUI 配置页新增 `/etc/minimalist/config.yaml` 原文编辑器，支持保存、保存并重新渲染、重新载入；后端新增 `/api/config/raw`，保存前做 YAML 解析校验。
+- 构建并安装 live `/usr/local/bin/minimalist`，重启 `minimalist-webui.service` 后完成 live API smoke。
+
+### 测试状态
+- 通过: focused WebUI tests、`go test ./internal/config`、`go test ./...`、`go vet ./...`、`gofmt -l cmd internal`、`node --check internal/app/webui_static/app.js`、live `/api/config/raw` 与 `/api/nodes/test` smoke / 总计: 7 组
+
+### 遗留 / 下轮继续
+- 当前 WebUI service 仍是 transient unit，重启宿主机后不会自动恢复。
+
+### 下轮目标
+- 补正式持久 `minimalist-webui.service` 安装/启用流程，并在 WebUI 中显示当前登录 token 来源和访问地址。

@@ -133,6 +133,11 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	return Parse(raw)
+}
+
+// Parse decodes config YAML while applying defaults for omitted fields.
+func Parse(raw []byte) (Config, error) {
 	cfg := Default()
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config: %w", err)

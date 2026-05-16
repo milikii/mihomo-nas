@@ -104,7 +104,7 @@ minimalist webui --token '<strong-token>'
 
 补充当前行为：
 
-- `webui` 是内置的本机 Web 控制面，覆盖节点管理、配置管理、规则管理、日志诊断、控制启停和 `core-upgrade-alpha` 入口；它复用现有 app 方法，不重新实现 Mihomo Dashboard
+- `webui` 是内置的本机 Web 控制面，覆盖节点管理、配置管理、规则管理、日志诊断、控制启停和 `core-upgrade-alpha` 入口；节点页可执行单节点或全部启用节点测速，配置页可直接编辑 `/etc/minimalist/config.yaml`
 - `menu` 当前按 5 类高频任务分组：节点管理、配置管理、规则管理、日志与诊断、控制启停
 - 节点管理会常驻显示节点列表；输入节点 ID 进入单节点操作，可直接启用/禁用、改名、测试或确认删除
 - 配置管理包含 `router-wizard`、宿主机接管开关、订阅管理（增强项）、重新渲染配置和关键路径提示

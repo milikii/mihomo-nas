@@ -91,8 +91,8 @@ async function action(path, body, message) {
   try {
     const payload = await api(path, { method: "POST", body: body || {} });
     const output = payload.output ? `\n${payload.output}` : "";
-    showNotice(`${message || "操作完成"}${output}`);
     await loadView(state.view);
+    showNotice(`${message || "操作完成"}${output}`);
   } catch (error) {
     showNotice(`操作失败: ${error.message}`);
   }
@@ -173,13 +173,17 @@ async function renderNodes() {
   const rows = payload.data || [];
   $("#nodes").innerHTML = `
     <div class="panel">
-      <h2>节点列表</h2>
+      <div class="section-head">
+        <h2>节点列表</h2>
+        <button id="test-enabled-nodes" class="secondary">测速全部启用节点</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>ID</th><th>状态</th><th>来源</th><th>名称</th><th>指纹</th><th>操作</th></tr></thead>
           <tbody>${rows.map(nodeRow).join("") || emptyRow(6, "暂无节点")}</tbody>
         </table>
       </div>
+      <pre id="node-speed-output" class="terminal compact" style="margin-top:14px">测速结果会显示在这里。</pre>
     </div>
     <div class="panel" style="margin-top:14px">
       <h2>导入节点</h2>
@@ -194,6 +198,7 @@ async function renderNodes() {
   $("#import-nodes").addEventListener("click", () => {
     action("/api/nodes/import", { links: $("#node-links").value }, "节点导入完成");
   });
+  $("#test-enabled-nodes").addEventListener("click", () => runNodeSpeedTest("/api/nodes/test"));
   document.querySelectorAll("[data-node-action]").forEach((button) => {
     button.addEventListener("click", () => runNodeAction(button));
   });
@@ -208,7 +213,7 @@ function nodeRow(node) {
     <td>${escapeHTML(node.name)}</td>
     <td>${escapeHTML(node.uri_preview || "")}</td>
     <td><div class="actions">
-      <button class="secondary" data-node-action="test" data-index="${node.index}">测速</button>
+      <button class="secondary" data-node-action="test" data-index="${node.index}" ${node.enabled ? "" : "disabled"}>测速</button>
       <button class="secondary" data-node-action="${node.enabled ? "disable" : "enable"}" data-index="${node.index}" ${canEdit ? "" : "disabled"}>${node.enabled ? "停用" : "启用"}</button>
       <button class="secondary" data-node-action="rename" data-index="${node.index}" data-name="${escapeAttr(node.name)}" ${canEdit ? "" : "disabled"}>改名</button>
       <button class="danger" data-node-action="remove" data-index="${node.index}" ${canEdit ? "" : "disabled"}>删除</button>
@@ -226,15 +231,50 @@ function runNodeAction(button) {
     return;
   }
   if (nodeAction === "remove" && !confirm("确认删除该节点？")) return;
+  if (nodeAction === "test") {
+    runNodeSpeedTest(`/api/nodes/${index}/test`);
+    return;
+  }
   action(`/api/nodes/${index}/${nodeAction}`, {}, "节点操作完成");
 }
 
+async function runNodeSpeedTest(path) {
+  const output = $("#node-speed-output");
+  output.textContent = "测速中...";
+  try {
+    const payload = await api(path, { method: "POST", body: {} });
+    output.textContent = payload.output || "无输出";
+    showNotice("测速完成");
+  } catch (error) {
+    output.textContent = `测速失败: ${error.message}`;
+    showNotice(`测速失败: ${error.message}`);
+  }
+}
+
 async function renderConfig() {
-  const payload = await api("/api/config");
+  const [payload, rawPayload] = await Promise.all([
+    api("/api/config"),
+    api("/api/config/raw")
+  ]);
   const cfg = payload.data;
+  const raw = rawPayload.data || {};
   $("#config").innerHTML = `
     <div class="panel">
-      <h2>配置</h2>
+      <div class="section-head">
+        <h2>config.yaml</h2>
+        <span class="path-label">${escapeHTML(raw.path || "")}</span>
+      </div>
+      <label class="wide">原始配置
+        <textarea id="raw-config" class="code-editor" spellcheck="false">${escapeHTML(raw.content || "")}</textarea>
+      </label>
+      <div class="actions" style="margin-top:14px">
+        <button id="save-raw-config">保存 config.yaml</button>
+        <button id="save-raw-render" class="secondary">保存并重新渲染</button>
+        <button id="reload-raw-config" class="secondary">重新载入</button>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h2>常用字段</h2>
       <div class="form-grid">
         ${input("controller_bind_address", "控制面绑定地址", cfg.controller_bind_address)}
         ${input("core_amd64_cpu_level", "amd64 CPU level", cfg.core_amd64_cpu_level || "")}
@@ -261,6 +301,9 @@ async function renderConfig() {
       </div>
     </div>`;
 
+  $("#save-raw-config").addEventListener("click", () => saveRawConfig(false));
+  $("#save-raw-render").addEventListener("click", () => saveRawConfig(true));
+  $("#reload-raw-config").addEventListener("click", () => loadView("config"));
   $("#save-config").addEventListener("click", () => {
     const hostProxy = $("#proxy_host_output").value === "true";
     if (hostProxy && !confirm("开启宿主机接管会影响 NAS 自身流量，确认继续？")) return;
@@ -278,6 +321,23 @@ async function renderConfig() {
   $("#restart-after-config").addEventListener("click", () => {
     if (confirm("确认重启 minimalist.service？")) action("/api/service/restart", {}, "服务已重启");
   });
+}
+
+async function saveRawConfig(renderAfterSave) {
+  try {
+    const save = await api("/api/config/raw", { method: "POST", body: { content: $("#raw-config").value } });
+    if (!renderAfterSave) {
+      showNotice(save.output || "config.yaml 已保存");
+      return;
+    }
+    const rendered = await api("/api/config/render", { method: "POST", body: {} });
+    const output = [save.output, rendered.output].filter(Boolean).join("\n");
+    showNotice(output || "config.yaml 已保存并重新渲染");
+    await loadView("config");
+    showNotice(output || "config.yaml 已保存并重新渲染");
+  } catch (error) {
+    showNotice(`保存失败: ${error.message}`);
+  }
 }
 
 async function renderRules() {

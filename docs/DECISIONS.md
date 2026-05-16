@@ -82,4 +82,4 @@
 - 默认监听 `0.0.0.0:18080`，方便 LAN 内设备直接访问；`--addr 127.0.0.1:18080` 仍可切回本机访问
 - LAN 暴露要求强 token：长度至少 16，且不能使用 `minimalist-secret` 兜底值
 - WebUI 中的节点变更沿用 CLI 语义：服务 active 时会重新渲染 runtime 并重启 `minimalist.service`
-- 首版范围限定为总览、节点、配置、规则、服务、日志和 `core-upgrade-alpha`；不做多用户、权限分级、TLS 终止或独立前端构建链
+- 首版范围限定为总览、节点、配置、规则、服务、日志和 `core-upgrade-alpha`；节点测速复用 controller delay API，raw 配置编辑直接操作 `/etc/minimalist/config.yaml` 并先做 YAML 解析校验；不做多用户、权限分级、TLS 终止或独立前端构建链

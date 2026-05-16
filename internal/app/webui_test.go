@@ -72,6 +72,28 @@ func TestWebUINodeImportAndEnableUseAppState(t *testing.T) {
 	}
 }
 
+func TestWebUITestEnabledNodesReturnsDelayOutput(t *testing.T) {
+	app := newTestAppWithEnabledManualNode(t)
+	app.Client = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if !strings.Contains(req.URL.Path, "/proxies/service-node/delay") {
+				t.Fatalf("unexpected request path: %s", req.URL.Path)
+			}
+			return textResponse(http.StatusOK, `{"delay":42}`), nil
+		}),
+	}
+	handler := newWebUIHandler(app, "test-token-123456")
+
+	resp := authedRequest(t, handler, http.MethodPost, "/api/nodes/test", `{}`, "test-token-123456")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("test nodes failed: %d %s", resp.Code, resp.Body.String())
+	}
+	body := decodeWebResponse(t, resp)
+	if output, _ := body["output"].(string); !strings.Contains(output, "service-node\t42ms") {
+		t.Fatalf("expected delay output, got %#v", body)
+	}
+}
+
 func TestWebUIConfigUpdateSavesSafeFields(t *testing.T) {
 	app, _ := newTestApp(t)
 	handler := newWebUIHandler(app, "test-token-123456")
@@ -98,6 +120,39 @@ func TestWebUIConfigUpdateSavesSafeFields(t *testing.T) {
 	}
 	if !cfg.Controller.CORSAllowPrivateNetwork {
 		t.Fatalf("expected CORS private network flag to be saved")
+	}
+}
+
+func TestWebUIRawConfigReadAndSave(t *testing.T) {
+	app, _ := newTestApp(t)
+	handler := newWebUIHandler(app, "test-token-123456")
+
+	resp := authedRequest(t, handler, http.MethodGet, "/api/config/raw", "", "test-token-123456")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("read raw config failed: %d %s", resp.Code, resp.Body.String())
+	}
+	body := decodeWebResponse(t, resp)
+	data := body["data"].(map[string]any)
+	content := data["content"].(string)
+	if !strings.Contains(content, "controller:") {
+		t.Fatalf("expected raw config content, got %q", content)
+	}
+	content = strings.Replace(content, "bind_address: 127.0.0.1", "bind_address: 0.0.0.0", 1)
+	resp = authedRequest(t, handler, http.MethodPost, "/api/config/raw", `{"content":`+strconvQuote(content)+`}`, "test-token-123456")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("save raw config failed: %d %s", resp.Code, resp.Body.String())
+	}
+	cfg, err := config.Load(app.Paths.ConfigPath())
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Controller.BindAddress != "0.0.0.0" {
+		t.Fatalf("expected raw config change to persist, got %+v", cfg.Controller)
+	}
+
+	resp = authedRequest(t, handler, http.MethodPost, "/api/config/raw", `{"content":"controller: ["}`, "test-token-123456")
+	if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "parse config") {
+		t.Fatalf("expected parse error, got %d %s", resp.Code, resp.Body.String())
 	}
 }
 
@@ -156,4 +211,12 @@ func decodeWebResponse(t *testing.T, resp *httptest.ResponseRecorder) map[string
 		t.Fatalf("expected ok response: %#v", body)
 	}
 	return body
+}
+
+func strconvQuote(value string) string {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return string(raw)
 }
