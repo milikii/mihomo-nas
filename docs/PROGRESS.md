@@ -292,3 +292,20 @@
 
 ### 下轮目标
 - 安装新二进制后，用 `minimalist webui` 在真实 NAS 配置上做一次 LAN 只读 smoke。
+
+## Round 16 — 2026-05-16 22:57
+
+### 完成
+- 排查用户反馈 WebUI 打不开：确认 18080 无监听进程，且 live `/usr/local/bin/minimalist` 仍是 2026-05-09 旧二进制，没有 `webui` 命令。
+- 构建当前提交并安装到 live `/usr/local/bin/minimalist`，确认 `--help` 已包含 `webui [--addr host:port] [--token token]`。
+- 使用 transient `minimalist-webui.service` 启动 WebUI，当前监听 `0.0.0.0:18080`。
+- 验证 `127.0.0.1:18080`、`192.168.2.220:18080`、`100.118.67.82:18080` 与 `10.156.67.142:18080` 均能返回首页，带 token 的 `/api/overview` 返回正常状态。
+
+### 测试状态
+- 通过: live binary help、`systemctl status minimalist-webui.service`、`ss -lntp sport = :18080`、本机/LAN/Tailscale/ZeroTier HTTP smoke、`/api/overview` token smoke / 总计: 6 组
+
+### 遗留 / 下轮继续
+- 当前 `minimalist-webui.service` 是 `systemd-run` transient unit，当前会话可用，但不是持久安装单元。
+
+### 下轮目标
+- 如需重启后自动恢复 WebUI，补正式 `minimalist-webui.service` 安装/启用流程。

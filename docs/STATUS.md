@@ -91,6 +91,7 @@
 - 2026-05-09 修复节点管理状态与运行时漂移：手动节点启停、改名、删除在服务运行时会保存状态后自动渲染 runtime 并重启服务；本机 GXP 三个节点由原先 runtime 缺失导致的 404，重启同步后均已测速通过。
 - 2026-05-16 新增内置 WebUI 首版：`minimalist webui` 默认 LAN 监听并要求强 token，页面覆盖总览、节点、配置、规则、服务、日志和核心升级；已通过 API focused tests、全量 `go test ./...`、`go vet ./...`、`gofmt -l cmd internal`、JS 语法检查和 Chromium headless 首页 smoke。
 - 2026-05-16 WebUI 默认监听策略已按用户要求切到 LAN：`minimalist webui` 默认输出 `http://0.0.0.0:18080/`，`ss -lntp sport = :18080` 确认为 IPv4 `0.0.0.0:18080`，弱 token 仍会拒绝 LAN 暴露。
+- 2026-05-16 已把当前构建安装到 live `/usr/local/bin/minimalist` 并通过 transient `minimalist-webui.service` 启动 WebUI；`192.168.2.220:18080`、`100.118.67.82:18080`、`10.156.67.142:18080` 均可返回首页，`/api/overview` token smoke 通过。
 
 ## 当前风险与限制
 
